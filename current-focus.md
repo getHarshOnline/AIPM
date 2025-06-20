@@ -27,44 +27,68 @@
 - [x] Multi-project support architecture finalized
 - [x] Made all scripts executable with proper permissions
 
-### 🔧 Current Implementation Sprint
+### 🔧 Current Implementation Sprint - Hardening Phase
 
-#### Session Management Scripts
+#### Wrapper Scripts Hardening Plan Complete ✓
+- [x] **Comprehensive hardening plan created** (scripts/test/wrapper-scripts-hardening-plan.md)
+  - [x] Identified critical file reversion bug in Claude Code
+  - [x] Corrected memory flow understanding (global protection principle)
+  - [x] Added MCP server coordination requirements
+  - [x] Performance optimization strategies
+  - [x] **NEW: migrate-memories.sh module architecture designed**
 
-**⚠️ IMPLEMENTATION RULES** - See `scripts/test/workflow.md` for details
+#### Critical Architecture Change: Modular Memory Operations
+**NEW MODULE REQUIRED**: `migrate-memories.sh` - Centralizes ALL memory operations
+- Similar pattern to shell-formatting.sh and version-control.sh
+- Single source of truth for memory operations
+- Performance optimized with streaming
+- Lock-free atomic operations
+- MCP-safe coordination
+
+**Implementation Priority (CRITICAL)**:
+1. **Phase 0**: Implement migrate-memories.sh module FIRST
+2. **Phase 1**: Update wrapper scripts to use all three modules
+3. **Phase 2**: Test integrated system
+
+#### Session Management Scripts Status
+
+**⚠️ UPDATED IMPLEMENTATION RULES**:
 1. NO echo/printf - use shell-formatting.sh functions ONLY
-2. NO git commands - use version-control.sh functions ONLY
-3. Follow exact patterns in workflow.md with line references
-4. Test each section before moving to next
+2. NO git commands - use version-control.sh functions ONLY  
+3. **NO direct memory operations - use migrate-memories.sh functions ONLY** (NEW)
+4. Follow exact patterns in workflow.md with line references
+5. Test each section before moving to next
 
-- [ ] **start.sh** - Implement session initialization
-  - [ ] Memory symlink verification (using hardened sync-memory.sh)
-  - [ ] Interactive project selection menu (use shell-formatting.sh)
-  - [ ] Git synchronization checks (use version-control.sh)
-  - [ ] Memory backup mechanism (.memory/backup.json)
-  - [ ] Context-specific memory loading
-  - [ ] Claude Code launch integration
-  - [ ] Document learnings and edge cases
+- [x] **start.sh** - Basic implementation complete ✓
+  - [x] Memory symlink verification (using hardened sync-memory.sh)
+  - [x] Interactive project selection menu (use shell-formatting.sh)
+  - [x] Git synchronization checks (use version-control.sh)
+  - [x] Memory backup mechanism (.memory/backup.json)
+  - [x] Context-specific memory loading
+  - [x] Claude Code launch integration
+  - [ ] **NEEDS UPDATE**: Use migrate-memories.sh functions
 
-- [ ] **stop.sh** - Implement session cleanup
-  - [ ] Active session detection
-  - [ ] Integration with save.sh
-  - [ ] Memory restoration from backup
-  - [ ] Session artifact cleanup
-  - [ ] Document session state handling
+- [x] **stop.sh** - Basic implementation complete ✓
+  - [x] Active session detection
+  - [x] Integration with save.sh
+  - [x] Memory restoration from backup
+  - [x] Session artifact cleanup
+  - [ ] **NEEDS UPDATE**: Use migrate-memories.sh functions
 
-- [ ] **save.sh** - Implement memory persistence
-  - [ ] Global to local memory transfer
-  - [ ] Backup restoration logic
-  - [ ] Git commit with statistics
-  - [ ] Team collaboration support
-  - [ ] Document memory flow patterns
+- [x] **save.sh** - Basic implementation complete (with bug) ✓
+  - [x] Global to local memory transfer
+  - [x] Backup restoration logic
+  - [x] Git commit with statistics (using version-control.sh)
+  - [x] Golden rule integration
+  - [ ] **NEEDS UPDATE**: Use migrate-memories.sh functions
+  - [ ] **BUG FIX**: File reversion issue documented
 
-- [ ] **revert.sh** - Implement version control
-  - [ ] Active session safety checks
-  - [ ] Interactive commit selection
-  - [ ] Memory file reversion
-  - [ ] Document git integration patterns
+- [x] **revert.sh** - Basic implementation complete ✓
+  - [x] Active session safety checks
+  - [x] Interactive commit selection
+  - [x] Memory file reversion
+  - [x] Backup before revert
+  - [ ] **NEEDS UPDATE**: Use migrate-memories.sh functions
 
 #### Implementation Documentation
 - [ ] Create AIPM_Design_Docs/implementation-learnings.md
@@ -167,7 +191,15 @@ main (stable baseline)
 - **Wrapper Scripts**:
   - Created `scripts/test/workflow.md` - Single source of truth ✓
   - Implementation guardrails established ✓
-  - Ready to implement: start.sh, stop.sh, save.sh, revert.sh
+  - Basic implementations complete but need hardening
+  - Created comprehensive hardening plan ✓
+  - **NEXT**: Implement migrate-memories.sh module
+
+- **Hardening Plan**:
+  - Created `scripts/test/wrapper-scripts-hardening-plan.md` ✓
+  - Identified all critical issues and edge cases
+  - Designed migrate-memories.sh module architecture
+  - Ready for hardening iterations
 
 #### Benefits of This Approach
 1. **Complete History**: Every attempt, fix, and test is preserved
@@ -213,24 +245,33 @@ main (stable baseline)
 - ✅ Team collaboration support
 - ✅ Performance optimization
 
-## Next Steps
-1. Start with start.sh implementation
-   - Use shell-formatting.sh for all output
-   - Use version-control.sh for git operations
-   - Implement interactive project selection with visual menus
-2. Document each learning immediately
-3. Test on real projects
-4. Iterate based on usage patterns
-5. Build tool ecosystem
+## Next Steps (Updated Priority)
+1. **CRITICAL: Implement migrate-memories.sh module**
+   - All memory operations in one place
+   - Performance-optimized streaming functions
+   - Lock-free atomic operations
+   - MCP coordination functions
+   - Complete validation and merge algorithms
+2. **Update all wrapper scripts to use migrate-memories.sh**
+   - Replace all direct cp/mv operations
+   - Use module functions consistently
+   - Test memory isolation thoroughly
+3. **Harden wrapper scripts based on plan**
+   - Fix file reversion bug handling
+   - Add all missing features from hardening plan
+   - Test edge cases comprehensively
+4. **Document learnings and create test suite**
+5. **Build tool ecosystem on solid foundation**
 
 ## Helper Scripts Status
 - ✅ **shell-formatting.sh** - Complete, hardened, performance optimized
-- ✅ **version-control.sh** - Complete with full formatting integration
+- ✅ **version-control.sh** - Complete with full formatting integration (100% tested)
 - ✅ **sync-memory.sh** - Enhanced with visual feedback
-- 🚧 **start.sh** - Ready for implementation
-- 🚧 **stop.sh** - Ready for implementation
-- 🚧 **save.sh** - Ready for implementation
-- 🚧 **revert.sh** - Ready for implementation
+- 🆕 **migrate-memories.sh** - Designed, ready for implementation (PRIORITY)
+- 🔄 **start.sh** - Basic implementation complete, needs migrate-memories.sh integration
+- 🔄 **stop.sh** - Basic implementation complete, needs migrate-memories.sh integration  
+- 🔄 **save.sh** - Basic implementation complete (has bug), needs migrate-memories.sh integration
+- 🔄 **revert.sh** - Basic implementation complete, needs migrate-memories.sh integration
 
 ## Implementation Philosophy
 - **Document as we build** - Capture learnings immediately

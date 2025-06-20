@@ -6,6 +6,21 @@ You are working with **AIPM (AI Project Manager)**, a protocol-driven framework 
 
 ### ⚠️ CRITICAL IMPLEMENTATION DIRECTIVES
 
+#### 🔴 CRITICAL FILE REVERSION BUG IN CLAUDE CODE
+**WARNING**: Claude Code has a critical bug where files can spontaneously revert to previous states during a session. This can cause implemented code to be lost!
+
+**GUARDRAILS TO PREVENT DATA LOSS**:
+1. **COMMIT FREQUENTLY**: After implementing each script, commit immediately
+2. **VERIFY CHANGES**: Always grep/check that your edits actually persisted
+3. **WATCH FOR SYSTEM REMINDERS**: Messages like "file was modified by user or linter" indicate potential reversions
+4. **RE-CHECK BEFORE COMMITTING**: Run `git diff` to ensure all expected changes are present
+5. **DOCUMENT MISSING IMPLEMENTATIONS**: If code is lost, document what was implemented
+
+**RECOVERY PROTOCOL**:
+- If you notice missing implementations after a commit, re-implement immediately
+- Check all files in the commit, not just the one you're working on
+- Document the issue in changelog.md for awareness
+
 #### When implementing wrapper scripts (start.sh, stop.sh, save.sh, revert.sh):
 **MANDATORY**: Read `scripts/test/workflow.md` FIRST - it is the single source of truth
 - **NO DIRECT OUTPUT**: Never use echo/printf - ONLY shell-formatting.sh functions

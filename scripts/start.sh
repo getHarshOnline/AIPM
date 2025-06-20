@@ -24,135 +24,237 @@ set -euo pipefail
 
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# TODO: source "$SCRIPT_DIR/shell-formatting.sh"
-# TODO: source "$SCRIPT_DIR/version-control.sh"
+# Source dependencies with error handling
+source "$SCRIPT_DIR/shell-formatting.sh" || {
+    printf "ERROR: Required file shell-formatting.sh not found\n" >&2
+    exit 1
+}
 
-# Colors for output (temporary until shell-formatting.sh)
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+source "$SCRIPT_DIR/version-control.sh" || {
+    error "Required file version-control.sh not found"
+    exit 1
+}
 
-echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║      AIPM Session Initialization         ║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
+# Start visual section
+section "AIPM Session Initialization"
 
-# TODO: Implementation Tasks
-# Reference: AIPM_Design_Docs/memory-management.md - "Script Usage" section
+# Session tracking variables
+SESSION_ID="$(date +%Y%m%d_%H%M%S)_$$"
+SESSION_FILE=".memory/session_active"
+SESSION_LOG=".memory/session_${SESSION_ID}.log"
+
+# Context variables
+WORK_CONTEXT=""
+PROJECT_NAME=""
+
+# Claude args collection
+declare -a claude_args=()
 
 # TASK 1: Verify/Create Memory Symlink
-# - Check if .claude/memory.json exists and is a valid symlink
-# - If not, call hardened sync-memory.sh to create it
-# - Verify symlink points to valid npm global location
-# Implementation:
-# if [[ ! -L ".claude/memory.json" ]]; then
-#     echo -e "${YELLOW}Memory symlink missing, creating...${NC}"
-#     "$SCRIPT_DIR/sync-memory.sh" || exit 1
-# fi
+step "Checking memory symlink..."
+if [[ ! -L ".claude/memory.json" ]]; then
+    warn "Memory symlink missing, creating..."
+    if ! "$SCRIPT_DIR/sync-memory.sh"; then
+        die "Failed to create memory symlink"
+    fi
+    success "Memory symlink created"
+else
+    success "Memory symlink verified"
+fi
 
 # TASK 2: Context Detection and Selection
-# - Parse command line arguments (--framework, --project NAME)
-# - If no args, show interactive menu with detected projects
-# - Scan for directories with .memory/local_memory.json structure
-# - Store selection in WORK_CONTEXT and PROJECT_NAME variables
-# Implementation:
-# WORK_CONTEXT=""
-# PROJECT_NAME=""
-# if [[ $# -eq 0 ]]; then
-#     # Interactive mode - show menu
-#     echo "Select work context:"
-#     echo "1) Framework Development"
-#     # List all detected projects
-#     for dir in */; do
-#         if [[ -f "$dir/.memory/local_memory.json" ]]; then
-#             echo "2) Project: $dir"
-#         fi
-#     done
-# fi
+step "Parsing context..."
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --framework)
+            WORK_CONTEXT="framework"
+            shift
+            ;;
+        --project)
+            WORK_CONTEXT="project"
+            PROJECT_NAME="$2"
+            shift 2
+            ;;
+        --model)
+            claude_args+=("--model" "$2")
+            shift 2
+            ;;
+        *)
+            # Pass through to Claude Code
+            claude_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Interactive mode if no context specified
+if [[ -z "$WORK_CONTEXT" ]]; then
+    info "Available contexts:"
+    info "  1) Framework Development"
+    
+    # Project detection
+    local project_num=2
+    declare -A project_map
+    
+    for dir in */; do
+        if [[ -f "${dir}.memory/local_memory.json" ]]; then
+            project_map[$project_num]="${dir%/}"
+            info "  $project_num) Project: ${dir%/}"
+            ((project_num++))
+        fi
+    done
+    
+    # Get selection
+    read -p "$(format_prompt "Select context (1-$((project_num-1)))")" selection
+    
+    if [[ "$selection" == "1" ]]; then
+        WORK_CONTEXT="framework"
+    elif [[ -n "${project_map[$selection]}" ]]; then
+        WORK_CONTEXT="project"
+        PROJECT_NAME="${project_map[$selection]}"
+    else
+        die "Invalid selection"
+    fi
+fi
+
+success "Context: $WORK_CONTEXT${PROJECT_NAME:+ - $PROJECT_NAME}"
 
 # TASK 3: Git Synchronization Check
-# Reference: Team collaboration features in memory-management.md
-# - Change to project directory if needed
-# - Check git remote status (fetch --dry-run)
-# - Show commits behind/ahead
-# - Offer to pull latest changes
-# - Handle merge conflicts if any
-# Implementation:
-# if [[ "$WORK_CONTEXT" == "project" ]]; then
-#     cd "$PROJECT_NAME" || exit 1
-#     echo -e "${BLUE}Checking git status...${NC}"
-#     # git fetch --dry-run
-#     # git status -sb
-#     # Prompt: "You are X commits behind. Pull latest? (y/n)"
-#     cd - > /dev/null
-# fi
+if [[ "$WORK_CONTEXT" == "project" ]]; then
+    step "Checking project git status..."
+    
+    # Initialize version control context
+    initialize_memory_context "--project" "$PROJECT_NAME"
+    
+    # Check if it's a git repo
+    if ! check_git_repo "$PROJECT_NAME"; then
+        warn "Project is not a git repository - skipping sync"
+    else
+        # Fetch remote updates
+        info "Fetching remote updates..."
+        if fetch_remote "$PROJECT_NAME"; then
+            # Check if behind
+            local status=$(get_commits_ahead_behind)
+            if [[ "$status" =~ behind:[[:space:]]*([0-9]+) ]]; then
+                local behind_count="${BASH_REMATCH[1]}"
+                if [[ "$behind_count" -gt 0 ]]; then
+                    warn "You are $behind_count commits behind the remote"
+                    if confirm "Pull latest changes?"; then
+                        if ! pull_latest "$PROJECT_NAME"; then
+                            warn "Pull failed - continuing anyway"
+                        fi
+                    fi
+                fi
+            fi
+        else
+            warn "Failed to fetch remote - continuing offline"
+        fi
+    fi
+else
+    # Framework mode - check AIPM repo
+    step "Checking framework git status..."
+    initialize_memory_context "--framework"
+    
+    if check_git_repo; then
+        show_git_status
+    fi
+fi
 
 # TASK 4: Memory Backup
-# Reference: AIPM_Design_Docs/memory-management.md - "Memory Flow - Session Start"
-# - Create .memory/ directory if it doesn't exist
-# - Copy .claude/memory.json to .memory/backup.json
-# - Verify backup was created successfully
-# - Single backup location design (always in AIPM root .memory/)
-# Implementation:
-# echo -e "${YELLOW}Backing up global memory...${NC}"
-# mkdir -p .memory
-# cp .claude/memory.json .memory/backup.json || {
-#     echo -e "${RED}Failed to backup memory${NC}"
-#     exit 1
-# }
+step "Backing up global memory..."
+mkdir -p .memory
+
+if [[ -f ".claude/memory.json" ]]; then
+    if cp .claude/memory.json .memory/backup.json 2>/dev/null; then
+        local backup_size=$(format_size $(stat -f%z .memory/backup.json 2>/dev/null || stat -c%s .memory/backup.json 2>/dev/null || echo "0"))
+        success "Global memory backed up ($backup_size)"
+    else
+        warn "Failed to backup global memory"
+    fi
+else
+    warn "No existing global memory - starting fresh"
+    echo '{}' > .memory/backup.json
+fi
 
 # TASK 5: Load Context-Specific Memory
-# Reference: AIPM_Design_Docs/memory-management.md - "Implementation Architecture"
-# - Clear global memory (echo '{}' > .claude/memory.json)
-# - Load appropriate local_memory.json based on context
-# - Framework: .memory/local_memory.json
-# - Project: [PROJECT_NAME]/.memory/local_memory.json
-# - Handle missing local_memory.json (create empty if needed)
-# Implementation:
-# echo -e "${BLUE}Loading $WORK_CONTEXT memory...${NC}"
-# if [[ "$WORK_CONTEXT" == "framework" ]]; then
-#     MEMORY_FILE=".memory/local_memory.json"
-# else
-#     MEMORY_FILE="$PROJECT_NAME/.memory/local_memory.json"
-# fi
-# if [[ -f "$MEMORY_FILE" ]]; then
-#     cp "$MEMORY_FILE" .claude/memory.json
-# else
-#     echo '{}' > .claude/memory.json
-#     echo -e "${YELLOW}No existing memory found, starting fresh${NC}"
-# fi
+step "Loading $WORK_CONTEXT memory..."
+
+# Determine memory file path
+if [[ "$WORK_CONTEXT" == "framework" ]]; then
+    MEMORY_FILE=".memory/local_memory.json"
+else
+    MEMORY_FILE="$PROJECT_NAME/.memory/local_memory.json"
+    # Ensure project memory directory exists
+    mkdir -p "$PROJECT_NAME/.memory"
+fi
+
+# Clear global memory first
+echo '{}' > .claude/memory.json
+
+# Load context-specific memory
+if [[ -f "$MEMORY_FILE" ]]; then
+    cp "$MEMORY_FILE" .claude/memory.json
+    
+    # Count entities and show stats
+    local entity_count=$(grep -c '"type":"entity"' "$MEMORY_FILE" 2>/dev/null || echo "0")
+    local memory_size=$(format_size $(stat -f%z "$MEMORY_FILE" 2>/dev/null || stat -c%s "$MEMORY_FILE" 2>/dev/null || echo "0"))
+    
+    success "Loaded $entity_count entities ($memory_size)"
+else
+    warn "No existing memory found, starting fresh"
+    echo '{}' > "$MEMORY_FILE"
+fi
 
 # TASK 6: Create Session Metadata
-# - Generate session ID (timestamp + random)
-# - Store context info (framework/project, branch, start time)
-# - Create session log file
-# Implementation:
-# SESSION_ID="$(date +%Y%m%d_%H%M%S)_$$"
-# SESSION_LOG=".memory/session_${SESSION_ID}.log"
-# echo "Session: $SESSION_ID" > "$SESSION_LOG"
-# echo "Context: $WORK_CONTEXT" >> "$SESSION_LOG"
-# echo "Project: ${PROJECT_NAME:-N/A}" >> "$SESSION_LOG"
-# echo "Started: $(date)" >> "$SESSION_LOG"
+step "Creating session metadata..."
+
+# Create session file with all metadata
+cat > "$SESSION_FILE" <<EOF
+Session: $SESSION_ID
+Context: $WORK_CONTEXT
+Project: ${PROJECT_NAME:-N/A}
+Started: $(date)
+Branch: $(get_current_branch 2>/dev/null || echo "unknown")
+Memory: $MEMORY_FILE
+Backup: .memory/backup.json
+PID: $$
+EOF
+
+# Create session log
+cat > "$SESSION_LOG" <<EOF
+# AIPM Session Log
+# ID: $SESSION_ID
+# Started: $(date)
+
+[$(date +%H:%M:%S)] Session initialized
+[$(date +%H:%M:%S)] Context: $WORK_CONTEXT
+[$(date +%H:%M:%S)] Memory loaded from: $MEMORY_FILE
+EOF
+
+success "Session tracking initialized"
 
 # TASK 7: Launch Claude Code
-# - Detect if --model flag was passed
-# - Default to opus if specified in command
-# - Pass through any additional Claude Code flags
-# - Show success message with context info
-# Implementation:
-# echo -e "${GREEN}✓ Memory loaded for $WORK_CONTEXT${NC}"
-# echo -e "${GREEN}✓ Launching Claude Code...${NC}"
-# echo -e "${CYAN}════════════════════════════════════════════${NC}"
-# claude code --model "opus" "$@"
+section_end
 
-# TEMPORARY: Placeholder implementation
-echo -e "${YELLOW}⚠️  Warning: Session management not yet implemented${NC}"
-echo -e "${BLUE}ℹ️  See AIPM_Design_Docs/memory-management.md for design${NC}"
-echo -e ""
-echo -e "Expected usage:"
-echo -e "  ${GREEN}./scripts/start.sh --framework${NC}        # Framework work"
-echo -e "  ${GREEN}./scripts/start.sh --project Product${NC}  # Project work"
-echo -e ""
-echo -e "${CYAN}Please implement based on TODO comments above${NC}"
+# Show session summary
+section "Session Ready"
+info "Session ID: $SESSION_ID"
+info "Context: $WORK_CONTEXT${PROJECT_NAME:+ - $PROJECT_NAME}"
+info "Memory: $MEMORY_FILE"
+info "Branch: $(get_current_branch 2>/dev/null || echo "unknown")"
+section_end
+
+# Final instructions
+info "Launching Claude Code..."
+info "When done, run: ./scripts/stop.sh"
+echo ""
+
+# Add default model if not specified
+if [[ ! " ${claude_args[@]} " =~ " --model " ]]; then
+    claude_args+=("--model" "opus")
+fi
+
+# Launch Claude Code
+claude code "${claude_args[@]}"
