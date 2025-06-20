@@ -4,14 +4,21 @@
 
 You are working with **AIPM (AI Project Manager)**, a protocol-driven framework for AI-assisted project management. There are TWO separate contexts to understand:
 
-### ⚠️ CRITICAL IMPLEMENTATION DIRECTIVE - version-control.sh
-**When working on Framework_version_control branch or testing version-control.sh:**
-- version-control.sh is the CORE FOUNDATION of AIPM - it CANNOT fail
-- ALL git operations must go through version-control.sh functions
-- shell-formatting.sh MUST be used for ALL output - NO EXCEPTIONS
-- start/stop/save/revert are THIN WRAPPERS that orchestrate version-control.sh
+### ⚠️ CRITICAL IMPLEMENTATION DIRECTIVES
+
+#### When implementing wrapper scripts (start.sh, stop.sh, save.sh, revert.sh):
+**MANDATORY**: Read `scripts/test/workflow.md` FIRST - it is the single source of truth
+- **NO DIRECT OUTPUT**: Never use echo/printf - ONLY shell-formatting.sh functions
+- **NO DIRECT GIT**: Never use git commands - ONLY version-control.sh functions
+- **FOLLOW GUARDRAILS**: Workflow.md has exact line references and patterns
+- **TEST INCREMENTALLY**: Implement section by section, test before proceeding
+
+#### When working on version-control.sh or shell-formatting.sh:
+- These are CORE FOUNDATIONS that CANNOT fail
+- version-control.sh: ALL git operations go through these functions
+- shell-formatting.sh: ALL output goes through these functions
 - Modularity is MANDATORY - each function must be independently testable
-- This is THE most critical component of the framework
+- 100% test coverage achieved on version-control.sh - maintain this standard
 
 ### Track 1: AIPM Framework Development
 **Purpose**: Understanding and developing the AIPM framework itself  
