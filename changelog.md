@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+## 2025-06-20 - Critical Bug Discovery & save.sh Re-implementation
+
+### Fixed
+- **save.sh** - Re-implemented after discovering file reversion bug
+  - Original implementation was lost due to Claude Code file reversion
+  - Re-implemented with full shell-formatting.sh and version-control.sh integration
+  - Now properly follows workflow.md patterns like other wrapper scripts
+
+### Discovered
+- **CRITICAL: Claude Code File Reversion Bug**
+  - Files can spontaneously revert to previous states during a session
+  - System reminders about "file modified by user or linter" indicate reversions
+  - Can cause complete loss of implemented code
+  - Added comprehensive guardrails to CLAUDE.md to prevent future incidents
+
 ## 2025-06-20 - AIPM Wrapper Scripts Implementation
 
 ### Added
