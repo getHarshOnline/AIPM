@@ -4,6 +4,47 @@
 
 ## [Unreleased]
 
+## 2025-06-20 - AIPM Wrapper Scripts Implementation
+
+### Added
+- **start.sh** - Complete session initialization implementation
+  - Memory symlink verification with sync-memory.sh integration
+  - Interactive project selection using shell-formatting.sh menus
+  - Git synchronization with version-control.sh functions
+  - Memory backup/restore isolation pattern
+  - Session metadata tracking
+  - Claude Code launch with argument passthrough
+  
+- **stop.sh** - Complete session cleanup implementation
+  - Active session detection and validation
+  - Automatic save.sh integration
+  - Memory restoration from backup
+  - Session artifact archival
+  - Duration calculation and statistics
+  
+- **save.sh** - Complete memory persistence implementation
+  - Global to local memory transfer
+  - Backup restoration after save
+  - Git commit integration with commit_with_stats
+  - Golden rule enforcement (stage_all_changes)
+  - Context-aware path handling
+  
+- **revert.sh** - Complete memory version control implementation
+  - Active session safety checks with save option
+  - Interactive context and commit selection
+  - Git history display with show_log
+  - Preview changes before revert
+  - Automatic backup before revert
+  - Post-revert statistics and next steps
+
+### Implementation Patterns
+- All scripts follow workflow.md patterns strictly
+- NO direct echo/printf - only shell-formatting.sh functions
+- NO direct git commands - only version-control.sh functions
+- Consistent error handling with die() for fatal errors
+- Visual feedback with sections, steps, and status messages
+- Interactive prompts using confirm() and format_prompt()
+
 ## 2025-06-20 - Version Control Hardening & Workflow Documentation
 
 ### Added

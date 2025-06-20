@@ -167,27 +167,16 @@ echo -e "${CYAN}╚════════════════════�
 # fi
 
 # TASK 6: Suggest Next Steps
-# - If in project, suggest syncing with team
-# - If framework, suggest testing changes
-# - Remind about documentation updates
-# Implementation:
-# echo -e "${CYAN}════════════════════════════════════════════${NC}"
-# echo -e "${MAGENTA}Next steps:${NC}"
-# if [[ "$WORK_CONTEXT" == "project" ]]; then
-#     echo -e "  • ${CYAN}Push changes to share with team: git push${NC}"
-#     echo -e "  • ${CYAN}Update project documentation if needed${NC}"
-# else
-#     echo -e "  • ${CYAN}Test framework changes thoroughly${NC}"
-#     echo -e "  • ${CYAN}Update AIPM documentation if needed${NC}"
-# fi
+section_end
 
-# TEMPORARY: Placeholder implementation
-echo -e "${YELLOW}⚠️  Warning: Memory save not yet implemented${NC}"
-echo -e "${BLUE}ℹ️  See AIPM_Design_Docs/memory-management.md for design${NC}"
-echo -e ""
-echo -e "Expected usage:"
-echo -e "  ${GREEN}./scripts/save.sh --framework${NC}                    # Save only"
-echo -e "  ${GREEN}./scripts/save.sh --framework \"Fix memory bug\"${NC}   # Save & commit"
-echo -e "  ${GREEN}./scripts/save.sh --project Product \"Add API\"${NC}    # Project save & commit"
-echo -e ""
-echo -e "${CYAN}Please implement based on TODO comments above${NC}"
+section "Next Steps"
+if [[ "$WORK_CONTEXT" == "project" ]]; then
+    info "• Push changes to share with team: git push"
+    info "• Update project documentation if needed"
+    info "• Run: ./scripts/start.sh --project $PROJECT_NAME to continue"
+else
+    info "• Test framework changes thoroughly"
+    info "• Update AIPM documentation if needed"
+    info "• Run: ./scripts/start.sh --framework to continue"
+fi
+section_end

@@ -23,123 +23,190 @@ set -euo pipefail
 
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# TODO: source "$SCRIPT_DIR/shell-formatting.sh"
-# TODO: source "$SCRIPT_DIR/version-control.sh"
+# Source dependencies with error handling
+source "$SCRIPT_DIR/shell-formatting.sh" || {
+    printf "ERROR: Required file shell-formatting.sh not found\n" >&2
+    exit 1
+}
 
-# Colors for output (temporary until shell-formatting.sh)
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-NC='\033[0m' # No Color
+source "$SCRIPT_DIR/version-control.sh" || {
+    error "Required file version-control.sh not found"
+    exit 1
+}
 
-echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║       AIPM Session Cleanup               ║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
+# Start visual section
+section "AIPM Session Cleanup"
 
-# TODO: Implementation Tasks
-# Reference: AIPM_Design_Docs/memory-management.md - "Session End" section
+# Session tracking variables
+SESSION_FILE=".memory/session_active"
+WORK_CONTEXT=""
+PROJECT_NAME=""
+SESSION_ID=""
+SESSION_START=""
+MEMORY_FILE=""
+
+# Parse command line arguments for override
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --framework)
+            WORK_CONTEXT="framework"
+            shift
+            ;;
+        --project)
+            WORK_CONTEXT="project"
+            PROJECT_NAME="$2"
+            shift 2
+            ;;
+        *)
+            warn "Unknown argument: $1"
+            shift
+            ;;
+    esac
+done
 
 # TASK 1: Detect Session Context
-# - Check for active session file (.memory/session_active)
-# - Read context from session metadata
-# - Allow override with command line args
-# - Validate context matches start.sh context
-# Implementation:
-# SESSION_FILE=".memory/session_active"
-# if [[ ! -f "$SESSION_FILE" ]]; then
-#     echo -e "${RED}No active session found${NC}"
-#     echo -e "${YELLOW}Did you run ./scripts/start.sh first?${NC}"
-#     exit 1
-# fi
-# WORK_CONTEXT=$(grep "Context:" "$SESSION_FILE" | cut -d' ' -f2)
-# PROJECT_NAME=$(grep "Project:" "$SESSION_FILE" | cut -d' ' -f2)
+step "Detecting active session..."
+
+if [[ ! -f "$SESSION_FILE" ]]; then
+    error "No active session found"
+    info "Did you run ./scripts/start.sh first?"
+    die "Cannot proceed without active session"
+fi
+
+# Read session metadata
+SESSION_ID=$(grep "Session:" "$SESSION_FILE" | cut -d' ' -f2-)
+SESSION_CONTEXT=$(grep "Context:" "$SESSION_FILE" | cut -d' ' -f2-)
+SESSION_PROJECT=$(grep "Project:" "$SESSION_FILE" | cut -d' ' -f2-)
+SESSION_START=$(grep "Started:" "$SESSION_FILE" | cut -d' ' -f2-)
+MEMORY_FILE=$(grep "Memory:" "$SESSION_FILE" | cut -d' ' -f2-)
+
+# Use session context if no override provided
+if [[ -z "$WORK_CONTEXT" ]]; then
+    WORK_CONTEXT="$SESSION_CONTEXT"
+    if [[ "$SESSION_PROJECT" != "N/A" ]] && [[ "$WORK_CONTEXT" == "project" ]]; then
+        PROJECT_NAME="$SESSION_PROJECT"
+    fi
+else
+    # Validate override matches session
+    if [[ "$WORK_CONTEXT" != "$SESSION_CONTEXT" ]]; then
+        warn "Context override ($WORK_CONTEXT) differs from session ($SESSION_CONTEXT)"
+        if ! confirm "Continue with override?"; then
+            die "Aborted by user"
+        fi
+    fi
+fi
+
+success "Session detected: $SESSION_ID"
 
 # TASK 2: Show Session Summary
-# - Calculate session duration
-# - Show memory statistics (entities/relations added)
-# - Display context information
-# Implementation:
-# SESSION_START=$(grep "Started:" "$SESSION_FILE" | cut -d' ' -f2-)
-# DURATION=$(($(date +%s) - $(date -d "$SESSION_START" +%s)))
-# echo -e "${BLUE}Session Summary:${NC}"
-# echo -e "  Context: ${MAGENTA}$WORK_CONTEXT${NC}"
-# echo -e "  Project: ${MAGENTA}${PROJECT_NAME:-Framework}${NC}"
-# echo -e "  Duration: ${MAGENTA}$(printf '%02d:%02d:%02d' $((DURATION/3600)) $((DURATION%3600/60)) $((DURATION%60)))${NC}"
+step "Calculating session statistics..."
+
+# Calculate duration
+local start_epoch
+if command -v gdate >/dev/null 2>&1; then
+    # macOS with GNU coreutils
+    start_epoch=$(gdate -d "$SESSION_START" +%s 2>/dev/null || date +%s)
+else
+    # Linux or fallback
+    start_epoch=$(date -d "$SESSION_START" +%s 2>/dev/null || date +%s)
+fi
+local current_epoch=$(date +%s)
+local duration=$((current_epoch - start_epoch))
+
+# Format duration
+local hours=$((duration / 3600))
+local minutes=$(( (duration % 3600) / 60 ))
+local seconds=$((duration % 60))
+local duration_str=$(printf '%02d:%02d:%02d' $hours $minutes $seconds)
+
+section "Session Summary"
+info "Session ID: $SESSION_ID"
+info "Context: $WORK_CONTEXT${PROJECT_NAME:+ - $PROJECT_NAME}"
+info "Duration: $duration_str"
+info "Memory file: $MEMORY_FILE"
+
+# Show memory changes if file exists
+if [[ -f "$MEMORY_FILE" ]]; then
+    local entity_count=$(grep -c '"type":"entity"' "$MEMORY_FILE" 2>/dev/null || echo "0")
+    local memory_size=$(format_size $(stat -f%z "$MEMORY_FILE" 2>/dev/null || stat -c%s "$MEMORY_FILE" 2>/dev/null || echo "0"))
+    info "Current state: $entity_count entities ($memory_size)"
+fi
+
+section_end
 
 # TASK 3: Call save.sh for Memory Persistence
-# Reference: AIPM_Design_Docs/memory-management.md - "save.sh integration"
-# - Pass context to save.sh
-# - This handles the actual memory save to local_memory.json
-# - Wait for save.sh to complete
-# - Check exit status
-# Implementation:
-# echo -e "${YELLOW}Saving memory changes...${NC}"
-# if [[ "$WORK_CONTEXT" == "framework" ]]; then
-#     "$SCRIPT_DIR/save.sh" --framework "Session end: $(date +%Y-%m-%d_%H:%M:%S)" || {
-#         echo -e "${RED}Failed to save memory changes${NC}"
-#         exit 1
-#     }
-# else
-#     "$SCRIPT_DIR/save.sh" --project "$PROJECT_NAME" "Session end: $(date +%Y-%m-%d_%H:%M:%S)" || {
-#         echo -e "${RED}Failed to save memory changes${NC}"
-#         exit 1
-#     }
-# fi
+step "Saving memory changes..."
+
+# Build save command with context
+local save_message="Session end: $(date +%Y-%m-%d_%H:%M:%S)"
+
+if [[ "$WORK_CONTEXT" == "framework" ]]; then
+    if "$SCRIPT_DIR/save.sh" --framework "$save_message"; then
+        success "Memory changes saved"
+    else
+        error "Failed to save memory changes"
+        warn "Memory may be lost - backup available at .memory/backup.json"
+        # Continue anyway to clean up session
+    fi
+else
+    if "$SCRIPT_DIR/save.sh" --project "$PROJECT_NAME" "$save_message"; then
+        success "Memory changes saved"
+    else
+        error "Failed to save memory changes"
+        warn "Memory may be lost - backup available at .memory/backup.json"
+        # Continue anyway to clean up session
+    fi
+fi
 
 # TASK 4: Restore Original Memory
-# Reference: AIPM_Design_Docs/memory-management.md - "Single backup location"
-# - Check if backup exists at .memory/backup.json
-# - Restore backup to .claude/memory.json
-# - Delete backup after successful restore
-# - Handle missing backup gracefully
-# Implementation:
-# BACKUP_FILE=".memory/backup.json"
-# if [[ -f "$BACKUP_FILE" ]]; then
-#     echo -e "${BLUE}Restoring original memory...${NC}"
-#     cp "$BACKUP_FILE" .claude/memory.json || {
-#         echo -e "${RED}Failed to restore backup${NC}"
-#         exit 1
-#     }
-#     rm -f "$BACKUP_FILE"
-#     echo -e "${GREEN}✓ Original memory restored${NC}"
-# else
-#     echo -e "${YELLOW}⚠️  No backup found to restore${NC}"
-# fi
+step "Restoring original memory..."
+
+BACKUP_FILE=".memory/backup.json"
+if [[ -f "$BACKUP_FILE" ]]; then
+    if cp "$BACKUP_FILE" .claude/memory.json 2>/dev/null; then
+        rm -f "$BACKUP_FILE"
+        success "Original memory restored"
+    else
+        error "Failed to restore backup"
+        warn "Backup preserved at: $BACKUP_FILE"
+        # Don't exit - continue cleanup
+    fi
+else
+    warn "No backup found to restore"
+    info "Global memory may contain session-specific data"
+fi
 
 # TASK 5: Clean Session Artifacts
-# - Move active session file to archived with timestamp
-# - Update session log with end time
-# - Clean any temporary files
-# Implementation:
-# SESSION_ID=$(grep "Session:" "$SESSION_FILE" | cut -d' ' -f2)
-# SESSION_LOG=".memory/session_${SESSION_ID}.log"
-# echo "Ended: $(date)" >> "$SESSION_LOG"
-# echo "Memory saved to: $MEMORY_FILE" >> "$SESSION_LOG"
-# mv "$SESSION_FILE" ".memory/session_${SESSION_ID}_complete"
+step "Cleaning up session artifacts..."
+
+# Update session log
+SESSION_LOG=".memory/session_${SESSION_ID}.log"
+if [[ -f "$SESSION_LOG" ]]; then
+    cat >> "$SESSION_LOG" <<EOF
+
+[$(date +%H:%M:%S)] Session ending
+[$(date +%H:%M:%S)] Memory saved to: $MEMORY_FILE
+[$(date +%H:%M:%S)] Duration: $duration_str
+
+# Session ended: $(date)
+EOF
+fi
+
+# Archive session file
+if mv "$SESSION_FILE" ".memory/session_${SESSION_ID}_complete" 2>/dev/null; then
+    success "Session artifacts cleaned"
+else
+    warn "Failed to archive session file"
+fi
 
 # TASK 6: Exit Claude Code
-# - Send termination signal to Claude Code process
-# - Or provide instructions for manual exit
-# - Show farewell message
-# Implementation:
-# echo -e "${GREEN}✓ Session cleanup complete${NC}"
-# echo -e "${CYAN}════════════════════════════════════════════${NC}"
-# echo -e "${MAGENTA}Thank you for using AIPM!${NC}"
-# echo -e "${YELLOW}Please exit Claude Code manually (Ctrl+C or close terminal)${NC}"
-# # Alternative: kill Claude Code process if we tracked PID
+section "Cleanup Complete"
+success "Session ended successfully"
+info "Thank you for using AIPM!"
+echo ""
+warn "Please exit Claude Code manually"
+info "Use Ctrl+C or close the terminal window"
+section_end
 
-# TEMPORARY: Placeholder implementation
-echo -e "${YELLOW}⚠️  Warning: Session management not yet implemented${NC}"
-echo -e "${BLUE}ℹ️  See AIPM_Design_Docs/memory-management.md for design${NC}"
-echo -e ""
-echo -e "Expected flow:"
-echo -e "  1. ${CYAN}Detect active session context${NC}"
-echo -e "  2. ${CYAN}Call save.sh to persist memory${NC}"
-echo -e "  3. ${CYAN}Restore backup to global memory${NC}"
-echo -e "  4. ${CYAN}Clean up session artifacts${NC}"
-echo -e "  5. ${CYAN}Exit Claude Code${NC}"
-echo -e ""
-echo -e "${CYAN}Please implement based on TODO comments above${NC}"
+# Note: We cannot automatically kill Claude Code as it would terminate
+# this script before completion. The user must exit manually.
