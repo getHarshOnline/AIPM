@@ -30,11 +30,18 @@
 ### 🔧 Current Implementation Sprint
 
 #### Session Management Scripts
+
+**⚠️ IMPLEMENTATION RULES** - See `scripts/test/workflow.md` for details
+1. NO echo/printf - use shell-formatting.sh functions ONLY
+2. NO git commands - use version-control.sh functions ONLY
+3. Follow exact patterns in workflow.md with line references
+4. Test each section before moving to next
+
 - [ ] **start.sh** - Implement session initialization
   - [ ] Memory symlink verification (using hardened sync-memory.sh)
-  - [ ] Interactive project selection menu
-  - [ ] Git synchronization checks
-  - [ ] Memory backup mechanism
+  - [ ] Interactive project selection menu (use shell-formatting.sh)
+  - [ ] Git synchronization checks (use version-control.sh)
+  - [ ] Memory backup mechanism (.memory/backup.json)
   - [ ] Context-specific memory loading
   - [ ] Claude Code launch integration
   - [ ] Document learnings and edge cases
@@ -149,8 +156,18 @@ main (stable baseline)
 #### Current Testing Status
 - **version-control.sh**:
   - `test_version_control_core`: Created ✓
-  - `test_version_control_hardening`: In progress (testing phase)
-  - Next: Create test scripts, run tests, document results
+  - `test_version_control_hardening`: COMPLETE ✓
+  - **100% test coverage achieved** (all 41 functions tested)
+  - Fixed environment detection bug
+  - Added missing return statements
+  - Documented test status inline for every function
+  - Created comprehensive version-control.md documentation
+  - Ready for wrapper script integration
+
+- **Wrapper Scripts**:
+  - Created `scripts/test/workflow.md` - Single source of truth ✓
+  - Implementation guardrails established ✓
+  - Ready to implement: start.sh, stop.sh, save.sh, revert.sh
 
 #### Benefits of This Approach
 1. **Complete History**: Every attempt, fix, and test is preserved

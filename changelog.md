@@ -4,6 +4,47 @@
 
 ## [Unreleased]
 
+## 2025-06-20 - Version Control Hardening & Workflow Documentation
+
+### Added
+- **version-control.sh testing** - Achieved 100% test coverage
+  - Fixed environment detection bug (removed forced AIPM_COLOR=true)
+  - Added missing return statements in fetch_remote and pull_latest
+  - Documented test status inline for all 41 functions
+  - Created comprehensive test suite validating all functions
+  
+- **scripts/test/version-control.md** - Complete implementation documentation
+  - 899 lines of exhaustive documentation
+  - Function reference with exact line numbers
+  - Integration patterns for all wrapper scripts
+  - Test coverage summary and quality metrics
+  
+- **scripts/test/workflow.md** - Single source of truth for wrapper implementation
+  - Exact file references and line numbers
+  - Function mapping tables from shell-formatting.sh and version-control.sh
+  - Implementation guardrails with ❌ WRONG and ✅ CORRECT examples
+  - Script-by-script implementation guide
+  - Testing workflow and branch structure
+  - Quick reference card for essential functions
+
+### Changed
+- **CLAUDE.md** - Added critical implementation directives
+  - Mandatory workflow.md reference for wrapper scripts
+  - NO DIRECT OUTPUT rule (only shell-formatting.sh)
+  - NO DIRECT GIT rule (only version-control.sh)
+  - Test incrementally directive
+
+- **current-focus.md** - Updated with implementation rules
+  - Added wrapper script implementation guidelines
+  - Referenced workflow.md as mandatory reading
+  - Updated testing status for version-control.sh
+
+### Fixed
+- **version-control.sh** - Critical bug fixes
+  - Environment detection now works correctly in all contexts
+  - Functions return proper exit codes consistently
+  - DID_STASH tracking works correctly across function calls
+
 ## 2025-06-20 - Base Helper Scripts Implementation
 
 ### Added
