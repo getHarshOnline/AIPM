@@ -110,7 +110,7 @@ readonly PROTECTED_BRANCHES="^(main|master|develop|production)$"
 
 # Detect if we're in a nested script execution
 # CRITICAL: Prevents recursive sourcing and security issues
-# TESTED: 2025-06-20 in test-version-control.sh (security category)
+# TESTED: 2025-06-20 (security category)
 detect_nesting_level() {
     local nesting_level="${AIPM_NESTING_LEVEL:-0}"
     export AIPM_NESTING_LEVEL=$((nesting_level + 1))
@@ -126,7 +126,8 @@ detect_nesting_level() {
 }
 
 # Cleanup function to decrement nesting level
-# NOT TESTED: Internal helper function
+# TESTED: 2025-06-20
+# Verifies AIPM_NESTING_LEVEL decrements correctly
 cleanup_nesting_level() {
     if [[ -n "${AIPM_NESTING_LEVEL:-}" ]] && [[ $AIPM_NESTING_LEVEL -gt 0 ]]; then
         export AIPM_NESTING_LEVEL=$((AIPM_NESTING_LEVEL - 1))
@@ -146,7 +147,7 @@ fi
 # Arguments:
 #   $1 - path to resolve
 # Returns: Resolved path on stdout
-# TESTED: 2025-06-20 in test-version-control.sh (security category)
+# TESTED: 2025-06-20 (security category)
 resolve_project_path() {
     local path="${1:-.}"
     
@@ -166,7 +167,7 @@ resolve_project_path() {
 
 # Get project context (handles symlinked projects)
 # Sets: PROJECT_ROOT, PROJECT_NAME, IS_SYMLINKED, MEMORY_FILE_PATH
-# TESTED: 2025-06-20 in test-version-control.sh (security category)
+# TESTED: 2025-06-20 (security category)
 get_project_context() {
     local current_dir=$(pwd)
     
@@ -207,8 +208,7 @@ get_project_context() {
 #   MEMORY_FILE_PATH - The primary memory file for this context
 #   MEMORY_DIR - The directory containing memory files
 #   MEMORY_FILE_NAME - Standard name for memory files
-# TESTED: 2025-06-20 in test-version-control.sh (memory category)
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20 (memory category)
 initialize_memory_context() {
     local context_arg="${1:-}"
     local project_name="${2:-}"
@@ -265,7 +265,8 @@ initialize_memory_context() {
 
 # Parse arguments passed to the script when sourced
 # This allows: source version-control.sh --project Product
-# NOT TESTED: Internal initialization function
+# TESTED: 2025-06-20
+# Verifies correct AIPM_CONTEXT setting with --framework flag
 _parse_source_args() {
     # Check if we were passed arguments when sourced
     if [[ -n "${1:-}" ]]; then
@@ -281,7 +282,7 @@ _parse_source_args "$@"
 
 # Re-initialize memory context (useful for wrapper scripts)
 # Usage: reinit_memory_context --project Product
-# TESTED: 2025-06-20 in test-version-control.sh (memory category)
+# TESTED: 2025-06-20 (memory category)
 reinit_memory_context() {
     debug "Re-initializing memory context with: $*"
     initialize_memory_context "$@"
@@ -294,8 +295,7 @@ reinit_memory_context() {
 # Check if we're in a git repository
 # LEARNING: Enhanced with better error messages and path info
 # Updated: 2025-06-20 for better debugging
-# TESTED: 2025-06-20 in test-version-control.sh (git-config category)
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20 (git-config category)
 check_git_repo() {
     local git_dir
     
@@ -317,8 +317,7 @@ check_git_repo() {
 # Get current branch name
 # LEARNING: Handle detached HEAD state gracefully
 # Updated: 2025-06-20 for better edge case handling
-# TESTED: 2025-06-20 in test-version-control.sh (git-config category)
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20 (git-config category)
 get_current_branch() {
     local branch
     
@@ -341,7 +340,7 @@ get_current_branch() {
 }
 
 # Get default branch (main/master)
-# TESTED: 2025-06-20 in test-version-control.sh (git-config category)
+# TESTED: 2025-06-20 (git-config category)
 get_default_branch() {
     local default_branch
     default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
@@ -367,8 +366,7 @@ get_default_branch() {
 # Check if working directory is clean
 # LEARNING: Enhanced with optional verbose output
 # Updated: 2025-06-20 for better status reporting
-# TESTED: 2025-06-20 in test-version-control.sh (sync category)
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20 (sync category)
 is_working_directory_clean() {
     local verbose="${1:-false}"
     local status
@@ -390,7 +388,9 @@ is_working_directory_clean() {
 }
 
 # Get number of commits ahead/behind remote
-# NOT TESTED: Requires remote repository
+# TESTED: 2025-06-20
+# Verifies correct handling when no upstream exists
+# Verifies ahead/behind count with actual remote
 get_commits_ahead_behind() {
     local branch="${1:-$(get_current_branch)}"
     local upstream="origin/$branch"
@@ -410,8 +410,7 @@ get_commits_ahead_behind() {
 # Show pretty git status
 # LEARNING: Use shell-formatting.sh functions for consistent output
 # Updated: 2025-06-20 with visual improvements
-# TESTED: 2025-06-20 in test-version-control.sh (sync category)
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20 (sync category)
 show_git_status() {
     local project="${1:-}"
     local original_dir=$(pwd)
@@ -473,6 +472,7 @@ show_git_status() {
     
     # Return to original directory
     [[ "$original_dir" != "$(pwd)" ]] && cd "$original_dir" >/dev/null
+    return $EXIT_SUCCESS
 }
 
 # ============================================================================
@@ -489,8 +489,7 @@ show_git_status() {
 #   2 - Stash failed
 # Global Effects:
 #   Sets DID_STASH=true if stash created
-# TESTED: 2025-06-20 in test-stash-formatted.sh (comprehensive)
-# TESTED: 2025-06-20 in test-version-control.sh (stash category)
+# TESTED: 2025-06-20 (stash category, comprehensive)
 stash_changes() {
     local message="${1:-$STASH_MESSAGE_PREFIX at $(date +%Y%m%d-%H%M%S)}"
     local include_untracked="${2:-true}"
@@ -529,8 +528,7 @@ stash_changes() {
 #   2 - Restore failed
 # Global Effects:
 #   Sets DID_STASH=false after restore
-# TESTED: 2025-06-20 in test-stash-formatted.sh (comprehensive)
-# TESTED: 2025-06-20 in test-version-control.sh (stash category)
+# TESTED: 2025-06-20 (stash category, comprehensive)
 restore_stash() {
     local stash_ref="${1:-}"
     
@@ -566,8 +564,7 @@ restore_stash() {
 # Returns:
 #   0 - Success
 #   1 - No stashes found
-# TESTED: 2025-06-20 in test-stash-formatted.sh
-# TESTED: 2025-06-20 in test-version-control.sh (stash category)
+# TESTED: 2025-06-20 (stash category)
 list_stashes() {
     local stash_list=$(git stash list 2>/dev/null)
     
@@ -594,7 +591,10 @@ list_stashes() {
 # Fetch remote changes
 # LEARNING: Add progress indication and timeout handling
 # Updated: 2025-06-20 for better UX
-# NOT TESTED: Requires network/remote repository
+# TESTED: 2025-06-20
+# Test uses local file:// remote to verify fetch operation
+# LEARNING: Fixed missing explicit return statement that caused exit code 1
+# when directory hadn't changed (from conditional cd back)
 fetch_remote() {
     local project="${1:-}"
     local original_dir=$(pwd)
@@ -636,12 +636,16 @@ fetch_remote() {
     
     # Return to original directory
     [[ "$original_dir" != "$(pwd)" ]] && cd "$original_dir" >/dev/null
+    return $EXIT_SUCCESS
 }
 
 # Pull latest changes with rebase
 # LEARNING: Enhanced with better stash handling and conflict detection
 # Updated: 2025-06-20 for robust operation
-# NOT TESTED: Requires network/remote repository
+# TESTED: 2025-06-20
+# TESTED: 2025-06-20 (comprehensive scenarios)
+# Test verifies stash handling, conflicts, and DID_STASH tracking
+# LEARNING: Fixed missing explicit return statement
 pull_latest() {
     local project="${1:-}"
     local force_pull="${2:-false}"
@@ -721,6 +725,7 @@ pull_latest() {
     
     # Return to original directory
     [[ "$original_dir" != "$(pwd)" ]] && cd "$original_dir" >/dev/null
+    return $EXIT_SUCCESS
 }
 
 # ============================================================================
@@ -731,8 +736,8 @@ pull_latest() {
 # Usage: create_commit "message" ["extended description"] [skip_hooks] [auto_stage]
 # CRITICAL: Implements AIPM golden rule - stages ALL changes by default
 # Updated: 2025-06-20 for AIPM golden rule compliance
-# TESTED: 2025-06-20 in test-golden-rule.sh (auto-staging)
-# TESTED: 2025-06-20 in test-version-control.sh (commit category)
+# TESTED: 2025-06-20 (auto-staging)
+# TESTED: 2025-06-20 (commit category)
 create_commit() {
     local message="$1"
     local description="${2:-}"
@@ -805,7 +810,7 @@ create_commit() {
 # Usage: commit_with_stats "message" ["file_path"]
 # CRITICAL: Implements golden rule - stages ALL changes first
 # Note: Uses centralized MEMORY_FILE_PATH when no file specified
-# TESTED: 2025-06-20 in test-version-control.sh (commit category)
+# TESTED: 2025-06-20 (commit category)
 commit_with_stats() {
     local message="$1"
     local file_path="${2:-}"  # Optional - uses MEMORY_FILE_PATH if not specified
@@ -870,8 +875,7 @@ commit_with_stats() {
 #   0 - Success
 #   1 - Not in git repo
 # Note: Critical for AIPM workflow - respects .gitignore strictly
-# TESTED: 2025-06-20 in test-golden-rule.sh (comprehensive)
-# TESTED: 2025-06-20 in test-version-control.sh (golden-rule category)
+# TESTED: 2025-06-20 (golden-rule category, comprehensive)
 add_all_untracked() {
     check_git_repo || return $?
     
@@ -903,8 +907,7 @@ add_all_untracked() {
 #   0 - Success
 #   1 - Error
 # Note: Uses centralized MEMORY_FILE_PATH for reliability
-# TESTED: 2025-06-20 in test-golden-rule.sh
-# TESTED: 2025-06-20 in test-version-control.sh (golden-rule category)
+# TESTED: 2025-06-20 (golden-rule category)
 ensure_memory_tracked() {
     # Ensure memory is initialized
     if [[ "${MEMORY_INITIALIZED:-false}" != "true" ]]; then
@@ -980,8 +983,7 @@ ensure_memory_tracked() {
 #   0 - Success
 #   1 - Not in git repo
 # Note: Core function for AIPM save workflow
-# TESTED: 2025-06-20 in test-golden-rule.sh (comprehensive)
-# TESTED: 2025-06-20 in test-version-control.sh (golden-rule category)
+# TESTED: 2025-06-20 (golden-rule category, comprehensive)
 stage_all_changes() {
     local include_memory="${1:-true}"
     
@@ -1027,8 +1029,7 @@ stage_all_changes() {
 #   2 - Path is gitignored
 #   3 - Git add failed
 # Note: Handles both symlinked and real paths
-# TESTED: 2025-06-20 in test-golden-rule.sh
-# TESTED: 2025-06-20 in test-version-control.sh (golden-rule category)
+# TESTED: 2025-06-20 (golden-rule category)
 safe_add() {
     local path="$1"
     
@@ -1062,8 +1063,7 @@ safe_add() {
 # Find all memory files in the repository
 # Returns: Array of memory file paths on stdout
 # Note: Uses centralized MEMORY_FILE_PATH configuration
-# TESTED: 2025-06-20 in test-golden-rule.sh
-# TESTED: 2025-06-20 in quick-test.sh
+# TESTED: 2025-06-20
 find_all_memory_files() {
     # Ensure memory is initialized
     if [[ "${MEMORY_INITIALIZED:-false}" != "true" ]]; then
@@ -1099,7 +1099,8 @@ find_all_memory_files() {
 #   0 - Memory files are in sync
 #   1 - Memory files differ
 #   2 - Memory files missing
-# NOT TESTED: Requires multiple branches with memory files
+# TESTED: 2025-06-20
+# Test creates memory files and verifies status checking
 check_memory_status() {
     local compare_branch="${1:-}"
     local status_ok=true
@@ -1155,7 +1156,7 @@ check_memory_status() {
 # ============================================================================
 
 # Create and checkout new branch
-# TESTED: 2025-06-20 in test-version-control.sh (branch category)
+# TESTED: 2025-06-20 (branch category)
 create_branch() {
     local branch_name="$1"
     local base_branch="${2:-$(get_default_branch)}"
@@ -1182,7 +1183,7 @@ create_branch() {
 }
 
 # List branches with details
-# TESTED: 2025-06-20 in test-version-control.sh (branch category)
+# TESTED: 2025-06-20 (branch category)
 list_branches() {
     section "Local branches"
     git branch -vv | while read -r line; do
@@ -1200,7 +1201,7 @@ list_branches() {
 # ============================================================================
 
 # Merge branch with checks
-# TESTED: 2025-06-20 in test-version-control.sh (integration test)
+# TESTED: 2025-06-20 (integration test)
 safe_merge() {
     local source_branch="$1"
     local target_branch="${2:-$(get_current_branch)}"
@@ -1235,7 +1236,8 @@ safe_merge() {
 # Show pretty log
 # LEARNING: Enhanced with graph view and better formatting
 # Updated: 2025-06-20 for improved readability
-# NOT TESTED: Display function
+# TESTED: 2025-06-20
+# Test verifies function executes without errors
 show_log() {
     local count="${1:-10}"
     local file="${2:-}"
@@ -1267,7 +1269,8 @@ show_log() {
 }
 
 # Find commits affecting a file
-# NOT TESTED: Display function
+# TESTED: 2025-06-20
+# Test verifies function executes without errors
 find_file_commits() {
     local file="$1"
     local count="${2:-20}"
@@ -1283,7 +1286,8 @@ find_file_commits() {
 # ============================================================================
 
 # Show diff statistics
-# NOT TESTED: Display function
+# TESTED: 2025-06-20
+# Test verifies function executes without errors
 show_diff_stats() {
     local ref1="${1:-HEAD}"
     local ref2="${2:-}"
@@ -1311,7 +1315,8 @@ show_diff_stats() {
 # ============================================================================
 
 # Create annotated tag
-# NOT TESTED: Requires tag workflow
+# TESTED: 2025-06-20
+# Test verifies tag creation and verification
 create_tag() {
     local tag_name="$1"
     local message="${2:-Release $tag_name}"
@@ -1339,6 +1344,8 @@ create_tag() {
 # ============================================================================
 
 # Check if file is tracked by git
+# TESTED: 2025-06-20
+# Test verifies correct detection of tracked/untracked files
 # TESTED: Indirectly in golden rule tests
 is_file_tracked() {
     local file="$1"
@@ -1346,7 +1353,8 @@ is_file_tracked() {
 }
 
 # Get repository root
-# NOT TESTED: Utility function
+# TESTED: 2025-06-20
+# Test verifies correct repository root detection
 get_repo_root() {
     git rev-parse --show-toplevel 2>/dev/null
 }
@@ -1354,7 +1362,8 @@ get_repo_root() {
 # Clean up merged branches
 # LEARNING: Enhanced with safety checks and batch mode
 # Updated: 2025-06-20 for safer operation
-# NOT TESTED: Requires multiple branches
+# TESTED: 2025-06-20
+# Test creates and merges branch, then verifies cleanup
 cleanup_merged_branches() {
     local batch_mode="${1:-false}"
     local default_branch=$(get_default_branch)
@@ -1433,7 +1442,8 @@ cleanup_merged_branches() {
 # LEARNING: Smart push that handles upstream configuration
 # Added: 2025-06-20 for easier pushing
 # Supports: --sync-team flag for team memory synchronization
-# NOT TESTED: Requires remote repository
+# TESTED: 2025-06-20
+# Test verifies push with local file:// remote
 push_changes() {
     local force="${1:-false}"
     local sync_team="${2:-false}"
@@ -1509,7 +1519,7 @@ push_changes() {
 # Create a backup branch before dangerous operations
 # LEARNING: Safety first - always have a backup
 # Added: 2025-06-20 for safer operations
-# TESTED: 2025-06-20 in test-version-control.sh (advanced category)
+# TESTED: 2025-06-20 (advanced category)
 create_backup_branch() {
     local operation="${1:-backup}"
     local timestamp=$(date +%Y%m%d-%H%M%S)
@@ -1530,7 +1540,7 @@ create_backup_branch() {
 # Undo last commit (with safety)
 # LEARNING: Provide safe undo with backup
 # Added: 2025-06-20 for easier error recovery
-# TESTED: 2025-06-20 in test-version-control.sh (advanced category)
+# TESTED: 2025-06-20 (advanced category)
 undo_last_commit() {
     local keep_changes="${1:-true}"
     
@@ -1578,7 +1588,9 @@ undo_last_commit() {
 
 # Check for merge conflicts
 # Added: 2025-06-20 for better conflict handling
-# TESTED: 2025-06-20 in test-version-control.sh (conflicts category)
+# TESTED: 2025-06-20 (conflicts category)
+# TESTED: 2025-06-20 (both scenarios)
+# TESTED: 2025-06-20
 check_conflicts() {
     local conflict_files=$(git diff --name-only --diff-filter=U)
     
@@ -1596,7 +1608,9 @@ check_conflicts() {
 
 # Interactive conflict resolution
 # Added: 2025-06-20 for guided conflict resolution
-# NOT TESTED: Requires complex merge conflict setup
+# TESTED: 2025-06-20 (components and full interactive)
+# Test simulates user input for all resolution strategies
+# Verifies: ours/theirs/manual options, multi-file handling
 resolve_conflicts() {
     if ! check_conflicts; then
         section "Conflict Resolution"
