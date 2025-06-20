@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "linear": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.linear.app/sse"],
+      "env": {}
+    },
+    "sequential-thinking-ref": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "env": {}
+    },
+    "memory-ref": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "env": {}
+    }
+  }
+}

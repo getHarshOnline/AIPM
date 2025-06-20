@@ -1,0 +1,30 @@
+# Memory files - security risk if shared
+.claude/memory.json
+
+# Memory backups - temporary session files
+.memory/backup.json
+Product/.memory/backup.json
+
+# Sync script logs
+.claude/*.log
+
+# Product symlink - separate repository
+Product
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Obsidian vault files (if not needed in repo)
+.obsidian/workspace.json
+.obsidian/cache
+.obsidian/plugins/*/data.json
+
+# Temporary files
+*.tmp
+*.temp
+*~
