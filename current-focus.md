@@ -74,53 +74,90 @@ Each script implementation should update:
 3. **Design doc updates** - Refine architecture based on reality
 4. **Test scenarios** - Document manual test cases
 
-### 🧪 Testing Strategy - version-control.sh Hardening
+### 🧪 Testing Strategy - Component-Level Branch Architecture
 
-#### Branch Architecture for Safe Testing
+#### CRITICAL DIRECTIVE: Component Testing Flow
 ```
-main (safe checkpoint with base helper scripts)
+main (stable baseline)
   │
-  └─> Framework_version_control (parallel feature branch, accumulates tested features)
+  └─> Framework_version_control (feature branch accumulating ALL tested work)
         │
-        └─> test_review (clean base for all test scenarios)
+        └─> test_review (integration point for tested components)
               │
-              ├─> test_merge_conflicts
-              ├─> test_branch_pruning
-              ├─> test_auto_stash
-              ├─> test_undo_commit
-              ├─> test_backup_branch
-              ├─> test_cherry_pick
-              ├─> test_rebase_scenarios
-              └─> test_[various scenarios]
+              ├─> test_version_control_core (component: version-control.sh)
+              │     │
+              │     └─> test_version_control_hardening (isolated work)
+              │           │ [harden the script]
+              │           │ [test in isolation]
+              │           │ [document issues]
+              │           └─> (merge back to core when ready)
+              │
+              ├─> test_start_sh_core (component: start.sh)
+              │     │
+              │     └─> test_start_sh_implementation (isolated work)
+              │           │ [implement features]
+              │           │ [test thoroughly]
+              │           └─> (merge back when tested)
+              │
+              ├─> test_save_sh_core (component: save.sh)
+              │     │
+              │     └─> test_save_sh_golden_rule (isolated work)
+              │           │ [implement golden rule]
+              │           │ [test edge cases]
+              │           └─> (merge back when proven)
+              │
+              └─> test_[component]_core
+                    │
+                    └─> test_[component]_[feature] (isolated work)
 ```
 
-#### Testing Approach
-1. **Isolation Strategy**:
-   - Framework_version_control runs parallel to main as testing ground
-   - test_review provides clean starting point for all tests
-   - Each test branch created from test_review (never from each other)
-   - Successful tests selectively merged to Framework_version_control
-   - Once all tests pass, Framework_version_control merges to main
+#### Component Testing Workflow
+1. **Branch Creation Pattern**:
+   - From `test_review`: Create `test_[component]_core` for each component
+   - From core branch: Create `test_[component]_[feature]` for specific work
+   - NEVER merge directly to test_review without going through core first
 
-2. **Checkpoint Commits**:
-   - Framework_version_control: "docs: add version control testing strategy"
-   - test_review: "test: define all test cases for version-control.sh"
-   - Each provides a clean state for branching
+2. **Work Isolation**:
+   - Each feature/hardening gets its own branch off the component core
+   - Test exhaustively on the feature branch
+   - Document all findings IN the feature branch
+   - Only merge back to component core after review
 
-3. **Test Categories**:
-   - **Destructive Operations**: branch pruning, force push, reset
-   - **Merge Scenarios**: conflicts, fast-forward, recursive
-   - **Stash Operations**: auto-stash, stash conflicts, stash recovery
-   - **History Rewriting**: rebase, cherry-pick, amend
-   - **Backup/Recovery**: undo_last_commit, backup branches
-   - **Edge Cases**: empty repos, detached HEAD, bare repos
+3. **Integration Flow**:
+   ```
+   test_[component]_[feature] → test_[component]_core → test_review → Framework_version_control → main
+   ```
+   - Feature branches show granular work history
+   - Core branches show component evolution
+   - test_review shows integrated functionality
+   - Framework_version_control shows complete feature set
 
-4. **Success Criteria**:
-   - Each function in version-control.sh tested in isolation
-   - Integration with start/stop/save/revert scripts verified
-   - Error handling validated for all failure modes
-   - Performance under large repos tested
-   - Cross-platform compatibility confirmed
+4. **Documentation Requirements**:
+   - Each feature branch MUST have:
+     - Test plan documentation
+     - Test results
+     - Issues found and fixes
+     - Final audit report
+   - Keeps complete history of what worked/didn't work
+
+5. **Review Gates**:
+   - Feature → Core: Technical correctness review
+   - Core → test_review: Integration review
+   - test_review → Framework_version_control: Full functionality review
+   - Framework_version_control → main: Production readiness review
+
+#### Current Testing Status
+- **version-control.sh**:
+  - `test_version_control_core`: Created ✓
+  - `test_version_control_hardening`: In progress (testing phase)
+  - Next: Create test scripts, run tests, document results
+
+#### Benefits of This Approach
+1. **Complete History**: Every attempt, fix, and test is preserved
+2. **Safe Testing**: Destructive tests never affect main work
+3. **Clear Integration**: Each level shows different perspective
+4. **Parallel Work**: Multiple components can be developed simultaneously
+5. **Easy Rollback**: Can revert at any granularity level
 
 ## Memory Management Implementation
 
