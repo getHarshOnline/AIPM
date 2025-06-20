@@ -7,6 +7,14 @@ Create a protocol-driven AI Project Management framework that enables structured
 
 ## Core Objectives
 
+### 0. ⚠️ CRITICAL FOUNDATION - version-control.sh
+- **version-control.sh is THE CORE FOUNDATION** - without it, nothing works
+- Must provide bulletproof git operations for the entire framework
+- shell-formatting.sh provides single source of truth for ALL output
+- Modularity and maintainability are NON-NEGOTIABLE
+- start/stop/save/revert are thin orchestration wrappers ONLY
+- This component CANNOT fail - it must be perfect
+
 ### 1. Protocol-Driven Development
 - Establish mandatory protocol system for all AI interactions
 - Create memory-based protocol storage and evolution

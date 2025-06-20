@@ -1,8 +1,19 @@
 # version-control.sh Test Cases
 
-> This document defines all test scenarios for hardening version-control.sh
+> ⚠️ **CRITICAL**: version-control.sh is the CORE FOUNDATION of the AIPM framework
+> This implementation CANNOT be screwed up - it must be perfect, modular, and maintainable
 > Each test will be executed in an isolated branch created from test_review
 > Tests are designed to validate AIPM framework integration requirements
+
+## 🚨 CRITICAL IMPLEMENTATION DIRECTIVE
+
+### This is NOT just another script - This is THE FOUNDATION
+1. **version-control.sh** provides core git functionality for the entire framework
+2. **start/stop/save/revert** are thin wrappers that MUST leverage version-control.sh
+3. **shell-formatting.sh** MUST be used consistently - NO EXCEPTIONS
+4. **Single Source of Truth** - No duplicate implementations, no shortcuts
+5. **Modularity is MANDATORY** - Each function must be testable in isolation
+6. **Error handling must be PERFECT** - This is the foundation everything builds on
 
 ## AIPM Framework Context
 
@@ -13,6 +24,8 @@
 4. **Team Collaboration**: Enable memory sharing through git
 5. **Exit Codes**: Preserve standardized exit codes (0-5)
 6. **No Global Config**: Never modify git global configuration
+7. **Formatting Consistency**: ALL output MUST use shell-formatting.sh functions
+8. **Modularity**: Every function must be independently callable and testable
 
 ## Test Branches and Scenarios
 
@@ -312,6 +325,97 @@
 - Document all edge cases discovered
 - Create minimal reproduction cases for bugs
 - Consider automation after manual verification
+
+## Modularity and Maintainability Requirements
+
+### Core Design Principles
+
+1. **Function Independence**
+   - Each function in version-control.sh must work standalone
+   - No hidden dependencies between functions
+   - Clear input/output contracts
+   - Example:
+     ```bash
+     # BAD - Hidden dependency
+     function commit_changes() {
+         # Assumes some global state
+     }
+     
+     # GOOD - Explicit parameters
+     function commit_changes() {
+         local message="$1"
+         local files=("${@:2}")
+         # Self-contained logic
+     }
+     ```
+
+2. **Consistent Formatting**
+   - EVERY output line must use shell-formatting.sh
+   - NO raw echo/printf statements
+   - Example:
+     ```bash
+     # BAD - Inconsistent formatting
+     echo "Creating branch..."
+     printf "\033[32mSuccess!\033[0m\n"
+     
+     # GOOD - Consistent formatting
+     info "Creating branch..."
+     success "Branch created successfully"
+     ```
+
+3. **Error Handling Pattern**
+   - Every function must handle its own errors
+   - Use consistent exit codes
+   - Provide recovery instructions
+   - Example:
+     ```bash
+     function create_branch() {
+         local branch_name="$1"
+         
+         if [[ -z "$branch_name" ]]; then
+             error "Branch name required"
+             return 1
+         fi
+         
+         if ! git branch "$branch_name" 2>/dev/null; then
+             error "Failed to create branch: $branch_name"
+             info "Branch may already exist. Use: git branch -a"
+             return 2
+         fi
+         
+         success "Created branch: $branch_name"
+         return 0
+     }
+     ```
+
+4. **Wrapper Script Integration**
+   - start.sh, stop.sh, save.sh, revert.sh are THIN wrappers
+   - They orchestrate calls to version-control.sh functions
+   - No git logic in wrapper scripts
+   - Example for save.sh:
+     ```bash
+     # save.sh should look like:
+     source version-control.sh
+     
+     # Check working directory
+     if ! is_clean_working_tree; then
+         if ! stash_changes "Auto-stash before save"; then
+             die "Failed to stash changes"
+         fi
+     fi
+     
+     # Commit with stats
+     if ! commit_with_stats "$message" "${files[@]}"; then
+         die "Failed to commit"
+     fi
+     ```
+
+5. **Testing Each Function**
+   - Every function gets its own test scenarios
+   - Test success paths
+   - Test failure paths
+   - Test edge cases
+   - Verify formatting output
 
 ## AIPM-Specific Test Scenarios
 

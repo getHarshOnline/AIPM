@@ -4,6 +4,15 @@
 
 You are working with **AIPM (AI Project Manager)**, a protocol-driven framework for AI-assisted project management. There are TWO separate contexts to understand:
 
+### ⚠️ CRITICAL IMPLEMENTATION DIRECTIVE - version-control.sh
+**When working on Framework_version_control branch or testing version-control.sh:**
+- version-control.sh is the CORE FOUNDATION of AIPM - it CANNOT fail
+- ALL git operations must go through version-control.sh functions
+- shell-formatting.sh MUST be used for ALL output - NO EXCEPTIONS
+- start/stop/save/revert are THIN WRAPPERS that orchestrate version-control.sh
+- Modularity is MANDATORY - each function must be independently testable
+- This is THE most critical component of the framework
+
 ### Track 1: AIPM Framework Development
 **Purpose**: Understanding and developing the AIPM framework itself  
 **Location**: Current directory (AIPM root)
