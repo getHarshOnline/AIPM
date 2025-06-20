@@ -5,6 +5,11 @@
 .memory/backup.json
 Product/.memory/backup.json
 
+# Session management files
+.memory/session_active
+.memory/session_*
+Product/.memory/session_*
+
 # Sync script logs
 .claude/*.log
 

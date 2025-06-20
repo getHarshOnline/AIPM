@@ -20,19 +20,18 @@
 
 set -euo pipefail
 
-# Get script directory
+# Get script directory - consistent with other scripts
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source formatting utilities
 # LEARNING: Always source shell-formatting.sh for consistent output
 # This provides proper color handling, progress bars, and error management
 # Updated: 2025-06-20 to use hardened formatting utilities
-if [[ -f "$PROJECT_ROOT/scripts/shell-formatting.sh" ]]; then
+if [[ -f "$SCRIPT_DIR/shell-formatting.sh" ]]; then
     # Set environment for better output in scripts
     export AIPM_COLOR=true
     export AIPM_UNICODE=true
-    source "$PROJECT_ROOT/scripts/shell-formatting.sh"
+    source "$SCRIPT_DIR/shell-formatting.sh"
 else
     # Minimal fallback if formatting script is missing
     printf "Warning: shell-formatting.sh not found\n" >&2
@@ -53,8 +52,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [--force]"
-            echo "  --force: Force recreate symlink even if it exists"
+            info "Usage: $0 [--force]"
+            info "  --force: Force recreate symlink even if it exists"
             exit 0
             ;;
         *)
@@ -65,19 +64,34 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Configuration
-MEMORY_TARGET="$SCRIPT_DIR/memory.json"
+MEMORY_TARGET="$(cd "$SCRIPT_DIR/.." && pwd)/.claude/memory.json"
 
 # LEARNING: NPM cache locations vary by platform and configuration
+# Enhanced with dynamic detection using npm config
 # - macOS: ~/.npm/_npx (most common)
 # - macOS alternate: ~/Library/Caches/npm/_npx
 # - Linux: ~/.cache/npm/_npx
+# - WSL: may use Windows paths
 # The MCP server creates a unique hash directory for each installation
-# Discovered: 2025-06-20 during cross-platform testing prep
-NPM_CACHE_PATHS=(
-    ~/.npm/_npx
-    ~/Library/Caches/npm/_npx
-    ~/.cache/npm/_npx
-)
+# Updated: 2025-06-20 for dynamic detection
+
+# Dynamic NPM cache detection
+NPM_CACHE_BASE=$(npm config get cache 2>/dev/null || echo "")
+if [[ -n "$NPM_CACHE_BASE" ]]; then
+    NPM_CACHE_PATHS=(
+        "$NPM_CACHE_BASE/_npx"
+        ~/.npm/_npx
+        ~/Library/Caches/npm/_npx
+        ~/.cache/npm/_npx
+    )
+else
+    # Fallback to common paths
+    NPM_CACHE_PATHS=(
+        ~/.npm/_npx
+        ~/Library/Caches/npm/_npx
+        ~/.cache/npm/_npx
+    )
+fi
 
 # Use proper box drawing from shell-formatting.sh
 if command -v draw_box >/dev/null 2>&1; then
@@ -116,7 +130,7 @@ find_memory_source() {
                 fi
                 success "Found memory.json at: $memory_source" >&2
                 # Return just the path on stdout
-                echo "$memory_source"
+                printf '%s\n' "$memory_source"
                 return 0
             fi
         fi
@@ -145,7 +159,7 @@ validate_memory_file() {
     # Discovered: 2025-06-20 during initial testing
     
     # Check file size (portable between macOS and Linux)
-    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "-1")
+    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || printf '%s' "-1")
     
     # Empty file is valid (initial state)
     if [[ "$size" -eq 0 ]]; then
@@ -215,14 +229,40 @@ main() {
     # Step 1: Find memory.json source
     if ! MEMORY_SOURCE=$(find_memory_source); then
         error "memory.json not found in npm cache"
-        error "Make sure @modelcontextprotocol/server-memory is installed"
-        error "Try running: claude mcp list"
+        warn "MCP memory server not installed"
         
-        # Use die function if available
-        if command -v die >/dev/null 2>&1; then
-            die "Failed to find memory.json source" 1
+        # Offer to install it
+        if confirm "Would you like to install the MCP memory server now?"; then
+            step "Installing @modelcontextprotocol/server-memory..."
+            if claude mcp add memory npx -- -y @modelcontextprotocol/server-memory 2>&1; then
+                success "MCP memory server installed"
+                info "Retrying memory source detection..."
+                
+                # Retry finding memory source
+                if ! MEMORY_SOURCE=$(find_memory_source); then
+                    error "Still cannot find memory.json after installation"
+                    if command -v die >/dev/null 2>&1; then
+                        die "Installation succeeded but memory.json not found" 1
+                    else
+                        exit 1
+                    fi
+                fi
+            else
+                error "Failed to install MCP memory server"
+                if command -v die >/dev/null 2>&1; then
+                    die "MCP server installation failed" 1
+                else
+                    exit 1
+                fi
+            fi
         else
-            exit 1
+            error "Cannot proceed without MCP memory server"
+            info "Install manually with: claude mcp add memory npx -- -y @modelcontextprotocol/server-memory"
+            if command -v die >/dev/null 2>&1; then
+                die "MCP memory server required" 1
+            else
+                exit 1
+            fi
         fi
     fi
     
@@ -267,8 +307,8 @@ main() {
             success "Symlink verified - memory.json is accessible"
             
             # Show file info
-            local size=$(wc -c < "$MEMORY_TARGET" 2>/dev/null || echo "0")
-            local lines=$(wc -l < "$MEMORY_TARGET" 2>/dev/null || echo "0")
+            local size=$(wc -c < "$MEMORY_TARGET" 2>/dev/null || printf '%s' "0")
+            local lines=$(wc -l < "$MEMORY_TARGET" 2>/dev/null || printf '%s' "0")
             
             # Use formatted size if available
             if command -v format_size >/dev/null 2>&1; then
@@ -278,8 +318,9 @@ main() {
             fi
             
             # Create backup location if needed
-            if [[ ! -d "$PROJECT_ROOT/.memory" ]]; then
-                mkdir -p "$PROJECT_ROOT/.memory"
+            local project_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+            if [[ ! -d "$project_root/.memory" ]]; then
+                mkdir -p "$project_root/.memory"
                 info "Created .memory directory for backups"
             fi
             

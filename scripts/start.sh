@@ -35,6 +35,11 @@ source "$SCRIPT_DIR/version-control.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/migrate-memories.sh" || {
+    error "Required file migrate-memories.sh not found"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Session Initialization"
 
@@ -121,7 +126,7 @@ fi
 
 success "Context: $WORK_CONTEXT${PROJECT_NAME:+ - $PROJECT_NAME}"
 
-# TASK 3: Git Synchronization Check
+# TASK 3: Git Synchronization Check with Team Memory Sync
 if [[ "$WORK_CONTEXT" == "project" ]]; then
     step "Checking project git status..."
     
@@ -140,10 +145,14 @@ if [[ "$WORK_CONTEXT" == "project" ]]; then
             if [[ "$status" =~ behind:[[:space:]]*([0-9]+) ]]; then
                 local behind_count="${BASH_REMATCH[1]}"
                 if [[ "$behind_count" -gt 0 ]]; then
-                    warn "You are $behind_count commits behind the remote"
+                    success "Found $behind_count new memory updates from team"
                     if confirm "Pull latest changes?"; then
-                        if ! pull_latest "$PROJECT_NAME"; then
-                            warn "Pull failed - continuing anyway"
+                        if pull_latest "$PROJECT_NAME"; then
+                            success "Synchronized with team repository"
+                            # Mark that we pulled changes for memory merge
+                            TEAM_SYNC_PERFORMED="true"
+                        else
+                            warn "Pull failed - continuing with local version"
                         fi
                     fi
                 fi
@@ -162,23 +171,12 @@ else
     fi
 fi
 
-# TASK 4: Memory Backup
-step "Backing up global memory..."
-mkdir -p .memory
-
-if [[ -f ".claude/memory.json" ]]; then
-    if cp .claude/memory.json .memory/backup.json 2>/dev/null; then
-        local backup_size=$(format_size $(stat -f%z .memory/backup.json 2>/dev/null || stat -c%s .memory/backup.json 2>/dev/null || echo "0"))
-        success "Global memory backed up ($backup_size)"
-    else
-        warn "Failed to backup global memory"
-    fi
-else
-    warn "No existing global memory - starting fresh"
-    echo '{}' > .memory/backup.json
+# TASK 4: Memory Backup (Using migrate-memories.sh)
+if ! backup_memory; then
+    die "Failed to backup global memory"
 fi
 
-# TASK 5: Load Context-Specific Memory
+# TASK 5: Load Context-Specific Memory with Team Merge
 step "Loading $WORK_CONTEXT memory..."
 
 # Determine memory file path
@@ -190,22 +188,37 @@ else
     mkdir -p "$PROJECT_NAME/.memory"
 fi
 
-# Clear global memory first
-echo '{}' > .claude/memory.json
-
-# Load context-specific memory
-if [[ -f "$MEMORY_FILE" ]]; then
-    cp "$MEMORY_FILE" .claude/memory.json
+# Check if we need to merge team changes
+if [[ "${TEAM_SYNC_PERFORMED:-}" == "true" ]] && [[ -f "$MEMORY_FILE" ]]; then
+    # Create a temporary file for the remote memory
+    REMOTE_MEMORY="${MEMORY_FILE}.remote"
     
-    # Count entities and show stats
-    local entity_count=$(grep -c '"type":"entity"' "$MEMORY_FILE" 2>/dev/null || echo "0")
-    local memory_size=$(format_size $(stat -f%z "$MEMORY_FILE" 2>/dev/null || stat -c%s "$MEMORY_FILE" 2>/dev/null || echo "0"))
-    
-    success "Loaded $entity_count entities ($memory_size)"
-else
-    warn "No existing memory found, starting fresh"
-    echo '{}' > "$MEMORY_FILE"
+    # Get the latest version from git
+    if get_file_from_commit "HEAD" "$MEMORY_FILE" > "$REMOTE_MEMORY" 2>/dev/null; then
+        # Check if remote is different from local
+        if ! memory_changed "$MEMORY_FILE" "$REMOTE_MEMORY"; then
+            info "Local memory already up to date"
+            rm -f "$REMOTE_MEMORY"
+        else
+            # Merge team changes
+            step "Merging team memory updates..."
+            if merge_memories "$MEMORY_FILE" "$REMOTE_MEMORY" "$MEMORY_FILE" "remote-wins"; then
+                success "Team memories merged successfully"
+            else
+                warn "Memory merge failed - using local version"
+            fi
+            rm -f "$REMOTE_MEMORY"
+        fi
+    fi
 fi
+
+# Load the (possibly merged) memory
+if ! load_memory "$MEMORY_FILE"; then
+    die "Failed to load project memory"
+fi
+
+# Prepare environment for MCP server
+prepare_for_mcp
 
 # TASK 6: Create Session Metadata
 step "Creating session metadata..."
@@ -249,7 +262,7 @@ section_end
 # Final instructions
 info "Launching Claude Code..."
 info "When done, run: ./scripts/stop.sh"
-echo ""
+info ""
 
 # Add default model if not specified
 if [[ ! " ${claude_args[@]} " =~ " --model " ]]; then

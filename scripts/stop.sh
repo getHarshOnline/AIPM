@@ -34,6 +34,11 @@ source "$SCRIPT_DIR/version-control.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/migrate-memories.sh" || {
+    error "Required file migrate-memories.sh not found"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Session Cleanup"
 
@@ -127,14 +132,22 @@ info "Memory file: $MEMORY_FILE"
 
 # Show memory changes if file exists
 if [[ -f "$MEMORY_FILE" ]]; then
-    local entity_count=$(grep -c '"type":"entity"' "$MEMORY_FILE" 2>/dev/null || echo "0")
-    local memory_size=$(format_size $(stat -f%z "$MEMORY_FILE" 2>/dev/null || stat -c%s "$MEMORY_FILE" 2>/dev/null || echo "0"))
-    info "Current state: $entity_count entities ($memory_size)"
+    local stats=$(get_memory_stats "$MEMORY_FILE")
+    info "Current state: $stats"
 fi
 
 section_end
 
-# TASK 3: Call save.sh for Memory Persistence
+# TASK 3: Wait for MCP Server Release
+step "Waiting for safe memory access..."
+
+# Ensure MCP server has released the memory file
+if ! release_from_mcp; then
+    warn "Timeout waiting for MCP server release"
+    info "Proceeding anyway..."
+fi
+
+# TASK 4: Call save.sh for Memory Persistence
 step "Saving memory changes..."
 
 # Build save command with context
@@ -158,25 +171,14 @@ else
     fi
 fi
 
-# TASK 4: Restore Original Memory
-step "Restoring original memory..."
-
-BACKUP_FILE=".memory/backup.json"
-if [[ -f "$BACKUP_FILE" ]]; then
-    if cp "$BACKUP_FILE" .claude/memory.json 2>/dev/null; then
-        rm -f "$BACKUP_FILE"
-        success "Original memory restored"
-    else
-        error "Failed to restore backup"
-        warn "Backup preserved at: $BACKUP_FILE"
-        # Don't exit - continue cleanup
-    fi
-else
-    warn "No backup found to restore"
-    info "Global memory may contain session-specific data"
+# TASK 5: Restore Original Memory (Using migrate-memories.sh)
+if ! restore_memory; then
+    error "Failed to restore original memory"
+    warn "Backup preserved at: .memory/backup.json"
+    # Don't exit - continue cleanup
 fi
 
-# TASK 5: Clean Session Artifacts
+# TASK 6: Clean Session Artifacts
 step "Cleaning up session artifacts..."
 
 # Update session log
@@ -199,11 +201,14 @@ else
     warn "Failed to archive session file"
 fi
 
-# TASK 6: Exit Claude Code
+# Clean up temporary files created by memory operations
+cleanup_temp_files
+
+# TASK 7: Exit Claude Code
 section "Cleanup Complete"
 success "Session ended successfully"
 info "Thank you for using AIPM!"
-echo ""
+info ""
 warn "Please exit Claude Code manually"
 info "Use Ctrl+C or close the terminal window"
 section_end

@@ -34,6 +34,11 @@ source "$SCRIPT_DIR/version-control.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/migrate-memories.sh" || {
+    error "Required file migrate-memories.sh not found"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Memory Save"
 
@@ -106,47 +111,20 @@ fi
 
 success "Memory path: $LOCAL_MEMORY"
 
-# TASK 3: Save Global Memory to Local
-step "Saving $CONTEXT_DISPLAY memory..."
-
-# Create memory directory if needed
-mkdir -p "$(dirname "$LOCAL_MEMORY")"
-
-if [[ -f ".claude/memory.json" ]]; then
-    if cp .claude/memory.json "$LOCAL_MEMORY"; then
-        # Count entities and relations for statistics
-        ENTITY_COUNT=$(grep -c '"type":"entity"' "$LOCAL_MEMORY" 2>/dev/null || echo "0")
-        RELATION_COUNT=$(grep -c '"relationType"' "$LOCAL_MEMORY" 2>/dev/null || echo "0")
-        
-        # Get file size
-        local memory_size=$(format_size $(stat -f%z "$LOCAL_MEMORY" 2>/dev/null || stat -c%s "$LOCAL_MEMORY" 2>/dev/null || echo "0"))
-        
-        success "Saved $ENTITY_COUNT entities, $RELATION_COUNT relations ($memory_size)"
-    else
-        die "Failed to save memory to $LOCAL_MEMORY"
-    fi
-else
-    warn "No global memory found to save"
-    echo '{}' > "$LOCAL_MEMORY"
-    info "Created empty memory file"
+# TASK 3: Save Global Memory to Local (Using migrate-memories.sh)
+if ! save_memory ".claude/memory.json" "$LOCAL_MEMORY"; then
+    die "Failed to save memory to $LOCAL_MEMORY"
 fi
 
-# TASK 4: Restore Original Memory from Backup
-step "Restoring original memory..."
+# Get statistics for display
+ENTITY_COUNT=$(count_entities_stream "$LOCAL_MEMORY")
+RELATION_COUNT=$(count_relations_stream "$LOCAL_MEMORY")
 
-BACKUP_FILE=".memory/backup.json"
-if [[ -f "$BACKUP_FILE" ]]; then
-    if cp "$BACKUP_FILE" .claude/memory.json 2>/dev/null; then
-        rm -f "$BACKUP_FILE"
-        success "Original memory restored"
-    else
-        error "Failed to restore backup"
-        warn "Backup preserved at: $BACKUP_FILE"
-        # Don't die - memory is saved, just not isolated
-    fi
-else
-    warn "No backup found - memory may not be isolated"
+# TASK 4: Restore Original Memory from Backup (Using migrate-memories.sh)
+if ! restore_memory; then
+    warn "Failed to restore original memory"
     info "This is normal if save.sh was called standalone"
+    # Don't die - memory is saved, just not isolated
 fi
 
 # TASK 5: Git Operations (Optional)
@@ -176,7 +154,7 @@ if [[ -n "$COMMIT_MSG" ]]; then
     fi
 else
     info "No commit message provided - changes saved locally only"
-    info "To commit later: git add -A && git commit"
+    info "To commit later: run save.sh with a commit message"
 fi
 
 # TASK 6: Suggest Next Steps
@@ -184,7 +162,7 @@ section_end
 
 section "Next Steps"
 if [[ "$WORK_CONTEXT" == "project" ]]; then
-    info "• Push changes to share with team: git push"
+    info "• Push changes to share with team: use push_changes function"
     info "• Update project documentation if needed"
     info "• Run: ./scripts/start.sh --project $PROJECT_NAME to continue"
 else
@@ -192,4 +170,8 @@ else
     info "• Update AIPM documentation if needed"
     info "• Run: ./scripts/start.sh --framework to continue"
 fi
+
+# Clean up any temporary files
+cleanup_temp_files
+
 section_end

@@ -34,6 +34,11 @@ source "$SCRIPT_DIR/version-control.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/migrate-memories.sh" || {
+    error "Required file migrate-memories.sh not found"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Memory Revert"
 
@@ -51,7 +56,7 @@ declare -A project_map
 if [[ -f ".memory/session_active" ]]; then
     error "Active session detected!"
     warn "Reverting during an active session may cause data loss."
-    echo ""
+    info ""
     info "Options:"
     info "  1) Abort revert (recommended)"
     info "  2) Save current state first"
@@ -169,7 +174,7 @@ section_end
 
 # TASK 6: Commit Selection
 if [[ -z "$COMMIT_REF" ]]; then
-    echo ""
+    info ""
     read -p "$(format_prompt "Enter commit hash to revert to (or 'q' to quit)")" COMMIT_REF
     [[ "$COMMIT_REF" == "q" ]] && exit 0
 fi
@@ -177,26 +182,35 @@ fi
 # Validate commit
 step "Validating commit..."
 
-if ! git cat-file -e "$COMMIT_REF" 2>/dev/null; then
+if ! validate_commit "$COMMIT_REF"; then
     die "Invalid commit reference: $COMMIT_REF"
 fi
 
 # Check if commit has the memory file
-if ! git show "$COMMIT_REF:$MEMORY_FILE" &>/dev/null; then
+if ! file_exists_in_commit "$COMMIT_REF" "$MEMORY_FILE"; then
     die "Commit $COMMIT_REF does not contain $MEMORY_FILE"
 fi
 
 # Show commit details
 info "Will revert to:"
-git log -1 --oneline "$COMMIT_REF"
+show_log 1 "" "$COMMIT_REF"
 
 # TASK 7: Show Changes Preview
 step "Analyzing changes..."
 
 # Show diff preview
 section "Changes to be reverted"
-git diff HEAD "$COMMIT_REF" -- "$MEMORY_FILE" | head -30
-if [[ $(git diff HEAD "$COMMIT_REF" -- "$MEMORY_FILE" | wc -l) -gt 30 ]]; then
+if [[ -f "$MEMORY_FILE" ]]; then
+    # Get current stats
+    local current_entities=$(count_entities_stream "$MEMORY_FILE")
+    local current_relations=$(count_relations_stream "$MEMORY_FILE")
+    local current_size=$(wc -c < "$MEMORY_FILE" 2>/dev/null || echo "0")
+    info "Current state: $current_entities entities, $current_relations relations, $(format_size $current_size)"
+fi
+
+# Show diff
+show_diff "HEAD" "$COMMIT_REF" "$MEMORY_FILE" | head -30
+if [[ $(show_diff "HEAD" "$COMMIT_REF" "$MEMORY_FILE" | wc -l) -gt 30 ]]; then
     info "... (showing first 30 lines)"
 fi
 section_end
@@ -210,15 +224,16 @@ fi
 # TASK 8: Perform Revert
 step "Creating backup..."
 
-# Create timestamped backup
+# Create timestamped backup using migrate-memories.sh
 BACKUP_NAME="$MEMORY_FILE.backup-$(date +%Y%m%d-%H%M%S)"
-cp "$MEMORY_FILE" "$BACKUP_NAME"
-success "Backup created: $BACKUP_NAME"
+if ! backup_memory "$MEMORY_FILE" "$BACKUP_NAME" "false"; then
+    die "Failed to create backup"
+fi
 
 # Perform revert
 step "Reverting to $COMMIT_REF..."
 
-if git checkout "$COMMIT_REF" -- "$MEMORY_FILE"; then
+if checkout_file "$COMMIT_REF" "$MEMORY_FILE"; then
     success "Memory reverted successfully"
 else
     error "Revert failed"
@@ -235,17 +250,17 @@ fi
 # TASK 9: Post-Revert Summary
 step "Calculating statistics..."
 
-# Count entities and relations
-ENTITY_COUNT=$(grep -c '"type":"entity"' "$MEMORY_FILE" 2>/dev/null || echo "0")
-RELATION_COUNT=$(grep -c '"relationType"' "$MEMORY_FILE" 2>/dev/null || echo "0")
-MEMORY_SIZE=$(format_size $(stat -f%z "$MEMORY_FILE" 2>/dev/null || stat -c%s "$MEMORY_FILE" 2>/dev/null || echo "0"))
+# Get memory statistics using migrate-memories.sh
+ENTITY_COUNT=$(count_entities_stream "$MEMORY_FILE")
+RELATION_COUNT=$(count_relations_stream "$MEMORY_FILE")
+MEMORY_SIZE=$(wc -c < "$MEMORY_FILE" 2>/dev/null || echo "0")
 
 section "Revert Summary"
 info "Memory: $MEMORY_FILE"
 info "Reverted to: $COMMIT_REF"
 info "Entities: $ENTITY_COUNT"
 info "Relations: $RELATION_COUNT"
-info "Size: $MEMORY_SIZE"
+info "Size: $(format_size $MEMORY_SIZE)"
 info "Backup: $BACKUP_NAME"
 section_end
 
