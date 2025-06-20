@@ -74,12 +74,53 @@ Each script implementation should update:
 3. **Design doc updates** - Refine architecture based on reality
 4. **Test scenarios** - Document manual test cases
 
-### 🧪 Testing Strategy
-- [ ] Create scripts/test/ directory
-- [ ] Unit tests for each utility function
-- [ ] Integration tests for full workflows
-- [ ] Edge case documentation
-- [ ] Platform compatibility checks (macOS, Linux)
+### 🧪 Testing Strategy - version-control.sh Hardening
+
+#### Branch Architecture for Safe Testing
+```
+main (safe checkpoint with base helper scripts)
+  │
+  └─> Framework_version_control (parallel feature branch, accumulates tested features)
+        │
+        └─> test_review (clean base for all test scenarios)
+              │
+              ├─> test_merge_conflicts
+              ├─> test_branch_pruning
+              ├─> test_auto_stash
+              ├─> test_undo_commit
+              ├─> test_backup_branch
+              ├─> test_cherry_pick
+              ├─> test_rebase_scenarios
+              └─> test_[various scenarios]
+```
+
+#### Testing Approach
+1. **Isolation Strategy**:
+   - Framework_version_control runs parallel to main as testing ground
+   - test_review provides clean starting point for all tests
+   - Each test branch created from test_review (never from each other)
+   - Successful tests selectively merged to Framework_version_control
+   - Once all tests pass, Framework_version_control merges to main
+
+2. **Checkpoint Commits**:
+   - Framework_version_control: "docs: add version control testing strategy"
+   - test_review: "test: define all test cases for version-control.sh"
+   - Each provides a clean state for branching
+
+3. **Test Categories**:
+   - **Destructive Operations**: branch pruning, force push, reset
+   - **Merge Scenarios**: conflicts, fast-forward, recursive
+   - **Stash Operations**: auto-stash, stash conflicts, stash recovery
+   - **History Rewriting**: rebase, cherry-pick, amend
+   - **Backup/Recovery**: undo_last_commit, backup branches
+   - **Edge Cases**: empty repos, detached HEAD, bare repos
+
+4. **Success Criteria**:
+   - Each function in version-control.sh tested in isolation
+   - Integration with start/stop/save/revert scripts verified
+   - Error handling validated for all failure modes
+   - Performance under large repos tested
+   - Cross-platform compatibility confirmed
 
 ## Memory Management Implementation
 
