@@ -2,6 +2,17 @@
 
 > This document defines all test scenarios for hardening version-control.sh
 > Each test will be executed in an isolated branch created from test_review
+> Tests are designed to validate AIPM framework integration requirements
+
+## AIPM Framework Context
+
+### Critical Requirements
+1. **Memory Isolation**: Maintain complete separation between framework and project memories
+2. **Session Integrity**: Support atomic start/stop/save/revert workflow
+3. **Multi-Project**: Handle multiple projects with independent .memory/ directories
+4. **Team Collaboration**: Enable memory sharing through git
+5. **Exit Codes**: Preserve standardized exit codes (0-5)
+6. **No Global Config**: Never modify git global configuration
 
 ## Test Branches and Scenarios
 
@@ -60,6 +71,9 @@
 - [ ] pop_stash() - with conflicts
 - [ ] Auto-stash in pull_changes()
 - [ ] Auto-stash in switch_branch()
+- [ ] DID_STASH variable tracking
+- [ ] Stash recovery after failed operations
+- [ ] Memory file handling during stash
 
 ### 5. test_commit_operations
 **Branch**: `test_commit_operations`
@@ -73,7 +87,15 @@
 - [ ] undo_last_commit() - soft reset
 - [ ] undo_last_commit() - mixed reset
 - [ ] undo_last_commit() - hard reset
-- [ ] Commit statistics display
+- [ ] commit_with_stats() - memory file commits
+  - [ ] File size calculation
+  - [ ] Entity counting (grep "entityType")
+  - [ ] Relation counting (grep "relationType")
+  - [ ] Statistics formatting
+  - [ ] Multi-file commits
+- [ ] Commit message standards
+  - [ ] Memory update commits
+  - [ ] Session save commits
 
 ### 6. test_merge_operations
 **Branch**: `test_merge_operations`
@@ -175,11 +197,31 @@
 **Branch**: `test_integration`
 **Tests**:
 - [ ] Integration with start.sh
+  - [ ] Git repo validation on start
+  - [ ] Branch status checking
+  - [ ] Auto-sync with remote
+  - [ ] Dirty working directory handling
 - [ ] Integration with stop.sh
+  - [ ] Working directory status check
+  - [ ] Optional save.sh integration
+  - [ ] Session artifact cleanup
 - [ ] Integration with save.sh
+  - [ ] commit_with_stats() for memory files
+  - [ ] Memory file size formatting
+  - [ ] Entity/relation counting
+  - [ ] push_changes() integration
 - [ ] Integration with revert.sh
-- [ ] Memory backup before operations
-- [ ] Session state preservation
+  - [ ] Interactive commit selection
+  - [ ] Safe reversion with backups
+  - [ ] Memory file checkout
+- [ ] Memory backup/restore workflow
+  - [ ] .memory/backup.json handling
+  - [ ] Global to local transfer
+  - [ ] Isolation verification
+- [ ] Multi-project scenarios
+  - [ ] Project switching
+  - [ ] Concurrent project handling
+  - [ ] Memory prefix preservation
 
 ### 15. test_error_handling
 **Branch**: `test_error_handling`
@@ -191,6 +233,46 @@
 - [ ] Invalid input handling
 - [ ] Timeout scenarios
 - [ ] Signal interruption (Ctrl+C)
+- [ ] Exit code validation (0-5)
+- [ ] Error message clarity
+- [ ] Recovery instructions
+
+### 16. test_memory_operations
+**Branch**: `test_memory_operations`
+**Tests**:
+- [ ] Memory file conflict resolution
+  - [ ] NDJSON format preservation
+  - [ ] Entity prefix handling (AIPM_ vs PROJECT_)
+  - [ ] Duplicate entity resolution
+  - [ ] Relation integrity
+- [ ] Large memory file handling
+  - [ ] Performance with >10MB files
+  - [ ] Commit statistics accuracy
+  - [ ] Diff visualization
+- [ ] Memory file merging
+  - [ ] Branch merges with memory changes
+  - [ ] Three-way merge scenarios
+  - [ ] Conflict markers in NDJSON
+- [ ] Backup/restore operations
+  - [ ] backup.json creation
+  - [ ] Atomic restore process
+  - [ ] Rollback on failure
+
+### 17. test_team_collaboration
+**Branch**: `test_team_collaboration`
+**Tests**:
+- [ ] Memory sharing workflow
+  - [ ] Pull team memories
+  - [ ] Merge memory conflicts
+  - [ ] Push combined knowledge
+- [ ] Concurrent editing
+  - [ ] Two users, same project
+  - [ ] Memory merge strategies
+  - [ ] Protocol preservation
+- [ ] Branch-based memory
+  - [ ] Feature branch memories
+  - [ ] Memory follows git flow
+  - [ ] Clean memory merges
 
 ## Test Execution Plan
 
@@ -201,6 +283,13 @@
 5. If tests fail, fix in branch and retest
 6. Never merge failing tests
 
+### Test Environment Setup
+- Run all tests from AIPM root directory
+- Create test projects in temporary directories
+- Use both --framework and --project contexts
+- Verify memory isolation between contexts
+- Test with real .memory/local_memory.json files
+
 ## Success Metrics
 
 - All functions handle errors gracefully
@@ -209,6 +298,12 @@
 - Performance acceptable for large repos
 - Cross-platform compatibility verified
 - Integration with AIPM scripts seamless
+- Memory isolation maintained
+- Session integrity preserved
+- Team collaboration workflows functional
+- Exit codes consistent (0-5)
+- No global git config modifications
+- All operations atomic with rollback
 
 ## Notes
 
@@ -217,3 +312,73 @@
 - Document all edge cases discovered
 - Create minimal reproduction cases for bugs
 - Consider automation after manual verification
+
+## AIPM-Specific Test Scenarios
+
+### Critical Workflows to Validate
+
+1. **Full Session Lifecycle**
+   ```bash
+   ./scripts/start.sh --project TestProject
+   # Make changes
+   ./scripts/stop.sh --project TestProject
+   ./scripts/save.sh --project TestProject "Test session"
+   ```
+
+2. **Memory Isolation Verification**
+   ```bash
+   # Framework memory should never contain PROJECT_ entities
+   # Project memory should never contain AIPM_ entities
+   ```
+
+3. **Crash Recovery**
+   ```bash
+   # Simulate crash during session
+   # Verify recovery with backup.json
+   ```
+
+4. **Multi-Project Switching**
+   ```bash
+   ./scripts/start.sh --project Project1
+   ./scripts/stop.sh --project Project1
+   ./scripts/start.sh --project Project2
+   # Verify complete isolation
+   ```
+
+### Function-Specific Requirements
+
+1. **commit_with_stats()**
+   - Must calculate memory file statistics
+   - Must format file sizes with format_size()
+   - Must count entities and relations accurately
+   - Must handle multiple memory files
+
+2. **create_backup_branch()**
+   - Must create before dangerous operations
+   - Must use timestamp in branch name
+   - Must preserve current state completely
+
+3. **push_changes()**
+   - Must handle --sync-team flag
+   - Must set upstream for new branches
+   - Must provide clear conflict resolution
+
+4. **stash_changes()**
+   - Must track state with DID_STASH
+   - Must include untracked files when needed
+   - Must provide recovery instructions
+
+### Error Handling Standards
+
+- Exit code 0: Success
+- Exit code 1: General error
+- Exit code 2: Git command failed
+- Exit code 3: Working directory not clean
+- Exit code 4: Merge conflict
+- Exit code 5: Network/remote error
+
+All errors must include:
+- Clear description of what failed
+- Current state information
+- Recovery instructions
+- No modifications to global git config
