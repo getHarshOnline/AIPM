@@ -1,0 +1,510 @@
+# AIPM Framework Workspace Configuration
+# ======================================
+# This file configures the AIPM framework workspace ONLY.
+# Each project will have its own .aipm/opinions.yaml file.
+# 
+# When you run ./scripts/start.sh, it will:
+# 1. Detect available workspaces (framework + any projects)
+# 2. Load the opinions.yaml from the selected workspace
+# 3. All operations use that workspace's rules
+#
+# USAGE EXAMPLES:
+# ==============
+# Framework workspace (this file):
+#   prefix: AIPM_
+#   mainBranch: AIPM_MAIN
+#   entityPrefix: AIPM_
+#
+# Project workspace example:
+#   prefix: PRODUCT_
+#   mainBranch: PRODUCT_MAIN  
+#   entityPrefix: PRODUCT_
+#
+# Another project example:
+#   prefix: CLIENTSITE_
+#   mainBranch: CLIENTSITE_MAIN
+#   entityPrefix: CLIENTSITE_
+#
+# HOW TO CUSTOMIZE FOR YOUR PROJECT:
+# =================================
+# 1. Copy this file to YourProject/.aipm/opinions.yaml
+# 2. Change workspace.name to your project name (e.g., PRODUCT)
+# 3. Update all prefixes to match (PRODUCT_, PRODUCT_MAIN, etc.)
+# 4. Adjust lifecycle rules for your workflow
+# 5. Add project-specific categories
+# 6. Set validation.mode to 'relaxed' if starting out
+
+# Who am I?
+workspace:
+  # REQUIRED: Identifies what kind of workspace this is
+  # CURRENTLY SUPPORTED: framework | project
+  # - framework: The AIPM framework itself (this file)
+  # - project: Any project using AIPM (Product, ClientSite, etc.)
+  # 
+  # NOT YET SUPPORTED (future features):
+  # - org: Organization-wide settings
+  # - team: Team-specific settings
+  type: framework
+  
+  # REQUIRED: Unique identifier for this workspace
+  # BEST PRACTICE: Use UPPERCASE for clarity
+  # Examples: AIPM, PRODUCT, CLIENTSITE, MOBILEAPP
+  # This is used in:
+  # - Branch prefixes (if dynamic prefix enabled)
+  # - Memory entity prefixes
+  # - Display messages and logs
+  name: AIPM
+  
+  # OPTIONAL: Human-readable description
+  # Examples:
+  # - "AI Project Manager Framework Development"
+  # - "E-commerce Platform Development"
+  # - "Client Website Redesign Project"
+  description: "AI Project Manager Framework Development"
+
+# How do I manage branches?
+branching:
+  # REQUIRED: Namespace prefix for ALL branches in this workspace
+  # This creates complete isolation between workspaces
+  # MUST BE UNIQUE across all workspaces to prevent conflicts
+  #
+  # Framework example: AIPM_
+  # Project examples: PRODUCT_, CLIENTSITE_, MOBILE_, BACKEND_
+  # 
+  # WHY THIS MATTERS:
+  # - Creates visual grouping in 'git branch' output
+  # - Enables automated cleanup (can delete PROJECT_* safely)
+  # - Prevents accidental operations on wrong branches
+  # - Allows multiple AIPM workspaces in same repo (rare but possible)
+  prefix: AIPM_
+  
+  # REQUIRED: Main branch suffix (prefix will be added automatically)
+  # Full branch name will be: {prefix}{mainBranchSuffix}
+  # This is where AIPM commits memory, configs, and other changes
+  # Created automatically from initialization mapping on first run
+  #
+  # Examples:
+  # - mainBranchSuffix: MAIN -> AIPM_MAIN (for framework)
+  # - mainBranchSuffix: MAIN -> PRODUCT_MAIN (for projects)
+  # - mainBranchSuffix: MAIN -> CLIENTSITE_MAIN (for projects)
+  # 
+  # CONVENTION: Always use 'MAIN' unless you have a specific reason
+  mainBranchSuffix: MAIN
+  
+  # REQUIRED: Branch initialization mapping
+  # AIPM creates its own branches from your existing branches
+  # Once created, AIPM abandons the original branch and works on its own
+  # The first commit in any AIPM branch will be tagged 'AIPM_INIT_HERE'
+  
+  # ⚠️ WARNING: REMAPPING BEHAVIOR ⚠️
+  # ==================================
+  # Normal behavior: If AIPM branches exist, initialization is SKIPPED
+  # 
+  # REMAPPING: ./scripts/start.sh --remap
+  # - Forces recreation of ALL AIPM branches
+  # - Old AIPM branches are ABANDONED (not deleted)
+  # - Creates new branches from current mappings
+  # - Your git tree will have orphaned branches!
+  #
+  # CLEANUP: ./scripts/start.sh --remap --clean
+  # - Same as --remap but DELETES old AIPM branches
+  # - DANGEROUS: Loses all AIPM history!
+  # - Only use if you understand the consequences
+  #
+  # DO NOT modify these mappings unless you need --remap
+  # Changes are detected on start and will prompt for action
+  
+  # Primary branch mapping (most important)
+  initialization:
+    # Source branch -> AIPM branch mapping
+    # Only provide suffix; prefix will be added automatically
+    main:                           # From user's 'main' branch
+      suffix: MAIN                  # Creates: {prefix}MAIN (e.g., AIPM_MAIN)
+      fromCommit: HEAD              # Optional: specific commit SHA or HEAD
+      # Normal mode: If AIPM_MAIN exists, this is ignored
+      # --remap mode: Forces recreation even if exists
+    
+    # Additional branch mappings (optional)
+    # Example for projects that need multiple branches:
+    # develop:
+    #   suffix: DEVELOP              # Creates: {prefix}DEVELOP
+    #   fromCommit: HEAD
+    # staging:
+    #   suffix: STAGING              # Creates: {prefix}STAGING
+    #   fromCommit: abc123def        # Specific commit
+    # production:
+    #   suffix: PROD                 # Creates: {prefix}PROD
+    #   fromCommit: v1.2.3           # Tag reference
+  
+  # IMPORTANT: Branch creation behavior
+  # - AIPM splits from the specified commit (default: HEAD)
+  # - Creates new branch with workspace prefix + suffix
+  # - First commit will be 'AIPM_INIT_HERE' for tracking
+  # - Original branch is abandoned (AIPM never commits there)
+  # - You can always return to original branch if needed
+  #
+  # INITIALIZATION RULES:
+  # 1. First run: Creates all mapped branches
+  # 2. Subsequent runs: Skips existing branches
+  # 3. Modified mappings: Detected and warns user
+  # 4. --remap flag: Forces recreation (abandons old)
+  # 5. --remap --clean: Forces recreation (deletes old)
+  
+  # OPTIONAL: Branches that need special protection
+  # These cannot be deleted by cleanup operations
+  protectedBranches:
+    # User's original branches (never touched by AIPM)
+    userBranches:
+      - main                        # User's original
+      - master                      # Legacy support
+      - develop                     # Common development branch
+      - staging                     # Deployment branches
+      - production
+    
+    # AIPM branches to protect (provide suffix only)
+    # Full branch names will be {prefix}{suffix}
+    aipmBranchSuffixes:
+      - MAIN                        # Protects {prefix}MAIN (e.g., AIPM_MAIN)
+      # Projects might add:
+      # - STAGING                   # Protects {prefix}STAGING
+      # - PROD                      # Protects {prefix}PROD
+
+# How do I name my branches?
+naming:
+  # Branch naming patterns for different purposes
+  # Available variables:
+  # {timestamp} = YYYYMMDD_HHMMSS (e.g., 20240621_143022)
+  # {date} = YYYYMMDD (e.g., 20240621)
+  # {user} = git user.name (e.g., john_doe)
+  # {description} = user-provided description
+  # {version} = semantic version (e.g., 1.2.3)
+  # {environment} = deployment environment
+  #
+  # Patterns use prefix automatically. Only define the suffix pattern.
+  # Full branch name will be: {prefix}{pattern}
+  #
+  # Examples with prefix "AIPM_":
+  feature: "feature/{description}"      # Creates: AIPM_feature/add-yaml-support
+  bugfix: "fix/{description}"           # Creates: AIPM_fix/memory-leak
+  test: "test/{description}"            # Creates: AIPM_test/version-control
+  session: "session/{timestamp}"        # Creates: AIPM_session/20240621_143022
+  release: "release/v{version}"         # Creates: AIPM_release/v1.2.0
+  
+  # PROJECT PATTERNS (what projects might add):
+  # deploy: "deploy/{environment}"      # Creates: PRODUCT_deploy/staging
+  # hotfix: "hotfix/{description}"      # Creates: PRODUCT_hotfix/payment-bug
+  # spike: "spike/{description}"        # Creates: PRODUCT_spike/ai-integration
+
+# How long do branches live?
+lifecycle:
+  # ⚠️ CRITICAL SAFETY INFORMATION ⚠️
+  # ==================================
+  # AIPM ONLY manages branches that match {prefix}{pattern}
+  # - Framework: Only touches branches starting with "AIPM_"
+  # - Projects: Only touches branches with their prefix
+  # 
+  # YOUR BRANCHES ARE SAFE:
+  # - main, master, develop, feature/*, etc. are NEVER touched
+  # - Only branches matching our patterns are managed
+  # - Detection is PURELY based on prefix matching
+  # 
+  # WARNING: If you change prefix after branches exist:
+  # - Old branches become "orphaned" (no longer managed)
+  # - New rules only apply to new branches
+  # - CURRENTLY: No migration support for prefix changes
+  # - WORST CASE: Messy git tree, but NO DATA LOSS
+  
+  # LIFECYCLE RULES EXPLAINED:
+  # -------------------------
+  # deleteAfterMerge: Should branch be deleted after merging?
+  #   - true: Delete after merge + daysToKeep
+  #   - false: Keep branch, delete based on inactivity
+  #
+  # daysToKeep: When to delete the branch
+  #   - When deleteAfterMerge=true: Days AFTER MERGE
+  #   - When deleteAfterMerge=false: Days AFTER LAST COMMIT
+  #   - 0 = immediate deletion
+  #   - -1 = keep forever
+  #   - N = delete after N days
+  #
+  # maxCount: Rolling window (optional)
+  #   - Only keep the N most recent branches
+  #   - Older ones deleted regardless of daysToKeep
+  
+  feature:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 0                   # Immediately after merge
+    # Example: AIPM_feature/add-yaml merged → deleted same day
+  
+  session:
+    deleteAfterMerge: false         # Don't delete on merge
+    daysToKeep: 7                   # 7 days after LAST COMMIT
+    maxSessions: 10                 # Keep only 10 most recent
+    # Example: AIPM_session/20240621_143022 
+    #   - Last commit: June 21
+    #   - Auto-delete: June 28 (unless it's in top 10)
+  
+  test:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 3                   # 3 days after merge (grace period)
+    # Example: AIPM_test/memory-fix merged June 21 → deleted June 24
+  
+  release:
+    deleteAfterMerge: false         # Never delete on merge
+    daysToKeep: -1                  # Keep forever
+    # Example: AIPM_release/v1.0.0 → permanent
+
+# How do I manage memory?
+memory:
+  # REQUIRED: Prefix for ALL memory entities in this workspace
+  # MUST match the branch prefix for consistency
+  # This prevents memory contamination between workspaces
+  #
+  # CRITICAL: This prefix is ENFORCED by the MCP memory server
+  # When creating memories, the format MUST be:
+  # {entityPrefix}{CATEGORY}_{NAME}
+  #
+  # Examples:
+  # Framework: AIPM_PROTOCOL_SESSION_INIT
+  # Product: PRODUCT_FEATURE_SHOPPING_CART
+  # ClientSite: CLIENTSITE_TASK_HOMEPAGE_REDESIGN
+  #
+  # HOW IT WORKS:
+  # 1. User prompts Claude with "Remember this protocol..."
+  # 2. AIPM intercepts and formats as: AIPM_PROTOCOL_DESCRIPTION
+  # 3. MCP memory server stores with this exact format
+  # 4. Validation blocks any entity without correct prefix
+  entityPrefix: AIPM_
+  
+  # REQUIRED: Allowed categories for memory entities
+  # These control what types of knowledge can be stored
+  # The MCP memory prompt will be formatted as:
+  # "Create memory entity: {entityPrefix}{CATEGORY}_{description}"
+  #
+  # VALIDATION: Only these categories are allowed for this workspace
+  # Attempting to use others will be blocked by validate_memory_stream()
+  categories:
+    - PROTOCOL                      # How AIPM works
+    - WORKFLOW                      # Usage patterns
+    - DESIGN                        # Architecture decisions
+    - SCRIPT                        # Script implementations
+    - MODULE                        # Module interfaces
+    - TEST                          # Testing strategies
+    - LEARNING                      # Implementation insights
+  
+  # Project categories (domain focused) examples:
+  # E-commerce:
+  #   - FEATURE                     # Feature specifications
+  #   - BUG                        # Bug reports and fixes
+  #   - CUSTOMER                   # Customer feedback
+  #   - DEPLOYMENT                 # Deploy procedures
+  #   - INTEGRATION                # Third-party integrations
+  #
+  # Client Website:
+  #   - CONTENT                    # Content updates
+  #   - DESIGN                     # Design decisions
+  #   - SEO                        # SEO optimizations
+  #   - PERFORMANCE                # Performance improvements
+
+# How do I work with my team?
+team:
+  # How to handle team synchronization
+  # Options: manual | prompt | auto
+  # - manual: User must explicitly sync
+  # - prompt: Ask when updates detected
+  # - auto: Sync without asking (dangerous!)
+  syncMode: manual                  
+  
+  # Check for remote updates on session start
+  fetchOnStart: true
+  
+  # Alert when local and remote have diverged
+  warnOnDivergence: true
+  
+  # Require pull requests for mainBranch
+  # Framework: true (careful development)
+  # Projects: might start with false
+  requirePullRequest: true
+
+# How strict am I?
+validation:
+  # Overall enforcement level
+  # Options: strict | relaxed | gradual
+  # - strict: Block non-compliant operations (framework)
+  # - relaxed: Warn but allow (new projects)
+  # - gradual: Start relaxed, increase over time
+  mode: strict
+  
+  rules:
+    # What to enforce
+    enforceNaming: true             # Must follow branch patterns
+    blockWrongPrefix: true          # Can't use PRODUCT_ in AIPM
+    requireCleanTree: false         # Can work with uncommitted
+    validateMemory: true            # Check entity prefixes
+    
+  # What stops operations cold (even in relaxed mode)
+  blockers:
+    wrongWorkspace: true            # Can't mix AIPM_ and PRODUCT_
+    invalidPrefix: true             # Must use correct prefix
+    corruptMemory: true            # Malformed memory file
+
+# Workspace-specific settings
+settings:
+  # Schema version for migration support
+  schemaVersion: "1.0"
+  
+  # Template configuration (for framework workspace only)
+  # Projects should NOT have this section
+  templates:
+    # Available templates for new project initialization
+    # When running: ./scripts/init.sh --template <name>
+    available:
+      - name: "default"
+        path: ".aipm/templates/default.yaml"
+        description: "Standard project setup"
+      
+      - name: "web"
+        path: ".aipm/templates/web-project.yaml"
+        description: "Web application with deploy branches"
+        
+      - name: "library"
+        path: ".aipm/templates/library.yaml"
+        description: "Library with release management"
+        
+      # Teams can add custom templates:
+      # - name: "microservice"
+      #   path: ".aipm/templates/microservice.yaml"
+      #   description: "Microservice with staging/prod"
+    
+    # Default template if none specified
+    default: "default"
+  
+  # Framework-specific settings (only for type: framework)
+  frameworkPaths:
+    modules: "scripts/"             # Where AIPM modules live
+    tests: "scripts/test/"          # AIPM test files
+    docs: "AIPM_Design_Docs/"       # AIPM documentation
+    templates: ".aipm/templates/"   # Project templates
+    
+  # Development workflow (applies to THIS workspace)
+  workflow:
+    # For framework development (strict)
+    requireTests: true              # Can't merge without tests
+    requireDocs: true               # Must document changes
+    requireReview: true             # Peer review required
+    # Projects might set these all to false initially
+
+# PROJECT INITIALIZATION:
+# =======================
+# How AIPM integrates with existing projects:
+#
+# SAFETY FIRST: init.sh has multiple modes to protect your work
+#
+# MODE 1: Initialize already symlinked project (SAFEST)
+# -----------------------------------------------------
+# If you manually created symlink: ln -s /path/to/project ./MyProject
+# Run: ./scripts/init.sh --project MyProject
+# - Detects existing symlink, SKIPS symlink creation
+# - Only initializes AIPM in the linked project
+# - Zero risk to your project location
+#
+# MODE 2: Create symlink and initialize
+# -------------------------------------
+# Run: ./scripts/init.sh --link --project MyProject --path /path/to/project
+# - Checks if MyProject already exists (safety check)
+# - If exists, ABORTS to prevent overwriting
+# - Creates symlink only if safe
+# - Then initializes AIPM
+#
+# MODE 3: Batch initialization
+# ---------------------------
+# Run: ./scripts/init.sh --link --batch projects.txt
+# Where projects.txt contains:
+#   MyProject:/path/to/my/project
+#   ClientSite:/path/to/client/site
+#   MobileApp:/path/to/mobile/app
+# - Processes each line, creates symlinks
+# - Skips any that already exist
+# - Initializes AIPM in each
+#
+# INITIALIZATION PROCESS (same for all modes):
+# 1. Check if project has .aipm/opinions.yaml
+# 2. If not, initialize:
+#    - Create project/.aipm/ directory
+#    - Copy template from .aipm/templates/{template}.yaml
+#    - Update values (name, prefix, etc.)
+# 3. Detect project's main branch
+# 4. Create PROJECT_MAIN from detected branch
+# 5. Add AIPM_INIT_HERE commit marker
+#
+# SAFETY FEATURES:
+# - NEVER overwrites existing symlinks
+# - NEVER moves or copies your project
+# - NEVER modifies without --link flag
+# - ALWAYS shows what it will do first
+# - ABORTS on any safety concern
+#
+# WORKSPACE STRUCTURE after init:
+# AIPM/
+# ├── .aipm/                    # ⭐ THE AIPM HUB - EVERYTHING LIVES HERE
+# │   ├── memory.json          # Symlink to MCP memory (AI-agnostic)
+# │   ├── opinions.yaml        # Workspace configuration
+# │   ├── memory/              # 🧠 CRITICAL: Persistent memory storage
+# │   │   ├── local_memory.json # Workspace AI knowledge (git-tracked)
+# │   │   ├── backup.json      # Session backup (gitignored)
+# │   │   ├── session_*        # Session files (gitignored)
+# │   │   └── [merge files]    # Temporary merge files
+# │   ├── templates/           # Project initialization templates
+# │   │   ├── default.yaml     # Standard project template
+# │   │   ├── web.yaml         # Web project template
+# │   │   └── [custom].yaml    # Custom templates
+# │   ├── scripts/             # All AIPM scripts
+# │   │   ├── start.sh         # Session management
+# │   │   ├── stop.sh          
+# │   │   ├── save.sh          
+# │   │   ├── revert.sh        
+# │   │   ├── modules/         # Core modules (clean structure!)
+# │   │   │   ├── shell-formatting.sh
+# │   │   │   ├── version-control.sh
+# │   │   │   ├── migrate-memories.sh
+# │   │   │   └── sync-memory.sh
+# │   │   └── test/            # Test files
+# │   └── docs/                # All documentation
+# │       ├── memory-management.md
+# │       ├── documentation-structure.md
+# │       └── [architecture docs]
+# ├── start.sh -> .aipm/scripts/start.sh    # Convenience symlinks
+# ├── stop.sh -> .aipm/scripts/stop.sh
+# ├── save.sh -> .aipm/scripts/save.sh
+# ├── revert.sh -> .aipm/scripts/revert.sh
+# ├── .agentrules               # AI behavior rules (vendor-agnostic)
+# ├── AIPM.md                   # Framework documentation
+# ├── README.md                 # Quick start guide
+# ├── current-focus.md          # Active framework tasks
+# ├── broad-focus.md            # Framework vision
+# ├── changelog.md              # Framework history
+# │
+# └── MyProject/                # Symlink to your project
+#     ├── .aipm/                # ⭐ PROJECT'S AIPM HUB
+#     │   ├── memory.json       # Symlink to MCP memory
+#     │   ├── opinions.yaml     # Project-specific config
+#     │   └── memory/           # 🧠 Project memory
+#     │       ├── local_memory.json  # Project AI knowledge
+#     │       └── backup.json        # Session backup
+#     ├── .agentrules           # Project AI behavior rules
+#     ├── current-focus.md      # Project active tasks
+#     ├── broad-focus.md        # Project vision
+#     ├── changelog.md          # Project history
+#     └── [your project files]  # Your existing code
+#
+# CRITICAL: AIPM's power comes from .aipm/ directory:
+# - memory.json: Live AI memory (symlink to MCP)
+# - memory/: Persistent storage (git-tracked knowledge)
+# - opinions.yaml: Workspace behavior configuration
+#
+# CRITICAL: Standard files that make AIPM work:
+# - .agentrules: AI behavior (was CLAUDE.md)
+# - current-focus.md: Active tasks
+# - broad-focus.md: Long-term vision
+# - changelog.md: Progress tracking
+# - local_memory.json: Knowledge persistence

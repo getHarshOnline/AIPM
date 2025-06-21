@@ -46,17 +46,17 @@ set -euo pipefail
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source dependencies with error handling
-source "$SCRIPT_DIR/shell-formatting.sh" || {
+source "$SCRIPT_DIR/modules/shell-formatting.sh" || {
     printf "ERROR: Required file shell-formatting.sh not found\n" >&2
     exit 1
 }
 
-source "$SCRIPT_DIR/version-control.sh" || {
+source "$SCRIPT_DIR/modules/version-control.sh" || {
     error "Required file version-control.sh not found"
     exit 1
 }
 
-source "$SCRIPT_DIR/migrate-memories.sh" || {
+source "$SCRIPT_DIR/modules/migrate-memories.sh" || {
     error "Required file migrate-memories.sh not found"
     exit 1
 }

@@ -50,7 +50,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source dependencies
-source "$SCRIPT_DIR/shell-formatting.sh" || {
+# Get the modules directory (we're already in it)
+MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$MODULES_DIR/shell-formatting.sh" || {
     printf "ERROR: Required file shell-formatting.sh not found\n" >&2
     exit 1
 }

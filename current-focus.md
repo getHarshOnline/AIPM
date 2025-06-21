@@ -63,7 +63,7 @@
   - [x] Memory symlink verification (using hardened sync-memory.sh)
   - [x] Interactive project selection menu (use shell-formatting.sh)
   - [x] Git synchronization checks (use version-control.sh)
-  - [x] Memory backup mechanism (.memory/backup.json)
+  - [x] Memory backup mechanism (.aipm/memory/backup.json)
   - [x] Context-specific memory loading
   - [x] Claude Code launch integration
   - [ ] **NEEDS UPDATE**: Use migrate-memories.sh functions
@@ -285,7 +285,7 @@ if get_file_from_commit "HEAD" "$MEMORY_FILE" > "$REMOTE_MEMORY" 2>/dev/null; th
 
 ### IMMEDIATE FIXES REQUIRED:
 1. Fix the `get_file_from_commit` violation in start.sh
-2. Verify .gitignore has all required entries (.memory/backup*.json, .claude/)
+2. Verify .gitignore has all required entries (.aipm/memory/backup*.json, .claude/)
 3. Replace blank `info ""` calls with proper formatting
 
 ## Next Steps (Post-Audit Priority)
@@ -503,7 +503,7 @@ References: wrapper-scripts-hardening-plan.md Part 6 (lines 1465-1487)
 ### 🐛 Critical Fix Applied (2025-06-21)
 
 **Issue**: `.gitignore` had hardcoded "Product" entries, breaking multi-project support
-**Fix**: Changed to generic patterns (`*/.memory/` instead of `Product/.memory/`)
+**Fix**: Changed to generic patterns (`*/.aipm/memory/` instead of `Product/.aipm/memory/`)
 **Impact**: AIPM now works with ANY project name, not just "Product"
 
 This was a critical architectural bug that prevented AIPM from being truly generic!
@@ -538,6 +538,60 @@ This was a critical architectural bug that prevented AIPM from being truly gener
    - Each level inherits and adapts
 
 This is THE CORNERSTONE that makes AIPM universally applicable!
+
+## 🏗️ Critical Architectural Change: .aipm Directory Structure (2025-06-21)
+
+**MAJOR CHANGE**: All AIPM configuration now lives in `.aipm/` directory (similar to `.git/`)
+
+### New Directory Structure:
+```
+AIPM/                              # Framework workspace
+├── .aipm/                         # AIPM configuration directory
+│   ├── opinions.json             # Framework branching opinions
+│   └── memory/                   # Memory storage (was .memory/)
+│       ├── local_memory.json    # Framework memory
+│       ├── backup.json          # Session backup
+│       ├── session_active       # Active session marker
+│       └── session_*            # Session logs
+│
+└── Product/                      # Project workspace  
+    └── .aipm/                    # Project's AIPM configuration
+        ├── opinions.json         # Project's branching opinions
+        └── memory/               # Project's memory storage
+            └── local_memory.json # Project memory
+```
+
+### Key Benefits:
+1. **Explicit Initialization**: `aipm init` creates `.aipm/` structure
+2. **Clean Separation**: All AIPM files in one directory
+3. **Unix-like Convention**: Similar to `.git/` directory
+4. **Easier Gitignore**: Single pattern for all AIPM files
+
+### Migration Completed:
+- ✅ All references from `.memory/` → `.aipm/memory/`
+- ✅ Framework opinions.yaml created at `.aipm/opinions.yaml`
+- ✅ Renamed CLAUDE.md → .agentrules (AI-agnostic)
+- ✅ Moved .claude/memory.json → .aipm/memory.json
+- Init script will set up this structure for new workspaces
+
+### AI-Agnostic Architecture (2025-06-21):
+- **No vendor lock-in**: Works with any AI (Claude, GPT, Gemini, etc.)
+- **Everything in .aipm/**: Complete AIPM hub for all operations
+- **.agentrules**: Replaces CLAUDE.md for vendor neutrality
+- **Cleaner structure**: No .claude/ directory needed
+
+### Professional Structure Reorganization (2025-06-21):
+- ✅ Moved scripts/ → .aipm/scripts/
+- ✅ Moved modules → .aipm/scripts/modules/ (clean hierarchy)
+- ✅ Moved AIPM_Design_Docs/ → .aipm/docs/
+- ✅ Created convenience symlinks (./start.sh, ./stop.sh, etc.)
+- ✅ Updated all internal references to new paths
+
+**Benefits**:
+- Everything AIPM-related is in .aipm/
+- Clean root directory
+- Professional module organization
+- Easy command access via symlinks
 
 ## Helper Scripts Status (Post-Refactoring Analysis)
 - ✅ **shell-formatting.sh** - Well-organized, 63 functions properly scoped

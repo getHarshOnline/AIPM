@@ -31,7 +31,9 @@ if [[ -f "$SCRIPT_DIR/shell-formatting.sh" ]]; then
     # Set environment for better output in scripts
     export AIPM_COLOR=true
     export AIPM_UNICODE=true
-    source "$SCRIPT_DIR/shell-formatting.sh"
+    # Get the modules directory
+    MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$MODULES_DIR/shell-formatting.sh"
 else
     # Minimal fallback if formatting script is missing
     printf "Warning: shell-formatting.sh not found\n" >&2

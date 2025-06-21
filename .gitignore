@@ -1,57 +1,76 @@
-# Memory files - security risk if shared
-.claude/memory.json
-# Entire .claude directory (MCP cache location)
+# AIPM Framework .gitignore
+# =========================
+
+# Memory Management
+# -----------------
+# MCP memory symlink (security risk if committed)
+.aipm/memory.json
+
+# Session files (temporary, user-specific)
+.aipm/memory/backup.json
+.aipm/memory/backup*.json
+.aipm/memory/session_active
+.aipm/memory/session_*
+
+# Memory merge temporaries
+.aipm/memory/*.tmp
+.aipm/memory/*.merge.*
+.aipm/memory/*.remote
+
+# NOTE: Project directories are symlinks to external git repos
+# Git automatically doesn't follow symlinks, so project contents
+# are NOT part of this repository. Each project has its own .gitignore.
+
+# Logs
+# ----
+.aipm/*.log
+.aipm/scripts/*.log
+
+# Legacy Claude directory (remove after full migration)
 .claude/
 
-# Memory backups - temporary session files
-.memory/backup.json
-.memory/backup*.json
-# Generic pattern for ALL projects (not hardcoded!)
-*/.memory/backup.json
-*/.memory/backup*.json
-
-# Session management files
-.memory/session_active
-.memory/session_*
-# Generic pattern for ALL projects
-*/.memory/session_*
-
-# Sync script logs
-.claude/*.log
-
-# CRITICAL: Exclude ALL symlinked project directories
-# Projects are detected by presence of .memory/local_memory.json
-# This pattern excludes any directory at root level that:
-# 1. Contains .memory/ subdirectory (indicating it's an AIPM project)
-# 2. Is a symlink to an external repository
-# This makes AIPM truly generic - works with ANY project name!
-*/.memory/
-*/data/
-*/node_modules/
-*/dist/
-*/build/
-
-# Note: Git automatically ignores the symlink itself if the target
-# is a git repository, but we should still be explicit
-# Exclude directories that are symlinks (all AIPM projects)
-
-# OS files
+# OS Files
+# --------
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# IDE files
+# IDE Files
+# ---------
 .vscode/
 .idea/
+*.sublime-*
+*.swp
+*.swo
 
-# Obsidian vault files (if not needed in repo)
+# Obsidian
+# --------
 .obsidian/workspace.json
 .obsidian/cache
 .obsidian/plugins/*/data.json
 
-# Temporary files
+# Temporary Files
+# ---------------
 *.tmp
 *.temp
 *~
+*.bak
+*.orig
 *.tmp.*
 *.merge.*
 *.remote
+
+# IMPORTANT: What IS tracked
+# ==========================
+# ✓ Convenience symlinks (start.sh, stop.sh, etc.) - with relative paths!
+# ✓ .aipm/opinions.yaml - Workspace configuration
+# ✓ .aipm/memory/local_memory.json - Persistent memory
+# ✓ .aipm/scripts/ - All scripts
+# ✓ .aipm/docs/ - Documentation
+# ✓ .aipm/templates/ - Project templates
+# ✓ .agentrules - AI behavior rules
+# ✓ All markdown files at root level
+# ✓ Project symlinks (e.g., MyProject/ -> /path/to/project)
+
+# NOTE: Project directories themselves are symlinks and Git handles them correctly.
+# The symlink is tracked, but the target directory content is not followed.

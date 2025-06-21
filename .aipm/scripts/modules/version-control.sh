@@ -70,7 +70,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/shell-formatting.sh" ]]; then
     # Let shell-formatting.sh detect the environment
     # Don't force colors - that defeats the smart detection!
-    source "$SCRIPT_DIR/shell-formatting.sh"
+    # Get the modules directory
+    MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$MODULES_DIR/shell-formatting.sh"
 else
     printf "ERROR: shell-formatting.sh not found at %s\n" "$SCRIPT_DIR" >&2
     printf "This script requires shell-formatting.sh for proper operation\n" >&2

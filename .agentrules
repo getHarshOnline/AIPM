@@ -35,6 +35,13 @@ You are working with **AIPM (AI Project Manager)**, a protocol-driven framework 
 - Modularity is MANDATORY - each function must be independently testable
 - 100% test coverage achieved on version-control.sh - maintain this standard
 
+#### Manual Review Directive:
+**CRITICAL**: NO change is considered complete until manually reviewed by the user
+- After implementing any change, WAIT for explicit user confirmation
+- Document what was changed in the commit message
+- The user will test and verify before moving to the next task
+- This prevents cascading errors and ensures quality
+
 ### Track 1: AIPM Framework Development
 **Purpose**: Understanding and developing the AIPM framework itself  
 **Location**: Current directory (AIPM root)

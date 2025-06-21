@@ -245,9 +245,9 @@ migrate_memories_version()    # Show module version
    ```bash
    # Appears in all scripts:
    if [[ "$WORK_CONTEXT" == "framework" ]]; then
-       MEMORY_FILE=".memory/local_memory.json"
+       MEMORY_FILE=".aipm/memory/local_memory.json"
    else
-       MEMORY_FILE="$PROJECT_NAME/.memory/local_memory.json"
+       MEMORY_FILE="$PROJECT_NAME/.aipm/memory/local_memory.json"
    fi
    ```
 
@@ -281,7 +281,7 @@ migrate_memories_version()    # Show module version
 
 **Hardcoded Values**:
 1. **Paths**:
-   - `.memory/`, `.claude/` paths everywhere
+   - `.aipm/memory/`, `.claude/` paths everywhere
    - Should be: centralized configuration
 
 2. **Defaults**:
@@ -318,24 +318,24 @@ migrate_memories_version()    # Show module version
 
 **Major Architecture Violation Found**:
 The `.gitignore` file has hardcoded "Product" entries, breaking AIPM's generic nature:
-- `Product/.memory/backup.json` (hardcoded project name)
-- `Product/.memory/session_*` (hardcoded project name)
+- `Product/.aipm/memory/backup.json` (hardcoded project name)
+- `Product/.aipm/memory/session_*` (hardcoded project name)
 - This prevents AIPM from working with ANY project name
 
 **Solution Implemented**:
 ```gitignore
 # OLD (WRONG - hardcoded):
-Product/.memory/backup.json
-Product/.memory/session_*
+Product/.aipm/memory/backup.json
+Product/.aipm/memory/session_*
 
 # NEW (CORRECT - generic):
-*/.memory/backup.json
-*/.memory/session_*
+*/.aipm/memory/backup.json
+*/.aipm/memory/session_*
 ```
 
 **Why This Matters**:
 1. AIPM must work with ANY project name (ClientWebsite, MobileApp, DataPipeline, etc.)
-2. Projects are detected by presence of `.memory/local_memory.json`
+2. Projects are detected by presence of `.aipm/memory/local_memory.json`
 3. All projects are symlinks to independent git repositories
 4. The framework cannot assume any specific project names
 

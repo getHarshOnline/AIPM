@@ -48,9 +48,11 @@ The `@modelcontextprotocol/server-memory` npm package has a critical limitation:
 ```
 Directory Structure:
 AIPM/                          # Framework root (all scripts run from here)
-├── .memory/                   # Framework memory storage
-│   ├── local_memory.json     # Persistent framework memory (tracked)
-│   └── backup.json          # Single backup location (gitignored)
+├── .aipm/                     # AIPM configuration directory
+│   ├── opinions.json        # Framework branching opinions
+│   └── memory/              # Framework memory storage
+│       ├── local_memory.json # Persistent framework memory (tracked)
+│       └── backup.json      # Single backup location (gitignored)
 ├── .claude/
 │   └── memory.json          # Symlink to global npm cache
 ├── scripts/                 # Session management scripts
@@ -60,8 +62,10 @@ AIPM/                          # Framework root (all scripts run from here)
 │   └── revert.sh           # ./scripts/revert.sh --framework|--project NAME
 │
 ├── Product/                 # Project 1 (symlinked git repository)
-│   ├── .memory/            # Project's AI memory
-│   │   └── local_memory.json
+│   ├── .aipm/              # Project's AIPM configuration
+│   │   ├── opinions.json   # Project's branching opinions
+│   │   └── memory/         # Project's AI memory
+│   │       └── local_memory.json
 │   ├── data/               # Actual project data
 │   ├── CLAUDE.md           # Project-specific AI instructions
 │   ├── README.md           # Project documentation
@@ -69,7 +73,9 @@ AIPM/                          # Framework root (all scripts run from here)
 │   └── broad-focus.md      # Project vision
 │
 └── [ProjectName]/          # Future projects (same structure)
-    ├── .memory/            # Each project owns its memory
+    ├── .aipm/              # Each project owns its AIPM config
+    │   ├── opinions.json   # Project opinions
+    │   └── memory/         # Each project owns its memory
     ├── data/               # Each project owns its data
     └── [standard files]    # Same structure for all projects
 ```
@@ -78,11 +84,11 @@ AIPM/                          # Framework root (all scripts run from here)
 
 #### Session Start
 ```
-1. Global Memory → .memory/backup.json     # Single backup location
+1. Global Memory → .aipm/memory/backup.json     # Single backup location
 2. Clear Global Memory                     # Clean slate
 3. Load context-specific memory:
-   - Framework: .memory/local_memory.json → Global
-   - Project: [ProjectName]/.memory/local_memory.json → Global
+   - Framework: .aipm/memory/local_memory.json → Global
+   - Project: [ProjectName]/.aipm/memory/local_memory.json → Global
 ```
 
 #### During Session
@@ -95,11 +101,11 @@ AIPM/                          # Framework root (all scripts run from here)
 #### Session End
 ```
 1. Save to context-specific location:
-   - Framework: Global → .memory/local_memory.json
-   - Project: Global → [ProjectName]/.memory/local_memory.json
+   - Framework: Global → .aipm/memory/local_memory.json
+   - Project: Global → [ProjectName]/.aipm/memory/local_memory.json
 2. Clear Global Memory                        # Clean slate
-3. .memory/backup.json → Global Memory        # Restore original
-4. Delete .memory/backup.json                 # Clean up
+3. .aipm/memory/backup.json → Global Memory        # Restore original
+4. Delete .aipm/memory/backup.json                 # Clean up
 ```
 
 ### Script Usage
@@ -195,14 +201,14 @@ Examples:
 
 ## Example Memory Content
 
-### Framework Memory (.memory/local_memory.json)
+### Framework Memory (.aipm/memory/local_memory.json)
 ```json
 {"type":"entity","name":"AIPM_PROTOCOL_SESSION_INIT","entityType":"PROTOCOL","observations":["Always load protocols at session start","Search for SESSION_PROTOCOL entities","No work without protocol recall"]}
 {"type":"entity","name":"AIPM_WORKFLOW_MEMORY_SYNC","entityType":"WORKFLOW","observations":["Run start.sh before work","Run stop.sh after work","Commit with save.sh"]}
 {"type":"relation","from":"AIPM_PROTOCOL_SESSION_INIT","to":"AIPM_WORKFLOW_MEMORY_SYNC","relationType":"requires"}
 ```
 
-### Product Memory (Product/.memory/local_memory.json)
+### Product Memory (Product/.aipm/memory/local_memory.json)
 ```json
 {"type":"entity","name":"PRODUCT_TASK_DEPLOY","entityType":"TASK","observations":["Deploy to production server","Update DNS records","Monitor performance"]}
 {"type":"entity","name":"PRODUCT_CONFIG_API","entityType":"CONFIG","observations":["API endpoint: https://api.example.com","Auth: Bearer token","Rate limit: 1000/hour"]}
@@ -231,7 +237,7 @@ Examples:
 3. Run `./scripts/stop.sh` with matching context when finishing
 4. Use `./scripts/save.sh` to commit memory changes
 5. Never manually edit global memory.json
-6. Each project maintains its own `.memory/` in its git repository
+6. Each project maintains its own `.aipm/` in its git repository
 
 ### For Framework Developers
 1. Keep memory entities focused and atomic
@@ -253,19 +259,19 @@ This approach provides strong isolation:
 Add to `.gitignore`:
 ```
 # Memory backups (temporary files)
-.memory/backup.json          # Single backup location in AIPM root
+.aipm/memory/backup.json          # Single backup location in AIPM root
 
 # Global memory symlink (never commit)
 .claude/memory.json
 
 # Each project should have its own .gitignore with:
-# .memory/backup.json        # If projects were to have their own backups
+# .aipm/memory/backup.json        # If projects were to have their own backups
 ```
 
 ## Troubleshooting
 
 ### Memory Not Loading?
-- Check if `local_memory.json` exists in `.memory/`
+- Check if `local_memory.json` exists in `.aipm/memory/`
 - Verify you're in the correct directory
 - Ensure backup.json was properly cleaned up
 
@@ -275,7 +281,7 @@ Add to `.gitignore`:
 - Review session logs for errors
 
 ### Backup Issues?
-- Ensure `.memory/` directory exists
+- Ensure `.aipm/memory/` directory exists
 - Check file permissions
 - Verify global memory symlink is valid
 
@@ -290,7 +296,7 @@ Team Member A's Session:
 2. Git pull in Product/ → Gets team's shared memories
 3. Optional: Merge teammate's memories into session
 4. Work with combined knowledge
-5. ./scripts/stop.sh --project Product → Saves to Product/.memory/local_memory.json
+5. ./scripts/stop.sh --project Product → Saves to Product/.aipm/memory/local_memory.json
 6. Personal global memory restored intact!
 ```
 
@@ -307,9 +313,9 @@ Team Member A's Session:
 ./scripts/start.sh --project Product --sync-team
 
 # This could:
-# 1. Backup your personal global memory to .memory/backup.json
+# 1. Backup your personal global memory to .aipm/memory/backup.json
 # 2. Pull latest from Product/ git repository
-# 3. Merge team memories with Product/.memory/local_memory.json
+# 3. Merge team memories with Product/.aipm/memory/local_memory.json
 # 4. Load combined memories into global
 # 5. Your personal memories stay safe in backup!
 
@@ -318,7 +324,7 @@ Team Member A's Session:
 # End session
 ./scripts/stop.sh --project Product
 
-# Your changes saved to Product/.memory/local_memory.json
+# Your changes saved to Product/.aipm/memory/local_memory.json
 # Personal memory restored, team never sees other project memories!
 ```
 
@@ -340,4 +346,4 @@ Team Member A's Session:
 
 ## Conclusion
 
-The backup-restore memory isolation system provides a practical solution to the global memory problem while maintaining complete separation between framework and project contexts. By using local persistent files and a single temporary backup, we achieve true isolation that scales to N projects. Each project maintains its own `.memory/` directory in its git repository, enabling portable, version-controlled AI knowledge that travels with the project.
+The backup-restore memory isolation system provides a practical solution to the global memory problem while maintaining complete separation between framework and project contexts. By using local persistent files and a single temporary backup, we achieve true isolation that scales to N projects. Each project maintains its own `.aipm/` directory in its git repository, enabling portable, version-controlled AI knowledge that travels with the project. The `.aipm/` directory contains both configuration (opinions.json) and memory storage, making AIPM initialization explicit and Unix-like.
