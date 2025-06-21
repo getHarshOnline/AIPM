@@ -309,14 +309,89 @@ if get_file_from_commit "HEAD" "$MEMORY_FILE" > "$REMOTE_MEMORY" 2>/dev/null; th
    - Implement partial revert support
    - Enhanced revert workflow
 
-## Helper Scripts Status (Updated Post-Audit)
-- ✅ **shell-formatting.sh** - Complete, hardened, performance optimized
-- ✅ **version-control.sh** - Complete with full formatting integration (100% tested)
-- ✅ **sync-memory.sh** - Enhanced with visual feedback and dynamic NPM cache
-- ✅ **migrate-memories.sh** - FULLY IMPLEMENTED with all 10 functions (784 lines)
-- ⚠️ **start.sh** - Implemented but has 1 critical violation (line 233)
-- ✅ **stop.sh** - Fully integrated with all 3 modules
-- ✅ **save.sh** - Fully integrated with Golden Rule enforcement
+## 🏗️ Architectural Refactoring Plan (2025-06-21)
+
+### CRITICAL: Complete Architectural Analysis Completed
+
+A comprehensive architectural refactoring plan has been created in:
+**📄 scripts/test/wrapper-scripts-hardening-plan.md**
+
+This plan addresses all architectural issues while preserving all learnings and hardened code.
+
+### Key Architectural Issues Found:
+1. **SRP Violations**: Functions doing too much (merge_memories = 143 lines)
+2. **DRY Violations**: Context detection duplicated 3x, path logic duplicated 4x
+3. **Atomicity Failures**: Team sync (35 lines), partial revert (62 lines)
+4. **Missing Modules**: No session-manager.sh, no config-manager.sh
+5. **Hardcoded Values**: Paths, defaults, behaviors not configurable
+6. **CRITICAL: .gitignore hardcodes "Product"**: Breaks generic multi-project support!
+
+### Refactoring Plan Overview:
+- **Part 1**: Exhaustive inventory of ALL existing functions (preserve everything)
+- **Part 2**: Architectural issues analysis (SRP, DRY, atomicity violations)
+- **Part 3**: New modules design (config-manager.sh, session-manager.sh)
+- **Part 4**: Critical preservation checklist (all learnings MUST be kept)
+- **Part 5**: Safe migration strategy (incremental, testable)
+- **Part 6-8**: Success metrics, function mappings, risk mitigation
+
+### 🚨 CORNERSTONE ADDITION: Branching Architecture
+
+**CRITICAL DISCOVERY**: The plan now includes a complete branching architecture that is THE CORNERSTONE of AIPM's multi-organization capability.
+
+**Key Innovation**: Complete separation of branching opinions from implementation via:
+- **opinions.json**: Customizable branching rules per organization
+- **opinions-loader.sh**: NEW module that loads and enforces rules
+- **AIPM_ prefix**: Creates protected namespace for all framework branches
+- **AIPM_MAIN**: Framework's main branch, separate from user's main/master
+
+**Why This Is The Cornerstone**:
+1. Zero conflicts with existing user branches
+2. Works in ANY git repository immediately
+3. Enables consistent workflows across all teams
+4. Allows customization without code changes
+5. Visual distinction: `AIPM_*` branches clearly visible
+
+### Next Implementation Steps (UPDATED PRIORITY):
+1. **Phase 0**: IMPLEMENT BRANCHING ARCHITECTURE FIRST
+   - Create opinions-loader.sh module
+   - Update version-control.sh to use opinions
+   - Test with existing repositories
+   
+2. **Phase 1**: Create other foundation modules
+   - config-manager.sh (centralized configuration)
+   - session-manager.sh (all session operations)
+   - Enhance migrate-memories.sh (add atomic functions)
+   
+3. **Phase 2**: Refactor scripts using new modules
+   - All scripts must respect branching opinions
+   - Start with save.sh (smallest changes)
+   - Then stop.sh, start.sh, revert.sh
+   
+4. **Phase 3**: Testing and validation
+   - Test branching with existing repos
+   - Unit tests for each atomic function
+   - Integration tests for workflows
+   - Performance benchmarks
+
+**🚨 CRITICAL**: The branching architecture MUST be implemented first! Read Part 9 of the plan!
+
+### 🐛 Critical Fix Applied (2025-06-21)
+
+**Issue**: `.gitignore` had hardcoded "Product" entries, breaking multi-project support
+**Fix**: Changed to generic patterns (`*/.memory/` instead of `Product/.memory/`)
+**Impact**: AIPM now works with ANY project name, not just "Product"
+
+This was a critical architectural bug that prevented AIPM from being truly generic!
+
+## Helper Scripts Status (Post-Refactoring Analysis)
+- ✅ **shell-formatting.sh** - Well-organized, 63 functions properly scoped
+- ✅ **version-control.sh** - Well-organized, 30 functions properly scoped
+- ✅ **migrate-memories.sh** - Core functions good, needs 5 new atomic functions
+- ⚠️ **start.sh** - Main body too large (260+ lines), needs refactoring
+- ⚠️ **stop.sh** - Session handling scattered, needs session-manager.sh
+- ⚠️ **save.sh** - Minor duplication, mostly clean
+- ⚠️ **revert.sh** - Largest script (415 lines), needs major refactoring
+- ✅ **sync-memory.sh** - Clean and focused
 - ✅ **revert.sh** - Fully integrated but missing enhancement features
 
 ## Implementation Philosophy

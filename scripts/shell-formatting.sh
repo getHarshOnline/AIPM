@@ -80,7 +80,15 @@ UNAME_S="${UNAME_S:-$(uname -s)}"
 detect_platform() {
     case "$UNAME_S" in
         Darwin*)    PLATFORM="macos";;
-        Linux*)     PLATFORM="linux";;
+        Linux*)     
+            # LEARNING: WSL detection requires checking /proc/version
+            # WSL1 and WSL2 both contain "microsoft" in version string
+            if [[ -f /proc/version ]] && grep -qi microsoft /proc/version; then
+                PLATFORM="wsl"
+            else
+                PLATFORM="linux"
+            fi
+            ;;
         CYGWIN*)    PLATFORM="cygwin";;
         MINGW*)     PLATFORM="mingw";;
         *)          PLATFORM="unknown";;
@@ -1454,7 +1462,8 @@ get_file_mtime() {
         macos)
             stat -f%m "$file" 2>/dev/null || printf "0"
             ;;
-        linux)
+        linux|wsl)
+            # LEARNING: WSL uses same stat syntax as Linux
             stat -c%Y "$file" 2>/dev/null || printf "0"
             ;;
         *)

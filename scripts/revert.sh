@@ -14,7 +14,14 @@
 # Usage:
 #   ./scripts/revert.sh --framework [commit]         # Revert framework memory
 #   ./scripts/revert.sh --project Product [commit]   # Revert project memory
+#   ./scripts/revert.sh --list --framework           # List framework memory states
+#   ./scripts/revert.sh --list --project Product     # List project memory states
+#   ./scripts/revert.sh --partial [filter] ...       # Partial revert (specific entities)
 #   ./scripts/revert.sh                              # Interactive mode
+#
+# Examples:
+#   ./scripts/revert.sh --framework --partial "AIPM_CONFIG" abc123
+#   ./scripts/revert.sh --project Product --partial "PRODUCT_USER" def456
 #
 # CRITICAL LEARNINGS INCORPORATED:
 # 1. Active Session Safety:
@@ -31,6 +38,11 @@
 #    - Show relevant commits with stats
 #    - Allow browsing history
 #    - Validate commit references
+#
+# 4. Partial Revert Support:
+#    - Revert specific entities by filter
+#    - Preserve current state for non-matching entities
+#    - Merge old and current memories intelligently
 #
 # Created by: AIPM Framework
 # License: Apache 2.0
@@ -64,6 +76,9 @@ PROJECT_NAME=""
 COMMIT_REF=""
 MEMORY_FILE=""
 CONTEXT_DISPLAY=""
+LIST_MODE=false
+PARTIAL_MODE=false
+ENTITY_FILTER=""
 
 # Project detection map
 declare -A project_map
@@ -77,7 +92,7 @@ declare -A project_map
 if [[ -f ".memory/session_active" ]]; then
     error "Active session detected!"
     warn "Reverting during an active session may cause data loss."
-    info ""
+    # Present options to user
     info "Options:"
     info "  1) Abort revert (recommended)"
     info "  2) Save current state first"
@@ -126,6 +141,19 @@ while [[ $# -gt 0 ]]; do
             fi
             PROJECT_NAME="$2"
             shift 2
+            ;;
+        --list)
+            LIST_MODE=true
+            shift
+            ;;
+        --partial)
+            PARTIAL_MODE=true
+            if [[ -n "$2" ]] && [[ ! "$2" =~ ^-- ]]; then
+                ENTITY_FILTER="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         *)
             COMMIT_REF="$1"
@@ -185,6 +213,37 @@ fi
 
 success "Memory file: $MEMORY_FILE"
 
+# TASK 4.5: List Mode - Show available states and exit
+if [[ "$LIST_MODE" == "true" ]]; then
+    section "Available Memory States for $CONTEXT_DISPLAY"
+    
+    # Show last 20 commits with memory changes
+    info "Recent memory commits:"
+    # Use git log with custom format to show more details
+    git log --oneline --pretty=format:"%h | %ad | %s" --date=short -n 20 -- "$MEMORY_FILE" 2>/dev/null || {
+        error "No memory history found for $MEMORY_FILE"
+        exit 1
+    }
+    
+    section_end
+    
+    # Show current state statistics
+    section "Current Memory State"
+    if [[ -f "$MEMORY_FILE" ]]; then
+        local stats=$(get_memory_stats "$MEMORY_FILE")
+        info "Current: $stats"
+        local modified=$(get_file_mtime "$MEMORY_FILE")
+        local modified_date=$(date -r "$modified" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || date -d "@$modified" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "unknown")
+        info "Modified: $modified_date"
+    else
+        warn "Memory file does not exist yet"
+    fi
+    section_end
+    
+    info "Usage: ./scripts/revert.sh --$WORK_CONTEXT${PROJECT_NAME:+ $PROJECT_NAME} <commit-hash>"
+    exit 0
+fi
+
 # TASK 5: Show Git History
 section "Recent Memory History for $CONTEXT_DISPLAY"
 
@@ -195,7 +254,7 @@ section_end
 
 # TASK 6: Commit Selection
 if [[ -z "$COMMIT_REF" ]]; then
-    info ""
+    # Prompt for commit selection
     read -p "$(format_prompt "Enter commit hash to revert to (or 'q' to quit)")" COMMIT_REF
     [[ "$COMMIT_REF" == "q" ]] && exit 0
 fi
@@ -261,12 +320,68 @@ fi
 # LEARNING: checkout_file uses git to restore specific version
 step "Reverting to $COMMIT_REF..."
 
-if checkout_file "$COMMIT_REF" "$MEMORY_FILE"; then
-    success "Memory reverted successfully"
+if [[ "$PARTIAL_MODE" == "true" ]]; then
+    # Partial revert - merge specific entities from old version
+    info "Performing partial revert${ENTITY_FILTER:+ (filter: $ENTITY_FILTER)}..."
+    
+    # Extract old version to temp file
+    local old_memory="${MEMORY_FILE}.old.$$"
+    if ! extract_memory_from_git "$COMMIT_REF" "$MEMORY_FILE" "$old_memory"; then
+        rm -f "$old_memory"
+        die "Failed to extract memory from commit $COMMIT_REF"
+    fi
+    
+    # Create filtered version of old memory if filter specified
+    if [[ -n "$ENTITY_FILTER" ]]; then
+        local filtered_memory="${MEMORY_FILE}.filtered.$$"
+        > "$filtered_memory"  # Initialize empty
+        
+        # Extract matching entities and their relations
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
+            
+            if [[ "$type" == "entity" ]]; then
+                local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
+                if [[ "$name" =~ $ENTITY_FILTER ]]; then
+                    printf '%s\n' "$line" >> "$filtered_memory"
+                fi
+            elif [[ "$type" == "relation" ]]; then
+                # Include relations that involve filtered entities
+                local from=$(printf '%s' "$line" | jq -r '.from // empty' 2>/dev/null)
+                local to=$(printf '%s' "$line" | jq -r '.to // empty' 2>/dev/null)
+                if [[ "$from" =~ $ENTITY_FILTER ]] || [[ "$to" =~ $ENTITY_FILTER ]]; then
+                    printf '%s\n' "$line" >> "$filtered_memory"
+                fi
+            fi
+        done < "$old_memory"
+        
+        # Replace old_memory with filtered version
+        mv -f "$filtered_memory" "$old_memory"
+        
+        local filtered_count=$(count_entities_stream "$old_memory")
+        info "Filtered to $filtered_count entities matching '$ENTITY_FILTER'"
+    fi
+    
+    # Merge old entities with current (old wins for conflicts)
+    if merge_memories "$MEMORY_FILE" "$old_memory" "$MEMORY_FILE" "remote-wins"; then
+        rm -f "$old_memory"
+        success "Partial revert completed successfully"
+    else
+        rm -f "$old_memory"
+        error "Partial revert failed"
+        warn "Backup available at: $BACKUP_NAME"
+        die "Memory merge failed"
+    fi
 else
-    error "Revert failed"
-    warn "Backup available at: $BACKUP_NAME"
-    die "Git checkout failed"
+    # Full revert - replace entire file
+    if checkout_file "$COMMIT_REF" "$MEMORY_FILE"; then
+        success "Memory reverted successfully"
+    else
+        error "Revert failed"
+        warn "Backup available at: $BACKUP_NAME"
+        die "Git checkout failed"
+    fi
 fi
 
 # If active session, need to reload

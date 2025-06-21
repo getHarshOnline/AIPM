@@ -173,8 +173,6 @@ if [[ "$WORK_CONTEXT" == "project" ]]; then
                     if confirm "Pull latest changes?"; then
                         if pull_latest "$PROJECT_NAME"; then
                             success "Synchronized with team repository"
-                            # Mark that we pulled changes for memory merge
-                            TEAM_SYNC_PERFORMED="true"
                         else
                             warn "Pull failed - continuing with local version"
                         fi
@@ -221,31 +219,43 @@ fi
 
 # Check if we need to merge team changes
 # LEARNING: Team collaboration via memory merge
-# - Detects when git pull brought new memory updates
+# - ALWAYS check for remote memory updates (automatic sync)
 # - Uses "remote-wins" strategy for team contributions
 # - Preserves local work if merge fails
-if [[ "${TEAM_SYNC_PERFORMED:-}" == "true" ]] && [[ -f "$MEMORY_FILE" ]]; then
-    # Create a temporary file for the remote memory
+if [[ -f "$MEMORY_FILE" ]]; then
+    # Always check for remote memory updates regardless of git pull
     REMOTE_MEMORY="${MEMORY_FILE}.remote"
     
-    # Get the latest version from git
-    # LEARNING: get_file_from_commit extracts file from HEAD
-    if get_file_from_commit "HEAD" "$MEMORY_FILE" > "$REMOTE_MEMORY" 2>/dev/null; then
+    # Try to get the latest version from git origin
+    # LEARNING: Check origin/HEAD for team updates even without pull
+    step "Checking for team memory updates..."
+    if extract_memory_from_git "origin/HEAD" "$MEMORY_FILE" "$REMOTE_MEMORY" 2>/dev/null || \
+       extract_memory_from_git "origin/main" "$MEMORY_FILE" "$REMOTE_MEMORY" 2>/dev/null || \
+       extract_memory_from_git "origin/master" "$MEMORY_FILE" "$REMOTE_MEMORY" 2>/dev/null; then
+        
         # Check if remote is different from local
         if ! memory_changed "$MEMORY_FILE" "$REMOTE_MEMORY"; then
             info "Local memory already up to date"
             rm -f "$REMOTE_MEMORY"
         else
-            # Merge team changes
+            # Merge team changes automatically
             # LEARNING: merge_memories handles entity-level deduplication
             step "Merging team memory updates..."
+            local remote_count=$(count_entities_stream "$REMOTE_MEMORY")
+            local local_count=$(count_entities_stream "$MEMORY_FILE")
+            info "Remote: $remote_count entities, Local: $local_count entities"
+            
             if merge_memories "$MEMORY_FILE" "$REMOTE_MEMORY" "$MEMORY_FILE" "remote-wins"; then
-                success "Team memories merged successfully"
+                local merged_count=$(count_entities_stream "$MEMORY_FILE")
+                success "Team memories merged successfully ($merged_count entities)"
             else
                 warn "Memory merge failed - using local version"
             fi
             rm -f "$REMOTE_MEMORY"
         fi
+    else
+        # No remote memory found or fetch failed - continue with local
+        debug "No remote memory updates found or fetch failed"
     fi
 fi
 
@@ -304,7 +314,6 @@ section_end
 # Final instructions
 info "Launching Claude Code..."
 info "When done, run: ./scripts/stop.sh"
-info ""
 
 # Add default model if not specified
 if [[ ! " ${claude_args[@]} " =~ " --model " ]]; then

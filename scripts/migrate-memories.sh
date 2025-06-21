@@ -697,6 +697,42 @@ cleanup_temp_files() {
 # Advanced Operations
 # ==============================================================================
 
+# Extract memory file from git commit
+# Usage: extract_memory_from_git <commit> <file_path> <output_file>
+# Returns: 0 on success, 1 on error
+#
+# LEARNING: This wraps get_file_from_commit to ensure memory operations
+# go through this module, maintaining our modular architecture
+extract_memory_from_git() {
+    local commit="$1"
+    local file_path="$2"
+    local output_file="$3"
+    
+    debug "Extracting memory from git: $commit:$file_path"
+    
+    # Create temp file for atomic operation
+    local temp_file="${output_file}${TEMP_SUFFIX}.$$"
+    
+    # Use version-control.sh function to get file content
+    if get_file_from_commit "$commit" "$file_path" > "$temp_file" 2>/dev/null; then
+        # Validate extracted memory
+        if validate_memory_stream "$temp_file" >/dev/null 2>&1; then
+            # Atomic move
+            mv -f "$temp_file" "$output_file"
+            debug "Successfully extracted memory from git"
+            return $EXIT_SUCCESS
+        else
+            rm -f "$temp_file"
+            warn "Extracted memory failed validation"
+            return $EXIT_VALIDATION_ERROR
+        fi
+    else
+        rm -f "$temp_file" 2>/dev/null
+        debug "Failed to extract memory from git"
+        return $EXIT_IO_ERROR
+    fi
+}
+
 # Check if memory file has changed since last backup
 # Usage: memory_changed <current_file> <backup_file>
 # Returns: 0 if changed, 1 if unchanged
@@ -747,7 +783,7 @@ migrate_memories_version() {
     info "migrate-memories.sh - AIPM Memory Operations Module"
     info "Version: 1.0.0"
     info "Schema Version: $MEMORY_SCHEMA_VERSION"
-    info ""
+    # Add visual spacing without empty info call
     info "Capabilities:"
     info "  - Lock-free atomic operations"
     info "  - Streaming JSON processing"
@@ -776,6 +812,7 @@ export -f cleanup_temp_files
 export -f memory_changed
 export -f initialize_empty_memory
 export -f migrate_memories_version
+export -f extract_memory_from_git
 
 # Debug mode announcement
 [[ "$DEBUG_MODE" == "true" ]] && debug "migrate-memories.sh loaded (debug mode enabled)"

@@ -1,1520 +1,1658 @@
-# AIPM Wrapper Scripts Hardening Plan
+# AIPM Wrapper Scripts Architectural Refactoring Plan
 
-## Overview
+## Executive Summary
 
-This document outlines the comprehensive hardening plan for the AIPM wrapper scripts (start.sh, stop.sh, save.sh, revert.sh) based on thorough analysis of the implementation, documentation, and identified edge cases.
+This document presents a comprehensive architectural refactoring plan for AIPM wrapper scripts based on an exhaustive audit of the current implementation. The refactoring follows strict SOLID principles with emphasis on:
 
-**Critical Update**: All memory operations will be centralized in a new `migrate-memories.sh` module, following the same pattern as `version-control.sh` and `shell-formatting.sh`. This ensures single source of truth, performance optimization, and modular architecture.
+1. **Atomicity**: Each function does ONE thing well
+2. **Modularity**: Clear module boundaries with no overlap
+3. **Configurability**: All behaviors parameterizable
+4. **Maintainability**: Single source of truth for each domain
+5. **Performance**: Optimized for large-scale operations
 
-## Ultimate Vision: AI-Assisted Project Management Guardrails
+**CRITICAL**: This refactoring preserves ALL existing learnings, hardened patterns, and carefully implemented solutions while eliminating redundancy and improving architecture.
 
-### Core Memory Protection Principle
+## Part 1: Exhaustive Current State Inventory
 
-**CRITICAL**: Global memory (.claude/memory.json) is sacred and must be protected. It should be exactly the same before and after any AIPM session. This is achieved through:
+### 1.1 Module: shell-formatting.sh (1589 lines)
 
-1. **Backup on Start**: Snapshot global → backup.json
-2. **Work in Global**: Load project memory into global for session
-3. **Save on Stop**: Capture changes from global → local_memory.json
-4. **Restore on Stop**: Restore backup.json → global
+**Purpose**: Centralized formatting, output, and platform utilities
 
-This ensures complete isolation between projects and sessions.
-
-### Complete Workflow Vision
-
-The AIPM framework aims to provide a seamless, automatic workflow where:
-
-1. **Clone & Start**: User clones repo → runs `./start.sh` → Everything automatic
-2. **Smart Context Detection**: Shows all detected projects, allows selection
-3. **Team Memory Sync**: 
-   - Pull latest local_memory.json from git
-   - Merge team changes into local memory
-   - Load merged local memory into global
-4. **Branch-Aware Operations**: Guide users through branching strategy
-5. **Atomic Operations**: Future two-commit strategy for memory/code separation
-
-### Critical Workflow Requirements
-
-#### 1. Seamless Start Experience
+**Existing Functions** (MUST PRESERVE):
 ```bash
-git clone <repo>
-cd AIPM
-./scripts/start.sh
-# Everything else is automatic with visual feedback
+# Platform Detection
+detect_platform()             # Sets PLATFORM variable (macos/linux/wsl/cygwin/mingw)
+detect_timeout_command()      # Sets TIMEOUT_CMD and TIMEOUT_STYLE
+detect_execution_context()    # Sets EXECUTION_CONTEXT (terminal/ci/pipe/claude/cron)
+detect_color_support()        # Sets COLOR_SUPPORT
+detect_unicode_support()      # Sets UNICODE_SUPPORT
+
+# Output Functions (Core - Used Everywhere)
+info()                       # Blue info messages
+warn()                       # Yellow warning messages  
+error()                      # Red error messages
+success()                    # Green success messages
+debug()                      # Debug output (if DEBUG set)
+step()                       # Progress step indicator
+section()                    # Visual section header
+section_end()                # Visual section footer
+
+# Formatting Functions
+format_size()                # Human-readable file sizes
+format_duration()            # Human-readable durations
+format_prompt()              # Formatted input prompts
+draw_line()                  # Visual separator lines
+draw_box()                   # ASCII/Unicode boxes
+
+# Progress Indicators
+show_spinner()               # Animated spinner
+show_progress()              # Progress bar
+update_progress()            # Update progress bar
+
+# Utility Functions
+safe_execute()               # Execute with timeout/retry
+confirm()                    # Yes/no confirmation prompt
+die()                        # Exit with error message
+cleanup_on_exit()            # Trap handler for cleanup
+get_file_mtime()             # Cross-platform file modification time
+make_temp_file()             # Cross-platform temp file creation
+
+# Internal Functions (Private)
+_init_color_codes()          # Initialize ANSI codes
+_strip_ansi()                # Remove ANSI codes
+_get_terminal_width()        # Terminal width detection
 ```
 
-#### 2. Memory Sync Operations (CLARIFIED)
-Current implementation does backup/restore correctly. Enhancement needed:
-- **Upstream Sync**: Pull latest local_memory.json from git
-- **Memory Merge**: Merge remote changes into local_memory.json
-- **Conflict Resolution**: Handle entity-level conflicts
-- **Then Load**: Load merged local_memory.json into global
-- **Protect Global**: Always restore global from backup at session end
+**Critical Learnings Preserved**:
+- Platform detection caches uname result for performance
+- WSL detection checks /proc/version for "microsoft"
+- Timeout command detection handles gtimeout (macOS) and timeout (Linux)
+- All output respects COLOR_SUPPORT and EXECUTION_CONTEXT
+- Performance optimizations: cached detection, direct ANSI codes
 
-#### 3. Two-Commit Strategy (FUTURE)
-- Commit 1: Memory changes only
-- Commit 2: All other files
-- Enables: Cherry-picking memory states
-- Enables: Clean memory evolution history
-- Start with: Single commit (current)
-- Plan for: Two-commit implementation
+### 1.2 Module: version-control.sh (936 lines)
 
-#### 4. Branch Management Wrapper
-- Master wrapper over save/start processes
-- Guide branch selection based on work context
-- Follow current-focus.md branching strategy
-- Opinionated flow (TBD)
+**Purpose**: Centralized git operations with comprehensive error handling
 
-#### 5. Enhanced Revert Workflow
-- Show list of available states with descriptions
-- Preview memory differences
-- Support partial reverts
+**Existing Functions** (MUST PRESERVE):
+```bash
+# Context Management
+initialize_memory_context()   # Set up paths and context for operations
+get_context_display()         # Format context for display
 
-## Critical Missing Requirements (MUST ADDRESS)
+# Repository Operations
+check_git_repo()              # Verify git repository exists
+is_repo_clean()               # Check for uncommitted changes
+show_git_status()             # Display formatted git status
 
-### Protocol & Security Requirements
+# File Operations
+stage_file()                  # Stage single file
+stage_all_changes()           # Stage all changes (Golden Rule)
+unstage_changes()             # Unstage files
+stash_if_needed()             # Smart stashing with DID_STASH tracking
 
-1. **Golden Rule Enforcement**
-   - CRITICAL: Enforce "Do exactly what .gitignore says - everything else should be added"
-   - Validate stage_all_changes() usage in save.sh
-   - Ensure all untracked files are properly tracked
+# Commit Operations
+commit_changes()              # Basic commit
+commit_with_stats()           # Commit with memory statistics
 
-2. **Memory Entity Naming Conventions**
-   - CRITICAL: Enforce strict prefix requirements (AIPM_ for framework, PROJECT_ for projects)
-   - Validate entity names before ANY memory operation
-   - Prevent cross-context contamination through naming
+# Remote Operations
+fetch_remote()                # Fetch from remote
+pull_latest()                 # Pull with stash handling
+push_changes()                # Push to remote
+ensure_remote_tracking()      # Set up remote tracking
 
-3. **Shell Integration Requirements**
-   - CRITICAL: NEVER use echo/printf directly
-   - CRITICAL: NEVER use git commands directly
-   - All output through shell-formatting.sh functions only
-   - All git operations through version-control.sh functions only
+# Branch Operations
+get_current_branch()          # Get current branch name
+branch_exists()               # Check if branch exists
+create_branch()               # Create new branch
+switch_branch()               # Switch branches safely
 
-4. **Memory Schema Validation**
-   - Validate NDJSON format (newline-delimited JSON)
-   - Enforce required entity fields: type, name, entityType, observations
-   - Enforce relation fields: type, from, to, relationType
-   - Validate relation integrity (from/to entities must exist)
-   
-   **Note on printf usage**: Internal JSON processing may use printf for piping to jq.
-   This is acceptable for internal operations but all user-facing output MUST use
-   shell-formatting.sh functions (info, warn, error, success, etc.)
+# History Operations
+show_log()                    # Formatted git log
+show_diff()                   # Show differences
+get_commits_ahead_behind()    # Compare with remote
+get_file_from_commit()        # Extract file from commit
 
-## New Architecture: migrate-memories.sh Module
+# Validation
+validate_commit()             # Verify commit exists
+file_exists_in_commit()       # Check file in commit
+is_file_tracked()             # Check if file is tracked
 
-### Purpose
-Centralize ALL memory operations in a single, optimized module that handles:
-- Atomic backup/restore operations
-- Memory validation and schema preservation
-- Performance-optimized merging
-- MCP server coordination
-- Lock-free operations
-- Streaming processing for large files
+# Utilities
+abs_path()                    # Get absolute path
+checkout_file()               # Checkout file from commit
+```
 
-### Core Functions to Implement
+**Critical Learnings Preserved**:
+- All operations handle detached HEAD state
+- Stash tracking via DID_STASH prevents double stashing
+- Golden Rule implementation in stage_all_changes
+- Comprehensive error messages with recovery hints
+- Support for different remote names (origin/upstream)
+
+### 1.3 Module: migrate-memories.sh (821 lines)
+
+**Purpose**: Centralized memory operations with lock-free atomicity
+
+**Existing Functions** (MUST PRESERVE):
+```bash
+# Core Memory Operations
+backup_memory()               # Atomic backup without locking
+restore_memory()              # Atomic restore with cleanup
+load_memory()                 # Load with validation
+save_memory()                 # Save with validation
+
+# Merge Operations
+merge_memories()              # Performance-optimized merge
+
+# Validation
+validate_memory_stream()      # Streaming validation
+
+# MCP Coordination
+prepare_for_mcp()             # Release file handles
+release_from_mcp()            # Wait for safe access
+
+# Performance Helpers
+count_entities_stream()       # Fast entity counting
+count_relations_stream()      # Fast relation counting
+get_memory_stats()            # Memory statistics
+
+# Cleanup
+cleanup_temp_files()          # Remove temporary files
+
+# Advanced Operations
+extract_memory_from_git()     # Get memory from git commit
+memory_changed()              # Check if memory changed
+initialize_empty_memory()     # Create empty memory file
+
+# Module Info
+migrate_memories_version()    # Show module version
+```
+
+**Critical Learnings Preserved**:
+- All operations use atomic pattern (temp file → move)
+- Platform-specific stat commands (macOS vs Linux)
+- Empty memory.json is valid (MCP initial state)
+- Associative array handling with ${var:-} pattern
+- Streaming processing for performance
+- No file locking to avoid MCP conflicts
+
+### 1.4 Wrapper Scripts Current State
+
+#### start.sh (324 lines)
+**Current Structure**:
+- Sources 3 modules correctly
+- Main body does too much (260+ lines)
+- Team sync hardcoded (lines 226-260)
+- Direct git operations in places
+- Session handling mixed with other logic
+
+#### stop.sh (246 lines)
+**Current Structure**:
+- Sources 3 modules correctly
+- Session detection manual (grep/cut)
+- Duration calculation duplicated
+- Calls save.sh properly
+- Cleanup mixed with logic
+
+#### save.sh (195 lines)
+**Current Structure**:
+- Sources 3 modules correctly
+- Uses migrate-memories functions well
+- Context detection duplicated
+- Clean implementation overall
+
+#### revert.sh (415 lines)
+**Current Structure**:
+- Largest script, does many things
+- Partial revert logic complex (313-375)
+- List mode properly implemented
+- Context detection duplicated
+- Direct file operations in places
+
+#### sync-memory.sh (168 lines)
+**Current Structure**:
+- NPM cache detection dynamic
+- MCP installation handled
+- Platform differences handled
+- Clean focused implementation
+
+## Part 2: Architectural Issues Analysis
+
+### 2.1 Single Responsibility Principle (SRP) Violations
+
+**Critical Violations**:
+1. **merge_memories() in migrate-memories.sh**:
+   - Does: indexing + merging + conflict resolution + validation + I/O
+   - Should be: 5 separate atomic functions
+
+2. **Main script bodies**:
+   - start.sh: 260+ lines doing 7+ different tasks
+   - revert.sh: 415 lines mixing UI, git, backup, revert logic
+
+3. **Session handling**:
+   - Scattered across start.sh/stop.sh
+   - Should be: dedicated session-manager.sh
+
+### 2.2 Don't Repeat Yourself (DRY) Violations
+
+**Critical Duplications**:
+1. **Context Detection** (framework vs project):
+   - Duplicated in: start.sh, save.sh, revert.sh
+   - Each has different implementation
+
+2. **Memory File Path Calculation**:
+   ```bash
+   # Appears in all scripts:
+   if [[ "$WORK_CONTEXT" == "framework" ]]; then
+       MEMORY_FILE=".memory/local_memory.json"
+   else
+       MEMORY_FILE="$PROJECT_NAME/.memory/local_memory.json"
+   fi
+   ```
+
+3. **Session File Parsing**:
+   - stop.sh uses grep/cut manually
+   - Should use structured parsing
+
+4. **Platform-Specific Operations**:
+   - stat commands repeated everywhere
+   - date commands duplicated
+   - Should use shell-formatting.sh functions
+
+### 2.3 Atomicity Violations
+
+**Functions Doing Too Much**:
+1. **Team sync in start.sh (226-260)**:
+   - Checks origin
+   - Extracts memory
+   - Compares files
+   - Merges memories
+   - Should be: atomic sync_team_memory() function
+
+2. **Partial revert in revert.sh (313-375)**:
+   - Extracts from git
+   - Filters entities
+   - Filters relations
+   - Merges results
+   - Should be: separate filter and merge functions
+
+### 2.4 Configuration Hardcoding
+
+**Hardcoded Values**:
+1. **Paths**:
+   - `.memory/`, `.claude/` paths everywhere
+   - Should be: centralized configuration
+
+2. **Defaults**:
+   - Model "opus" (start.sh:320)
+   - MCP timeouts (5s, 0.1s)
+   - Memory size limits (100MB)
+
+3. **Behaviors**:
+   - Team sync always automatic
+   - Merge strategy always "remote-wins"
+   - Should be: configurable
+
+### 2.5 Missing Modular Components
+
+**Required New Modules**:
+1. **session-manager.sh**:
+   - All session operations
+   - Lock management
+   - State tracking
+   - Cleanup operations
+
+2. **config-manager.sh**:
+   - Centralized configuration
+   - Path management
+   - Default values
+   - Environment variables
+
+3. **memory-paths.sh**:
+   - Path calculations
+   - Context resolution
+   - Directory management
+
+### 2.6 CRITICAL: Generic Project Detection Issue
+
+**Major Architecture Violation Found**:
+The `.gitignore` file has hardcoded "Product" entries, breaking AIPM's generic nature:
+- `Product/.memory/backup.json` (hardcoded project name)
+- `Product/.memory/session_*` (hardcoded project name)
+- This prevents AIPM from working with ANY project name
+
+**Solution Implemented**:
+```gitignore
+# OLD (WRONG - hardcoded):
+Product/.memory/backup.json
+Product/.memory/session_*
+
+# NEW (CORRECT - generic):
+*/.memory/backup.json
+*/.memory/session_*
+```
+
+**Why This Matters**:
+1. AIPM must work with ANY project name (ClientWebsite, MobileApp, DataPipeline, etc.)
+2. Projects are detected by presence of `.memory/local_memory.json`
+3. All projects are symlinks to independent git repositories
+4. The framework cannot assume any specific project names
+
+**Key Principle**: AIPM detects projects dynamically, never hardcodes names
+
+## Part 3: Refactoring Plan
+
+### 3.1 New Module: config-manager.sh
+
+**Purpose**: Centralize ALL configuration and paths
 
 ```bash
 #!/opt/homebrew/bin/bash
-# migrate-memories.sh - Memory operations module for AIPM
+# config-manager.sh - Centralized configuration for AIPM
 
-# Source dependencies
+# Paths
+readonly MEMORY_DIR=".memory"
+readonly CLAUDE_DIR=".claude"
+readonly GLOBAL_MEMORY="${CLAUDE_DIR}/memory.json"
+readonly BACKUP_MEMORY="${MEMORY_DIR}/backup.json"
+readonly SESSION_FILE="${MEMORY_DIR}/session_active"
+readonly SESSION_LOCK="${MEMORY_DIR}/.session_lock"
+
+# Defaults
+readonly DEFAULT_MODEL="opus"
+readonly DEFAULT_MERGE_STRATEGY="remote-wins"
+readonly MCP_SYNC_DELAY="0.1"
+readonly MCP_RELEASE_TIMEOUT="5"
+readonly MAX_MEMORY_SIZE_MB="100"
+readonly MEMORY_SCHEMA_VERSION="1.0"
+
+# Behaviors (can be overridden by environment)
+readonly TEAM_SYNC_MODE="${AIPM_TEAM_SYNC:-ask}"  # ask|auto|skip
+readonly MEMORY_MERGE_STRATEGY="${AIPM_MERGE_STRATEGY:-remote-wins}"
+readonly DEBUG_MODE="${AIPM_DEBUG:-false}"
+
+# Functions
+get_memory_path() {
+    local context="$1"
+    local project="$2"
+    
+    if [[ "$context" == "framework" ]]; then
+        printf "%s/local_memory.json" "$MEMORY_DIR"
+    else
+        printf "%s/%s/local_memory.json" "$project" "$MEMORY_DIR"
+    fi
+}
+
+get_session_id() {
+    printf "%s_%s" "$(date +%Y%m%d_%H%M%S)" "$$"
+}
+
+# Export all for use by other scripts
+export -f get_memory_path get_session_id
+```
+
+### 3.2 New Module: session-manager.sh
+
+**Purpose**: Centralize ALL session operations
+
+```bash
+#!/opt/homebrew/bin/bash
+# session-manager.sh - Session management for AIPM
+
+source "$SCRIPT_DIR/config-manager.sh" || exit 1
 source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
 
-# Constants
-readonly MEMORY_SCHEMA_VERSION="1.0"
-readonly MAX_MEMORY_SIZE_MB=100
-readonly BACKUP_SUFFIX=".backup"
-
-# Core Operations
-
-# 1. Backup Operations
-backup_memory() {
-    local source="${1:-.claude/memory.json}"
-    local target="${2:-.memory/backup.json}"
-    local validate="${3:-true}"
+# Session Operations
+create_session() {
+    local context="$1"
+    local project="$2"
+    local memory_file="$3"
+    local session_id=$(get_session_id)
     
-    step "Creating memory backup..."
+    # Create session metadata (NOT file lock!)
+    cat > "$SESSION_FILE" <<EOF
+Session: $session_id
+Context: $context
+Project: ${project:-N/A}
+Started: $(date)
+Branch: $(get_current_branch 2>/dev/null || echo "unknown")
+Memory: $memory_file
+Backup: $BACKUP_MEMORY
+PID: $$
+EOF
     
-    # Atomic copy without locking
-    local temp_file="${target}.tmp.$$"
-    if cp -f "$source" "$temp_file" 2>/dev/null; then
-        # Validate if requested
-        if [[ "$validate" == "true" ]] && [[ -s "$temp_file" ]]; then
-            if ! validate_memory_stream "$temp_file" >/dev/null 2>&1; then
-                rm -f "$temp_file"
-                error "Source memory validation failed"
-                return 1
-            fi
-        fi
-        
-        # Atomic move
-        mv -f "$temp_file" "$target"
-        local size=$(format_size $(stat -f%z "$target" 2>/dev/null || stat -c%s "$target"))
-        success "Memory backed up ($size)"
-        return 0
+    printf "%s" "$session_id"
+}
+
+read_session() {
+    local field="$1"
+    
+    [[ ! -f "$SESSION_FILE" ]] && return 1
+    
+    grep "^${field}:" "$SESSION_FILE" | cut -d' ' -f2-
+}
+
+detect_active_session() {
+    [[ -f "$SESSION_FILE" ]]
+}
+
+cleanup_session() {
+    local session_id="$1"
+    
+    # Archive session file
+    if [[ -f "$SESSION_FILE" ]]; then
+        mv "$SESSION_FILE" "${MEMORY_DIR}/session_${session_id}_complete"
+    fi
+    
+    # Cleanup temporary files
+    cleanup_temp_files
+}
+
+calculate_session_duration() {
+    local start_time="$1"
+    local start_epoch
+    
+    # Platform-aware date parsing
+    if command -v gdate >/dev/null 2>&1; then
+        start_epoch=$(gdate -d "$start_time" +%s 2>/dev/null || date +%s)
     else
-        rm -f "$temp_file" 2>/dev/null
-        [[ ! -f "$source" ]] && warn "No memory to backup - initializing empty"
-        printf '{}\\n' > "$target"
-        return 0
-    fi
-}
-
-# 2. Restore Operations
-restore_memory() {
-    local source="${1:-.memory/backup.json}"
-    local target="${2:-.claude/memory.json}"
-    local delete_source="${3:-true}"
-    
-    step "Restoring memory from backup..."
-    
-    if [[ ! -f "$source" ]]; then
-        error "Backup not found: $source"
-        return 1
+        start_epoch=$(date -d "$start_time" +%s 2>/dev/null || date +%s)
     fi
     
-    # Atomic restore
-    local temp_file="${target}.tmp.$$"
-    if cp -f "$source" "$temp_file"; then
-        mv -f "$temp_file" "$target"
-        
-        # Delete source if requested
-        [[ "$delete_source" == "true" ]] && rm -f "$source"
-        
-        success "Memory restored"
-        return 0
-    else
-        rm -f "$temp_file" 2>/dev/null
-        error "Failed to restore memory"
-        return 1
-    fi
-}
-
-# 3. Load Operations
-load_memory() {
-    local source="${1}"
-    local target="${2:-.claude/memory.json}"
+    local current_epoch=$(date +%s)
+    local duration=$((current_epoch - start_epoch))
     
-    step "Loading memory: $(basename "$source")"
-    
-    if [[ ! -f "$source" ]]; then
-        warn "Memory file not found: $source"
-        return 1
-    fi
-    
-    # Validate before loading
-    if ! validate_memory_stream "$source" >/dev/null 2>&1; then
-        error "Memory validation failed"
-        return 1
-    fi
-    
-    # Atomic load
-    local temp_file="${target}.tmp.$$"
-    if cp -f "$source" "$temp_file"; then
-        mv -f "$temp_file" "$target"
-        local count=$(count_entities_stream "$target")
-        success "Memory loaded ($count entities)"
-        return 0
-    else
-        rm -f "$temp_file" 2>/dev/null
-        error "Failed to load memory"
-        return 1
-    fi
-}
-
-# 4. Save Operations
-save_memory() {
-    local source="${1:-.claude/memory.json}"
-    local target="${2}"
-    
-    step "Saving memory to: $(basename "$target")"
-    
-    # Ensure target directory exists
-    local target_dir=$(dirname "$target")
-    mkdir -p "$target_dir"
-    
-    # Atomic save
-    local temp_file="${target}.tmp.$$"
-    if cp -f "$source" "$temp_file" 2>/dev/null; then
-        # Validate saved content
-        if validate_memory_stream "$temp_file" >/dev/null 2>&1; then
-            mv -f "$temp_file" "$target"
-            local count=$(count_entities_stream "$target")
-            success "Memory saved ($count entities)"
-            return 0
-        else
-            rm -f "$temp_file"
-            error "Saved memory validation failed"
-            return 1
-        fi
-    else
-        rm -f "$temp_file" 2>/dev/null
-        error "Failed to save memory"
-        return 1
-    fi
-}
-
-# 5. Merge Operations (Performance Optimized)
-merge_memories() {
-    local local_file="$1"
-    local remote_file="$2"
-    local output_file="$3"
-    local conflict_strategy="${4:-remote-wins}"
-    local temp_merged="${output_file}.merge.$$"
-    
-    step "Merging memory files..."
-    
-    # Use associative arrays for O(1) lookups
-    declare -A local_entities
-    declare -A remote_entities
-    declare -A seen_relations
-    
-    # Phase 1: Index local entities (streaming)
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        if [[ "$type" == "entity" ]]; then
-            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            local_entities["$name"]="$line"
-        fi
-    done < "$local_file"
-    
-    # Phase 2: Merge with remote (streaming)
-    > "$temp_merged"  # Clear output
-    
-    # Process remote file
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        
-        if [[ "$type" == "entity" ]]; then
-            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            
-            # Conflict resolution
-            if [[ -n "${local_entities[$name]}" ]]; then
-                if [[ "$conflict_strategy" == "remote-wins" ]]; then
-                    printf '%s\n' "$line" >> "$temp_merged"
-                else
-                    printf '%s\n' "${local_entities[$name]}" >> "$temp_merged"
-                fi
-                unset local_entities["$name"]  # Mark as processed
-            else
-                printf '%s\n' "$line" >> "$temp_merged"
-            fi
-        elif [[ "$type" == "relation" ]]; then
-            # Deduplicate relations
-            local rel_key=$(printf '%s' "$line" | jq -r '[.from, .to, .relationType] | join(":")' 2>/dev/null)
-            if [[ -z "${seen_relations[$rel_key]}" ]]; then
-                seen_relations["$rel_key"]=1
-                printf '%s\n' "$line" >> "$temp_merged"
-            fi
-        fi
-    done < "$remote_file"
-    
-    # Phase 3: Add remaining local entities
-    for name in "${!local_entities[@]}"; do
-        printf '%s\n' "${local_entities[$name]}" >> "$temp_merged"
-    done
-    
-    # Phase 4: Add local relations
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        
-        if [[ "$type" == "relation" ]]; then
-            local rel_key=$(printf '%s' "$line" | jq -r '[.from, .to, .relationType] | join(":")' 2>/dev/null)
-            if [[ -z "${seen_relations[$rel_key]}" ]]; then
-                printf '%s\n' "$line" >> "$temp_merged"
-            fi
-        fi
-    done < "$local_file"
-    
-    # Validate merged result
-    if validate_memory_stream "$temp_merged" >/dev/null 2>&1; then
-        mv -f "$temp_merged" "$output_file"
-        local count=$(count_entities_stream "$output_file")
-        success "Memories merged ($count entities)"
-        return 0
-    else
-        rm -f "$temp_merged"
-        error "Merge validation failed"
-        return 1
-    fi
-}
-
-# 6. Validation Operations
-validate_memory_stream() {
-    local file="$1"
-    local context="${2:-unknown}"
-    local max_size_mb=50
-    
-    # Quick size check first
-    local size_mb=$(du -m "$file" | cut -f1)
-    if [[ $size_mb -gt $max_size_mb ]]; then
-        warn "Large memory file detected: ${size_mb}MB"
-    fi
-    
-    # Determine expected prefix
-    local expected_prefix="AIPM_"
-    if [[ "$context" == "project" ]]; then
-        expected_prefix="${PROJECT_NAME:-PRODUCT}_"
-    fi
-    
-    # Stream validation - process line by line
-    local line_num=0
-    local errors=0
-    
-    while IFS= read -r line; do
-        ((line_num++))
-        
-        # Skip empty lines
-        [[ -z "$line" ]] && continue
-        
-        # Fast JSON check
-        if ! printf '%s' "$line" | jq -e . >/dev/null 2>&1; then
-            error "Invalid JSON at line $line_num"
-            ((errors++))
-            continue
-        fi
-        
-        # Extract type and validate structure
-        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        
-        if [[ "$type" == "entity" ]]; then
-            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            if [[ ! "$name" =~ ^$expected_prefix ]]; then
-                error "Invalid prefix at line $line_num: $name"
-                ((errors++))
-            fi
-            
-            # Validate required fields
-            local entityType=$(printf '%s' "$line" | jq -r '.entityType // empty' 2>/dev/null)
-            if [[ -z "$entityType" ]]; then
-                error "Missing entityType at line $line_num"
-                ((errors++))
-            fi
-        elif [[ "$type" == "relation" ]]; then
-            # Validate relation structure
-            local from=$(printf '%s' "$line" | jq -r '.from // empty' 2>/dev/null)
-            local to=$(printf '%s' "$line" | jq -r '.to // empty' 2>/dev/null)
-            local relationType=$(printf '%s' "$line" | jq -r '.relationType // empty' 2>/dev/null)
-            
-            if [[ -z "$from" || -z "$to" || -z "$relationType" ]]; then
-                error "Invalid relation at line $line_num"
-                ((errors++))
-            fi
-        else
-            error "Unknown type at line $line_num: $type"
-            ((errors++))
-        fi
-        
-        # Stop if too many errors
-        if [[ $errors -gt 10 ]]; then
-            error "Too many validation errors"
-            return 1
-        fi
-    done < "$file"
-    
-    # Report results
-    if [[ $errors -eq 0 ]]; then
-        debug "Memory validation passed: $line_num lines"
-        return 0
-    else
-        error "Memory validation failed: $errors errors"
-        return 1
-    fi
-}
-
-# 7. MCP Coordination
-prepare_for_mcp() {
-    # Ensure all file handles released
-    sync
-    return 0
-}
-
-release_from_mcp() {
-    # Wait for safe access
-    local max_wait=5
-    local waited=0
-    
-    while [[ $waited -lt $max_wait ]]; do
-        # Check if we can access memory
-        if [[ -r ".claude/memory.json" ]] && [[ -w ".claude/memory.json" ]]; then
-            return 0
-        fi
-        sleep 0.5
-        ((waited++))
-    done
-    
-    warn "Timeout waiting for MCP release"
-    return 1
-}
-
-# 8. Performance Helpers
-count_entities_stream() {
-    local file="$1"
-    local count=$(grep -c '"type":"entity"' "$file" 2>/dev/null)
-    [[ -z "$count" ]] && count=0
-    printf '%s' "$count"
-}
-
-# 9. Cleanup Operations
-cleanup_temp_files() {
-    rm -f .memory/*.tmp.* 2>/dev/null
-    rm -f .claude/*.tmp.* 2>/dev/null
+    format_duration "$duration"
 }
 
 # Export all functions
-export -f backup_memory restore_memory load_memory save_memory
-export -f merge_memories validate_memory_stream
-export -f prepare_for_mcp release_from_mcp
-export -f count_entities_stream cleanup_temp_files
+export -f create_session read_session detect_active_session
+export -f cleanup_session calculate_session_duration
 ```
 
-### Integration Pattern
+### 3.3 Enhanced migrate-memories.sh
 
-All wrapper scripts will use migrate-memories.sh functions instead of direct file operations:
+**Add Atomic Functions**:
 
 ```bash
-# In start.sh
-source "$SCRIPT_DIR/migrate-memories.sh" || die "Required module not found"
+# Break down merge_memories into atomic functions
 
-# Instead of: cp .claude/memory.json .memory/backup.json
-backup_memory || die "Failed to backup memory"
-
-# Instead of: cp local_memory.json .claude/memory.json  
-load_memory "$LOCAL_MEMORY" || die "Failed to load project memory"
-
-# In stop.sh
-# Instead of: cp .claude/memory.json local_memory.json
-save_memory ".claude/memory.json" "$LOCAL_MEMORY" || die "Failed to save"
-
-# Instead of: cp backup.json .claude/memory.json
-restore_memory || die "Failed to restore backup"
-```
-
-## Critical Areas for Hardening
-
-### 0. MCP Server Coordination (Priority: CRITICAL - NEW)
-
-**Core Principle**: The MCP server MUST have unrestricted access to memory.json during Claude Code sessions
-
-**Critical Design Constraints**:
-- AIPM scripts must NEVER lock the global memory.json file
-- All operations must be atomic and lock-free
-- File handles must be released before Claude Code starts
-- Resource acquisition must be POSIX-compliant
-- Performance must scale with file size (streaming operations)
-
-**MCP Coordination Flow**:
-```
-start.sh:
-1. backup_memory() → .memory/backup.json
-2. load_memory(local_memory.json) → global
-3. prepare_for_mcp() - releases file handles
-4. Remove session lock (metadata only)
-5. Launch Claude Code (MCP takes over)
-
-During Claude Code:
-- MCP has full control of memory.json
-- No AIPM operations on memory.json
-- Session metadata tracks state
-
-stop.sh:
-1. Wait for Claude Code to exit
-2. release_from_mcp() - ensure safe access
-3. save_memory() → local_memory.json
-4. restore_memory() → global from backup
-5. cleanup_temp_files()
-```
-
-**Implementation Requirements**:
-- [ ] All memory operations via migrate-memories.sh functions
-- [ ] Atomic operations implemented in the module (cp + mv, no flock)
-- [ ] Streaming operations centralized in the module
-- [ ] prepare_for_mcp() handles filesystem sync
-- [ ] release_from_mcp() ensures safe access
-- [ ] Performance target: <1s for 10MB files (tested in module)
-
-## Critical Areas for Hardening
-
-### 1. Memory Flow Architecture (Priority: CRITICAL - CORRECTED)
-
-**Core Principle**: Global memory is sacred and must be protected/restored after each session
-**Current Implementation**: Backup/restore works correctly - needs enhancement for team sync
-
-**Memory Flow Clarification (Using migrate-memories.sh)**:
-```
-SESSION START:
-1. backup_memory() → .memory/backup.json
-2. pull_latest() for git sync (version-control.sh)
-3. merge_memories() if remote changes exist
-4. load_memory(local_memory.json) → global
-5. prepare_for_mcp() before Claude Code launch
-
-SESSION STOP:
-1. release_from_mcp() - wait for safe access
-2. save_memory(global, local_memory.json)
-3. restore_memory(backup.json, global)
-4. cleanup_temp_files() - remove all .tmp.* files
-5. Global is back to pre-session state
-```
-
-**Enhanced Team Collaboration Flow**:
-```bash
-# In start.sh - Using migrate-memories.sh + version-control.sh
-section "Team Memory Synchronization"
-
-# 1. Backup global memory using module
-backup_memory || die "Failed to backup global memory"
-
-# 2. Sync with remote using version-control.sh
-if [[ "$WORK_CONTEXT" == "project" ]]; then
-    step "Checking for team updates..."
-    initialize_memory_context "--project" "$PROJECT_NAME"
-    
-    # Pull latest changes
-    if pull_latest "$PROJECT_NAME"; then
-        success "Synchronized with team repository"
-        
-        # 3. Merge if remote changes exist
-        if [[ -f "$REMOTE_MEMORY" ]] && [[ "$REMOTE_MEMORY" -nt "$LOCAL_MEMORY" ]]; then
-            merge_memories "$LOCAL_MEMORY" "$REMOTE_MEMORY" "$LOCAL_MEMORY"
-        fi
-    else
-        warn "Failed to sync - using local version"
-    fi
-fi
-
-# 4. Load project memory into global
-load_memory "$LOCAL_MEMORY" || die "Failed to load project memory"
-
-# 5. Prepare for MCP
-prepare_for_mcp
-
-# In save.sh - Using migrate-memories.sh + version-control.sh
-# 1. Save session memory
-save_memory ".claude/memory.json" "$LOCAL_MEMORY" || die "Failed to save"
-
-# 2. Stage and commit with version-control.sh
-if stage_all_changes; then
-    commit_with_stats "Team sync: $MESSAGE" "$LOCAL_MEMORY"
-else
-    warn "Failed to stage changes"
-fi
-
-# 3. Restore backup
-restore_memory || die "Failed to restore global memory"
-```
-
-**Critical Requirements**:
-- [ ] Global memory MUST be restored exactly as it was
-- [ ] Backup files (backup*.json) MUST be in .gitignore
-- [ ] Only local_memory.json is version controlled
-- [ ] Support incremental backups if global changed between sessions
-- [ ] Validate backup integrity before restore
-
-**Required .gitignore entries**:
-```
-# Memory protection
-.memory/backup.json
-.memory/backup*.json
-.memory/.session_lock
-.memory/session_*
-.claude/
-
-# Never commit global memory
-.claude/memory.json
-```
-
-### 2. Dynamic NPM Cache Detection (Priority: CRITICAL)
-
-**Current Issue**: sync-memory.sh uses hardcoded paths that may fail with different npm versions
-**Impact**: Complete failure to create memory symlink
-
-**Hardening Tasks**:
-- [ ] Implement dynamic npm cache detection using `npm config get cache`
-- [ ] Add fallback detection for common paths
-- [ ] Validate symlink target exists and is writable
-- [ ] Handle npm workspace scenarios
-- [ ] Add version-specific path patterns
-- [ ] Auto-install @modelcontextprotocol/server-memory if missing
-
-**Enhanced Implementation**:
-```bash
-# In sync-memory.sh
-NPM_CACHE=$(npm config get cache 2>/dev/null)
-[[ -z "$NPM_CACHE" ]] && NPM_CACHE="$HOME/.npm"
-MEMORY_PKG_PATH=$(find "$NPM_CACHE" -name "@modelcontextprotocol" -type d 2>/dev/null | head -1)
-
-# If not found, try npm root
-if [[ -z "$MEMORY_PKG_PATH" ]]; then
-    NPM_ROOT=$(npm root -g)
-    MEMORY_PKG_PATH="$NPM_ROOT/@modelcontextprotocol/server-memory"
-fi
-```
-
-### 3. Concurrent Session Protection & MCP Coordination (Priority: CRITICAL)
-
-**Current Issue**: Session locking must coordinate with MCP server access
-**Impact**: MCP server hangs if global memory.json is locked during Claude Code session
-
-**Critical Design Constraint**: 
-- **NEVER lock the global npm cache memory.json file**
-- MCP server needs read/write access during Claude Code session
-- Locking should only protect our backup/restore operations
-- Must use POSIX-compliant resource handling for safe operations
-
-**Hardening Tasks**:
-- [ ] Implement session metadata locking (NOT memory file locking)
-- [ ] Release all file handles before Claude Code launches
-- [ ] Use atomic operations for backup/restore without locking
-- [ ] Implement proper resource cleanup on all exit paths
-- [ ] Add MCP server health checks before operations
-- [ ] Use copy-on-write semantics for safety
-
-**Enhanced Implementation**:
-```bash
-# Session metadata locking (NOT memory file locking!)
-# Protects session state, not the memory file itself
-
-SESSION_LOCK=".memory/.session_lock"
-SESSION_STATE=".memory/.session_state"
-
-# Create session lock for metadata only
-create_session_lock() {
-    local pid=$$
-    local timestamp=$(date +%s)
-    
-    # Lock only session metadata, never memory.json
-    if mkdir "$SESSION_LOCK" 2>/dev/null; then
-        cat > "$SESSION_LOCK/info" <<EOF
-pid:$pid
-timestamp:$timestamp
-phase:initializing
-EOF
-        return 0
-    else
-        # Check if lock is stale
-        if [[ -f "$SESSION_LOCK/info" ]]; then
-            local lock_pid=$(grep '^pid:' "$SESSION_LOCK/info" | cut -d: -f2)
-            if ! kill -0 "$lock_pid" 2>/dev/null; then
-                warn "Removing stale lock from PID $lock_pid"
-                rm -rf "$SESSION_LOCK"
-                return create_session_lock
-            fi
-        fi
-        return 1
-    fi
-}
-
-# Memory operations are now handled by migrate-memories.sh
-# which provides atomic operations without locking:
-# - backup_memory() - atomic backup
-# - restore_memory() - atomic restore
-# - load_memory() - atomic load with validation
-# - save_memory() - atomic save with validation
-
-# MCP coordination functions are now in migrate-memories.sh:
-# - prepare_for_mcp() - ensures file handles released, syncs filesystem
-# - release_from_mcp() - waits for safe access to memory files
-
-# Session lock management (for metadata only, NOT memory files)
-update_session_phase() {
-    local phase="$1"
-    local session_file="$2"
-    
-    if [[ -f "$session_file/info" ]]; then
-        printf '%s\n' "phase:$phase" >> "$session_file/info"
-    fi
-}
-```
-
-**Resource Handling Strategy**:
-- All atomic operations centralized in migrate-memories.sh
-- prepare_for_mcp() ensures file handle release
-- Session locks for metadata only (never memory files)
-- Copy-on-write semantics in all module functions
-- POSIX-compliant implementation in the module
-
-### 4. Memory File Validation & Performance (Priority: CRITICAL)
-
-**Current Issue**: Validation must be fast and preserve schema integrity
-**Impact**: Performance degradation with large files, schema corruption during merge
-
-**Critical Requirements**:
-- **NEVER tamper with MCP schema structure**
-- Validation must be performance-optimized for large JSON files
-- Merge operations must preserve exact NDJSON format
-- Stream processing for memory operations (no full file loading)
-
-**Hardening Tasks**:
-- [ ] Implement streaming NDJSON validation
-- [ ] Add schema-preserving merge algorithm
-- [ ] Use jq streaming for large file processing
-- [ ] Implement incremental validation during merge
-- [ ] Add performance benchmarks for operations
-- [ ] Cache validation results when possible
-- [ ] Use memory-mapped files for large operations
-
-**Implementation Note**: All validation and merge operations are now centralized in migrate-memories.sh module. The module provides:
-
-- `validate_memory_stream()` - Fast streaming validation
-- `merge_memories()` - Performance-optimized merge with conflict resolution
-- `count_entities_stream()` - Efficient entity counting
-- All operations use streaming to handle large files
-
-Example usage in wrapper scripts:
-```bash
-# In start.sh - validation is automatic
-if ! load_memory "$LOCAL_MEMORY"; then
-    die "Memory validation failed"
-fi
-
-# Merge operation
-if [[ -f "$REMOTE_MEMORY" ]]; then
-    merge_memories "$LOCAL_MEMORY" "$REMOTE_MEMORY" "$LOCAL_MEMORY" "remote-wins"
-fi
-```
-
-**Original Implementation (Now in migrate-memories.sh)**:
-```bash
-# Fast streaming validation for NDJSON format
-validate_memory_stream() {
+# 1. Index entities from file (atomic)
+index_entities() {
     local file="$1"
-    local context="$2"
-    local max_size_mb=50
+    local -n entities_ref=$2  # nameref to associative array
     
-    # Quick size check first
-    local size_mb=$(du -m "$file" | cut -f1)
-    if [[ $size_mb -gt $max_size_mb ]]; then
-        warn "Large memory file detected: ${size_mb}MB"
-    fi
-    
-    # Stream validation - process line by line
-    local line_num=0
-    local errors=0
-    local expected_prefix="AIPM_"
-    [[ "$context" == "project" ]] && expected_prefix="${PROJECT_NAME}_"
-    
-    # Use while read for streaming
     while IFS= read -r line; do
-        ((line_num++))
-        
-        # Skip empty lines
         [[ -z "$line" ]] && continue
-        
-        # Fast JSON check (avoid jq for each line)
-        # Fast JSON check (internal processing - printf for piping)
-        if ! printf '%s' "$line" | jq -e . >/dev/null 2>&1; then
-            error "Invalid JSON at line $line_num"
-            ((errors++))
-            continue
-        fi
-        
-        # Extract type and name efficiently
-        # Extract type and name efficiently (internal JSON processing)
         local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        
         if [[ "$type" == "entity" ]]; then
             local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            if [[ ! "$name" =~ ^$expected_prefix ]]; then
-                error "Invalid prefix at line $line_num: $name"
-                ((errors++))
-            fi
-        elif [[ "$type" == "relation" ]]; then
-            # Validate relation structure without loading all entities
-            # Validate relation structure (internal processing)
-            local from=$(printf '%s' "$line" | jq -r '.from // empty' 2>/dev/null)
-            local to=$(printf '%s' "$line" | jq -r '.to // empty' 2>/dev/null)
-            if [[ -z "$from" || -z "$to" ]]; then
-                error "Invalid relation at line $line_num"
-                ((errors++))
+            if [[ -n "$name" ]]; then
+                entities_ref["$name"]="$line"
             fi
         fi
-        
-        # Stop if too many errors
-        [[ $errors -gt 10 ]] && die "Too many validation errors"
     done < "$file"
-    
-    return $errors
 }
 
-# High-performance schema-preserving merge
-merge_memory_files() {
-    local local_file="$1"
-    local remote_file="$2"
-    local output_file="$3"
-    local temp_merged="${output_file}.merge.$$"
+# 2. Process entity conflicts (atomic)
+resolve_entity_conflict() {
+    local local_entity="$1"
+    local remote_entity="$2"
+    local strategy="$3"
     
-    # Use associative arrays for O(1) lookups
-    declare -A local_entities
-    declare -A remote_entities
-    declare -A seen_relations
+    case "$strategy" in
+        "remote-wins") printf '%s' "$remote_entity" ;;
+        "local-wins")  printf '%s' "$local_entity" ;;
+        "newest-wins")
+            local local_ts=$(printf '%s' "$local_entity" | jq -r '.timestamp // 0')
+            local remote_ts=$(printf '%s' "$remote_entity" | jq -r '.timestamp // 0')
+            [[ "$remote_ts" -gt "$local_ts" ]] && \
+                printf '%s' "$remote_entity" || \
+                printf '%s' "$local_entity"
+            ;;
+    esac
+}
+
+# 3. Filter entities by pattern (atomic)
+filter_entities() {
+    local file="$1"
+    local pattern="$2"
+    local output="$3"
     
-    # Phase 1: Index local entities (streaming)
+    > "$output"
+    
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
-        if [[ "$type" == "entity" ]]; then
-            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            local_entities["$name"]="$line"
-        fi
-    done < "$local_file"
-    
-    # Phase 2: Merge with remote (streaming)
-    > "$temp_merged"  # Clear output
-    
-    # Process remote file
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        # Extract type and name efficiently (internal JSON processing)
-        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
+        local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
         
-        if [[ "$type" == "entity" ]]; then
-            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
-            
-            # Conflict resolution: remote wins for existing entities
-            if [[ -n "${local_entities[$name]}" ]]; then
-                # Could implement more sophisticated merge here
-                # Append to merged file (internal operation)
-                printf '%s\n' "$line" >> "$temp_merged"
-                unset local_entities["$name"]  # Mark as processed
-            else
-                # Append to merged file (internal operation)
-                printf '%s\n' "$line" >> "$temp_merged"
-            fi
-        elif [[ "$type" == "relation" ]]; then
-            # Deduplicate relations
-            local rel_key=$(printf '%s' "$line" | jq -r '[.from, .to, .relationType] | join(":")' 2>/dev/null)
-            if [[ -z "${seen_relations[$rel_key]}" ]]; then
-                seen_relations["$rel_key"]=1
-                # Append to merged file (internal operation)
-                printf '%s\n' "$line" >> "$temp_merged"
-            fi
+        if [[ "$type" == "entity" ]] && [[ "$name" =~ $pattern ]]; then
+            printf '%s\n' "$line" >> "$output"
         fi
-    done < "$remote_file"
+    done < "$file"
+}
+
+# 4. Filter relations for entities (atomic)
+filter_relations_for_entities() {
+    local file="$1"
+    local pattern="$2"
+    local output="$3"
     
-    # Phase 3: Add remaining local entities
-    for name in "${!local_entities[@]}"; do
-        # Add remaining local entity
-        printf '%s\n' "${local_entities[$name]}" >> "$temp_merged"
-    done
-    
-    # Phase 4: Add local relations
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
         
         if [[ "$type" == "relation" ]]; then
-            local rel_key=$(printf '%s' "$line" | jq -r '[.from, .to, .relationType] | join(":")' 2>/dev/null)
-            if [[ -z "${seen_relations[$rel_key]}" ]]; then
-                # Append to merged file (internal operation)
-                printf '%s\n' "$line" >> "$temp_merged"
+            local from=$(printf '%s' "$line" | jq -r '.from // empty' 2>/dev/null)
+            local to=$(printf '%s' "$line" | jq -r '.to // empty' 2>/dev/null)
+            
+            if [[ "$from" =~ $pattern ]] || [[ "$to" =~ $pattern ]]; then
+                printf '%s\n' "$line" >> "$output"
             fi
         fi
-    done < "$local_file"
-    
-    # Atomic replace
-    mv -f "$temp_merged" "$output_file"
+    done < "$file"
 }
 
-# Performance monitoring wrapper
-time_operation() {
-    local op_name="$1"
-    shift
-    local start_time=$(date +%s.%N)
+# 5. Team memory sync (atomic, configurable)
+sync_team_memory() {
+    local memory_file="$1"
+    local sync_mode="${2:-ask}"  # ask|auto|skip
+    local merge_strategy="${3:-remote-wins}"
     
-    "$@"
-    local result=$?
+    step "Checking for team memory updates..."
     
-    local end_time=$(date +%s.%N)
-    local duration=$(printf '%s' "$end_time - $start_time" | bc)
+    # Try to get remote version
+    local remote_memory="${memory_file}.remote"
+    local found_remote=false
     
-    debug "$op_name completed in ${duration}s"
-    return $result
-}
-```
-
-### 5. Platform Compatibility Enhancement (Priority: MEDIUM)
-
-**Current Issue**: Incomplete handling of platform differences
-**Impact**: Script failures on certain platforms
-
-**Hardening Tasks**:
-- [ ] Create comprehensive platform detection function
-- [ ] Handle WSL (Windows Subsystem for Linux) specifically
-- [ ] Abstract all platform-specific commands
-- [ ] Add CI testing for multiple platforms
-- [ ] Document platform requirements clearly
-
-**Implementation**:
-```bash
-# Add to shell-formatting.sh or new platform-utils.sh
-detect_platform() {
-    # Sets PLATFORM variable instead of echoing
-    case "$(uname -s)" in
-        Linux*)     
-            if [[ -f /proc/version ]] && grep -q Microsoft /proc/version; then
-                PLATFORM="wsl"
-            else
-                PLATFORM="linux"
+    for remote in "origin/HEAD" "origin/main" "origin/master"; do
+        if extract_memory_from_git "$remote" "$memory_file" "$remote_memory" 2>/dev/null; then
+            found_remote=true
+            break
+        fi
+    done
+    
+    if [[ "$found_remote" != "true" ]]; then
+        debug "No remote memory found"
+        return 0
+    fi
+    
+    # Check if different
+    if ! memory_changed "$memory_file" "$remote_memory"; then
+        info "Local memory already up to date"
+        rm -f "$remote_memory"
+        return 0
+    fi
+    
+    # Handle sync based on mode
+    case "$sync_mode" in
+        "skip")
+            info "Skipping team sync (mode: skip)"
+            rm -f "$remote_memory"
+            return 0
+            ;;
+        "ask")
+            if ! confirm "Merge team memory updates?"; then
+                rm -f "$remote_memory"
+                return 0
             fi
             ;;
-        Darwin*)    PLATFORM="macos";;
-        *)          PLATFORM="unknown";;
+        "auto")
+            info "Auto-merging team updates"
+            ;;
     esac
     
-    # For debugging
-    debug "Detected platform: $PLATFORM"
+    # Perform merge
+    if merge_memories "$memory_file" "$remote_memory" "$memory_file" "$merge_strategy"; then
+        success "Team memories merged successfully"
+        rm -f "$remote_memory"
+        return 0
+    else
+        warn "Memory merge failed - using local version"
+        rm -f "$remote_memory"
+        return 1
+    fi
 }
+
+# Export new atomic functions
+export -f index_entities resolve_entity_conflict filter_entities
+export -f filter_relations_for_entities sync_team_memory
 ```
 
-### 5. Session Lifecycle Management (Priority: MEDIUM)
+### 3.4 CRITICAL NEW MODULE: opinions-loader.sh
 
-**Current Issue**: No automatic cleanup of stale sessions
-**Impact**: Confusion and potential data issues
+**Purpose**: Complete separation of branching opinions from implementation
 
-**Hardening Tasks**:
-- [ ] Add session heartbeat mechanism
-- [ ] Implement stale session detection on start
-- [ ] Add session recovery options
-- [ ] Create session list/status command
-- [ ] Add forced cleanup option
+**CORNERSTONE PRINCIPLE**: This module enables AIPM to work consistently across ANY organization by isolating branching rules from their enforcement. The AIPM_ prefix namespace ensures zero conflicts with user branches.
 
-### 6. Error Recovery Enhancement (Priority: HIGH)
-
-**Current Issue**: Inconsistent error handling and recovery
-**Impact**: Users stuck without clear path forward
-
-**Hardening Tasks**:
-- [ ] Standardize all error messages with recovery hints
-- [ ] Add rollback mechanisms for failed operations
-- [ ] Implement transaction-like operations
-- [ ] Add diagnostic mode for troubleshooting
-- [ ] Create recovery script for common issues
-
-### 7. Git Integration Hardening (Priority: MEDIUM)
-
-**Current Issue**: Some git edge cases not fully handled
-**Impact**: Potential conflicts or data loss
-
-**Hardening Tasks**:
-- [ ] Handle detached HEAD state
-- [ ] Improve merge conflict detection
-- [ ] Add pre-flight checks for all git operations
-- [ ] Handle missing upstream branches
-- [ ] Add git hook integration for memory validation
-
-### 8. Memory Performance Optimization (Priority: CRITICAL)
-
-**Current Issue**: Memory operations must be blazing fast as files grow
-**Impact**: User experience degrades with large memory files
-
-**Performance Requirements**:
-- Sub-second operations for files up to 10MB
-- Linear scaling with file size (no O(n²) operations)
-- Streaming processing (never load full file into memory)
-- Zero impact on MCP server performance
-
-**Hardening Tasks**:
-- [ ] Implement streaming JSON processing throughout
-- [ ] Use memory-mapped files for large operations
-- [ ] Add parallel processing for independent operations
-- [ ] Implement incremental backups for unchanged portions
-- [ ] Cache frequently accessed data (entity counts, etc.)
-- [ ] Use binary search for sorted operations
-- [ ] Add performance profiling hooks
-- [ ] Implement copy-on-write where possible
-
-**Performance Optimization Techniques**:
 ```bash
-# Example: Fast entity counting without loading file
-count_entities_stream() {
-    local file="$1"
-    # Use grep -c for raw speed
-    # Use grep for speed, return 0 if no matches
-    local count=$(grep -c '"type":"entity"' "$file" 2>/dev/null)
-    [[ -z "$count" ]] && count=0
-    printf '%s' "$count"
+#!/opt/homebrew/bin/bash
+# opinions-loader.sh - Branching opinions loader for AIPM
+#
+# CRITICAL: This is the CORNERSTONE of AIPM's branching architecture
+# - Complete isolation between opinions and implementation
+# - AIPM_ prefix ensures namespace separation
+# - Works across any organization or team
+# - Compiled at startup for performance
+
+source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
+
+# Default opinions path
+readonly OPINIONS_FILE="${AIPM_OPINIONS_FILE:-.aipm/opinions.json}"
+readonly OPINIONS_COMPILED="${OPINIONS_FILE%.json}.compiled"
+readonly OPINIONS_CACHE="/tmp/aipm_opinions_$$"
+
+# Cache variables (set once per session)
+AIPM_BRANCH_PREFIX=""
+AIPM_MAIN_BRANCH=""
+AIPM_BRANCH_RULES=""
+
+# Load and compile opinions
+load_opinions() {
+    local force="${1:-false}"
+    
+    # Check if already loaded (unless forced)
+    if [[ "$force" != "true" ]] && [[ -n "$AIPM_BRANCH_PREFIX" ]]; then
+        return 0
+    fi
+    
+    # Ensure opinions file exists
+    if [[ ! -f "$OPINIONS_FILE" ]]; then
+        create_default_opinions
+    fi
+    
+    # Compile for performance (only if source is newer)
+    if [[ ! -f "$OPINIONS_COMPILED" ]] || [[ "$OPINIONS_FILE" -nt "$OPINIONS_COMPILED" ]]; then
+        debug "Compiling opinions for performance..."
+        jq -c . < "$OPINIONS_FILE" > "$OPINIONS_COMPILED" || {
+            error "Failed to compile opinions"
+            return 1
+        }
+    fi
+    
+    # Load compiled opinions
+    local opinions=$(cat "$OPINIONS_COMPILED")
+    
+    # Extract key values for fast access
+    AIPM_BRANCH_PREFIX=$(echo "$opinions" | jq -r '.branching.prefix // "AIPM_"')
+    AIPM_MAIN_BRANCH=$(echo "$opinions" | jq -r '.branching.main_branch // "AIPM_MAIN"')
+    AIPM_BRANCH_RULES=$(echo "$opinions" | jq -c '.branching.branch_types // {}')
+    
+    # Cache protected patterns
+    echo "$opinions" | jq -r '.branching.protected_patterns[]' > "$OPINIONS_CACHE.protected"
+    
+    # Export for child processes
+    export AIPM_BRANCH_PREFIX AIPM_MAIN_BRANCH AIPM_BRANCH_RULES
+    export AIPM_OPINIONS_LOADED=true
+    
+    debug "Opinions loaded: prefix=$AIPM_BRANCH_PREFIX, main=$AIPM_MAIN_BRANCH"
+    return 0
 }
 
-# Example: Parallel validation
-validate_parallel() {
-    local file="$1"
-    local chunks=4
+# Create default opinions file
+create_default_opinions() {
+    mkdir -p "$(dirname "$OPINIONS_FILE")"
     
-    # Split file for parallel processing
-    split -n l/$chunks "$file" "$file.chunk."
+    cat > "$OPINIONS_FILE" <<'EOF'
+{
+  "version": "1.0",
+  "branching": {
+    "prefix": "AIPM_",
+    "main_branch": "AIPM_MAIN",
+    "protected_patterns": [
+      "^AIPM_.*",
+      "^main$",
+      "^master$",
+      "^develop$",
+      "^production$"
+    ],
+    "branch_types": {
+      "feature": {
+        "prefix": "AIPM_feature/",
+        "lifecycle": "merge_delete",
+        "max_age_days": 30,
+        "description": "Feature development branches"
+      },
+      "session": {
+        "prefix": "AIPM_session/",
+        "lifecycle": "auto_delete",
+        "max_age_days": 7,
+        "description": "Temporary session branches"
+      },
+      "backup": {
+        "prefix": "AIPM_backup/",
+        "lifecycle": "rotate",
+        "max_count": 10,
+        "description": "Automatic backup branches"
+      },
+      "sync": {
+        "prefix": "AIPM_sync/",
+        "lifecycle": "merge_delete",
+        "max_age_days": 1,
+        "description": "Team synchronization branches"
+      }
+    },
+    "enforcement": {
+      "block_direct_main_commits": true,
+      "require_aipm_prefix": true,
+      "auto_prune": true,
+      "prune_interval_days": 7,
+      "warn_on_user_branch": true
+    },
+    "migration": {
+      "detect_existing_main": true,
+      "create_aipm_main_from": "auto",
+      "preserve_user_branches": true,
+      "link_to_upstream": true
+    }
+  },
+  "commit": {
+    "require_prefix": true,
+    "prefixes": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
+    "require_issue_ref": false,
+    "sign_commits": false
+  }
+}
+EOF
     
-    # Validate in parallel
-    for chunk in "$file.chunk."*; do
-        validate_chunk "$chunk" &
+    debug "Created default opinions file: $OPINIONS_FILE"
+}
+
+# Get configured main branch
+get_main_branch() {
+    [[ -z "$AIPM_MAIN_BRANCH" ]] && load_opinions
+    printf "%s" "$AIPM_MAIN_BRANCH"
+}
+
+# Get branch prefix for type
+get_branch_prefix() {
+    local branch_type="${1:-feature}"
+    
+    [[ -z "$AIPM_BRANCH_RULES" ]] && load_opinions
+    
+    local prefix=$(echo "$AIPM_BRANCH_RULES" | jq -r --arg type "$branch_type" '.[$type].prefix // empty')
+    [[ -z "$prefix" ]] && prefix="${AIPM_BRANCH_PREFIX}${branch_type}/"
+    
+    printf "%s" "$prefix"
+}
+
+# Check if branch is protected
+is_protected_branch() {
+    local branch="$1"
+    
+    [[ ! -f "$OPINIONS_CACHE.protected" ]] && load_opinions
+    
+    while IFS= read -r pattern; do
+        if [[ "$branch" =~ $pattern ]]; then
+            return 0
+        fi
+    done < "$OPINIONS_CACHE.protected"
+    
+    return 1
+}
+
+# Validate branch name against rules
+validate_branch_name() {
+    local branch="$1"
+    local branch_type="${2:-}"
+    
+    [[ -z "$AIPM_BRANCH_PREFIX" ]] && load_opinions
+    
+    # Check if it's an AIPM branch
+    if [[ ! "$branch" =~ ^${AIPM_BRANCH_PREFIX} ]]; then
+        # Non-AIPM branches are allowed but warned
+        debug "Branch '$branch' is not an AIPM branch"
+        return 1
+    fi
+    
+    # If type specified, check prefix
+    if [[ -n "$branch_type" ]]; then
+        local expected_prefix=$(get_branch_prefix "$branch_type")
+        if [[ ! "$branch" =~ ^${expected_prefix} ]]; then
+            error "Branch '$branch' doesn't match expected prefix: $expected_prefix"
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Get branch lifecycle rules
+get_branch_lifecycle() {
+    local branch="$1"
+    
+    [[ -z "$AIPM_BRANCH_RULES" ]] && load_opinions
+    
+    # Determine branch type from name
+    local branch_type=""
+    echo "$AIPM_BRANCH_RULES" | jq -r 'keys[]' | while read -r type; do
+        local prefix=$(get_branch_prefix "$type")
+        if [[ "$branch" =~ ^${prefix} ]]; then
+            branch_type="$type"
+            break
+        fi
     done
-    wait
     
-    # Cleanup
-    rm -f "$file.chunk."*
+    if [[ -n "$branch_type" ]]; then
+        echo "$AIPM_BRANCH_RULES" | jq -c --arg type "$branch_type" '.[$type]'
+    else
+        echo "{}"
+    fi
 }
 
-# Example: Incremental backup
-incremental_backup() {
-    local source="$1"
-    local target="$2"
-    local hash_file="$target.hash"
+# Check if branch should be auto-deleted
+should_auto_delete() {
+    local branch="$1"
+    local lifecycle=$(get_branch_lifecycle "$branch" | jq -r '.lifecycle // "keep"')
     
-    # Check if content changed
-    local current_hash=$(sha256sum "$source" | cut -d' ' -f1)
-    if [[ -f "$hash_file" ]]; then
-        local stored_hash=$(cat "$hash_file")
-        [[ "$current_hash" == "$stored_hash" ]] && return 0
-    fi
-    
-    # Only backup if changed
-    cp -f "$source" "$target"
-    # Store hash for next comparison
-    printf '%s\n' "$current_hash" > "$hash_file"
+    [[ "$lifecycle" == "auto_delete" ]] || [[ "$lifecycle" == "merge_delete" ]]
 }
-```
 
-## Missing Workflow & Integration Requirements
-
-### Session Management
-- Session file format specification with all required fields
-- Session archival as session_${SESSION_ID}_complete
-- Session log handling and format
-- DID_STASH tracking for safe operations
-
-### Team Collaboration
-- Memory merge capabilities for team synchronization
-- Selective memory import/export
-- Branch-specific memory isolation
-- Memory diff between branches
-
-### Documentation Structure
-- Validate standardized project structure
-- Check for required files: CLAUDE.md, README.md, etc.
-- Enforce data/ directory for project files
-- Project-specific CLAUDE.md protocol loading
-
-## Script-Specific Hardening
-
-### start.sh - Complete Workflow Implementation
-
-1. **Phase 1: Initial Setup**
-   - [ ] Call hardened sync-memory.sh automatically
-   - [ ] Use `step "Setting up memory system..."` for progress
-   - [ ] Use shell-formatting.sh functions for all output
-   - [ ] Validate npm cache and create symlink
-   - [ ] Handle first-time setup gracefully
-
-2. **Phase 2: Context Detection**
-   - [ ] Scan for all projects with .memory/local_memory.json
-   - [ ] Display interactive menu with visual formatting
-   - [ ] Show project stats (last modified, memory size)
-   - [ ] Support new project initialization
-
-3. **Phase 3: Memory Synchronization**
-   - [ ] Backup global memory atomically (no locking)
-   - [ ] Use `pull_latest` from version-control.sh for git sync
-   - [ ] If remote changes exist, merge with performance optimization
-   - [ ] Validate merged memory before loading
-   - [ ] Load local_memory.json into global
-   - [ ] Release all file handles before MCP activation
-   - [ ] Use `step`, `info`, `success` for all progress messages
-
-4. **Phase 4: Session Initialization**
-   - [ ] Create session with full metadata
-   - [ ] Validate memory loaded correctly
-   - [ ] Create session metadata lock (NOT memory file lock)
-   - [ ] Release all file handles and locks
-   - [ ] Sync filesystem to ensure writes are flushed
-   - [ ] Launch: `claude code --model "opus"`
-   - [ ] Session lock removed to indicate MCP is in control
-
-**Complete Flow Example (with actual functions)**:
-```bash
-$ ./scripts/start.sh
-
-# The script would source all required modules:
-source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
-source "$SCRIPT_DIR/version-control.sh" || exit 1
-source "$SCRIPT_DIR/migrate-memories.sh" || exit 1
-
-section "AIPM Session Initialization"
-
-# Phase 1: Setup
-step "Setting up memory system..."
-if [[ ! -L ".claude/memory.json" ]]; then
-    "$SCRIPT_DIR/sync-memory.sh" || die "Memory setup failed"
-fi
-success "Memory symlink verified"
-
-# Phase 2: Context selection
-info "Available contexts:"
-info "  1) Framework Development"
-# ... project detection using proper functions
-
-# Phase 3: Memory sync using migrate-memories.sh
-# Backup global memory
-backup_memory || die "Failed to backup global memory"
-
-# Using version-control.sh functions for git sync
-step "Checking for team updates..."
-initialize_memory_context "--project" "Product"
-fetch_remote "Product"
-
-local commits_behind=$(get_commits_ahead_behind | grep -o 'behind: [0-9]*' | cut -d' ' -f2)
-if [[ "$commits_behind" -gt 0 ]]; then
-    success "Found $commits_behind new memory updates from team"
-    pull_latest "Product"
+# Enforce branching rules
+enforce_branch_operation() {
+    local operation="$1"  # create|delete|merge|commit
+    local branch="$2"
     
-    # Merge if remote is newer
-    if [[ -f "$REMOTE_MEMORY" ]] && [[ "$REMOTE_MEMORY" -nt "$LOCAL_MEMORY" ]]; then
-        merge_memories "$LOCAL_MEMORY" "$REMOTE_MEMORY" "$LOCAL_MEMORY"
+    [[ -z "$AIPM_BRANCH_PREFIX" ]] && load_opinions
+    
+    local opinions=$(cat "$OPINIONS_COMPILED")
+    local enforcement=$(echo "$opinions" | jq -r '.branching.enforcement // {}')
+    
+    case "$operation" in
+        "commit")
+            # Check if direct commits to main are blocked
+            if [[ "$branch" == "$(get_main_branch)" ]]; then
+                if [[ "$(echo "$enforcement" | jq -r '.block_direct_main_commits // false')" == "true" ]]; then
+                    error "Direct commits to $branch are not allowed"
+                    info "Create a feature branch: git checkout -b ${AIPM_BRANCH_PREFIX}feature/your-feature"
+                    return 1
+                fi
+            fi
+            ;;
+        "create")
+            # Check if AIPM prefix is required
+            if [[ "$(echo "$enforcement" | jq -r '.require_aipm_prefix // false')" == "true" ]]; then
+                if ! validate_branch_name "$branch"; then
+                    warn "Branch '$branch' doesn't follow AIPM naming convention"
+                    info "Suggested: ${AIPM_BRANCH_PREFIX}feature/$(echo "$branch" | sed "s/^.*\///")"
+                fi
+            fi
+            ;;
+        "delete")
+            # Prevent deletion of protected branches
+            if is_protected_branch "$branch"; then
+                error "Cannot delete protected branch: $branch"
+                return 1
+            fi
+            ;;
+    esac
+    
+    return 0
+}
+
+# Initialize AIPM branches for project
+initialize_aipm_branches() {
+    local project="${1:-}"
+    local source_branch="${2:-}"
+    
+    step "Initializing AIPM branches..."
+    
+    # Detect existing main if not specified
+    if [[ -z "$source_branch" ]]; then
+        source_branch=$(detect_existing_main)
+        info "Detected existing main branch: $source_branch"
     fi
-fi
+    
+    # Create AIPM_MAIN if it doesn't exist
+    local aipm_main=$(get_main_branch)
+    if ! branch_exists "$aipm_main"; then
+        info "Creating $aipm_main from $source_branch..."
+        if create_branch "$aipm_main" "$source_branch"; then
+            success "$aipm_main created successfully"
+        else
+            error "Failed to create $aipm_main"
+            return 1
+        fi
+    else
+        info "$aipm_main already exists"
+    fi
+    
+    # Set upstream tracking
+    if [[ -n "$project" ]]; then
+        ensure_remote_tracking "$project"
+    fi
+    
+    return 0
+}
 
-# Load project memory using module
-load_memory "$LOCAL_MEMORY" || die "Failed to load project memory"
+# Detect existing main branch
+detect_existing_main() {
+    # Check origin/HEAD first
+    local origin_head=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+    [[ -n "$origin_head" ]] && echo "$origin_head" && return 0
+    
+    # Check common names
+    for branch in main master develop trunk; do
+        if branch_exists "$branch"; then
+            echo "$branch"
+            return 0
+        fi
+    done
+    
+    # Default to main
+    echo "main"
+}
 
-# Prepare for MCP handoff
-prepare_for_mcp
-success "Session ready"
+# Cleanup old AIPM branches
+cleanup_aipm_branches() {
+    local dry_run="${1:-false}"
+    
+    [[ -z "$AIPM_BRANCH_RULES" ]] && load_opinions
+    
+    step "Cleaning up old AIPM branches..."
+    
+    local count=0
+    git branch --format='%(refname:short)' | grep "^${AIPM_BRANCH_PREFIX}" | while read -r branch; do
+        local lifecycle=$(get_branch_lifecycle "$branch")
+        local should_delete=false
+        
+        # Check lifecycle rules
+        local lifecycle_type=$(echo "$lifecycle" | jq -r '.lifecycle // "keep"')
+        case "$lifecycle_type" in
+            "auto_delete")
+                local max_age=$(echo "$lifecycle" | jq -r '.max_age_days // 7')
+                local age_days=$(get_branch_age_days "$branch")
+                [[ "$age_days" -gt "$max_age" ]] && should_delete=true
+                ;;
+            "rotate")
+                local max_count=$(echo "$lifecycle" | jq -r '.max_count // 10')
+                # Count similar branches
+                local pattern=$(echo "$branch" | sed 's/[0-9]*$//')
+                local similar_count=$(git branch | grep -c "^${pattern}")
+                [[ "$similar_count" -gt "$max_count" ]] && should_delete=true
+                ;;
+        esac
+        
+        if [[ "$should_delete" == "true" ]]; then
+            if [[ "$dry_run" == "true" ]]; then
+                info "Would delete: $branch"
+            else
+                if git branch -d "$branch" 2>/dev/null; then
+                    success "Deleted: $branch"
+                    ((count++))
+                else
+                    warn "Cannot delete $branch (may have unmerged changes)"
+                fi
+            fi
+        fi
+    done
+    
+    info "Cleaned up $count branches"
+}
 
-info "Launching Claude Code..."
-section_end
+# Get branch age in days
+get_branch_age_days() {
+    local branch="$1"
+    local last_commit=$(git log -1 --format=%ct "$branch" 2>/dev/null || echo "0")
+    local now=$(date +%s)
+    local age_seconds=$((now - last_commit))
+    echo $((age_seconds / 86400))
+}
 
-# Launch Claude Code
-claude code --model "opus"
+# Export all functions
+export -f load_opinions create_default_opinions get_main_branch
+export -f get_branch_prefix is_protected_branch validate_branch_name
+export -f get_branch_lifecycle should_auto_delete enforce_branch_operation
+export -f initialize_aipm_branches detect_existing_main cleanup_aipm_branches
+export -f get_branch_age_days
+
+# Load opinions on source (non-blocking)
+load_opinions >/dev/null 2>&1 || true
 ```
 
-### stop.sh
+### 3.5 Updated version-control.sh Integration
 
-1. **Session State Validation**
-   - [ ] Use `release_from_mcp()` to wait for safe access
-   - [ ] Verify all session components exist
-   - [ ] Handle partial session states
-   - [ ] Add emergency stop mode
-   - [ ] Update session phase with metadata lock
+**Critical Changes Required**:
 
-2. **Save Integration**
-   - [ ] Call save.sh with proper context
-   - [ ] save.sh uses `save_memory()` from module
-   - [ ] Handle failures with retry mechanism
-   - [ ] Module ensures atomic operations
-   - [ ] Preserve memory on critical failures
-
-3. **Memory Restoration**
-   - [ ] Use `restore_memory()` from module
-   - [ ] Automatic backup cleanup after restore
-   - [ ] Validate restored state
-   - [ ] Call `cleanup_temp_files()` at end
-
-### save.sh
-
-1. **Memory Save Flow**
-   - [ ] Source migrate-memories.sh module
-   - [ ] Use `save_memory()` for atomic save
-   - [ ] Module handles validation automatically
-   - [ ] Use `restore_memory()` for backup restore
-   - [ ] Module ensures no file locking
-   - [ ] Performance monitoring built into module
-   - [ ] All operations are streaming-enabled
-
-2. **Git Integration**
-   - [ ] Stage local_memory.json for commit
-   - [ ] Use golden rule for other files
-   - [ ] Support two-commit strategy (future)
-   - [ ] Handle merge conflicts if needed
-
-**Example Implementation**:
 ```bash
-# save.sh implementation using modules
-source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
-source "$SCRIPT_DIR/version-control.sh" || exit 1
-source "$SCRIPT_DIR/migrate-memories.sh" || exit 1
+# At the top of version-control.sh, after sourcing shell-formatting.sh:
+source "$SCRIPT_DIR/opinions-loader.sh" || {
+    error "Required file opinions-loader.sh not found"
+    exit 1
+}
 
-# Parse context
-WORK_CONTEXT="$1"
-PROJECT_NAME="$2"
-COMMIT_MSG="${3:-Session save}"
+# Replace hardcoded protected branch pattern (line 105):
+# OLD: readonly PROTECTED_BRANCHES="^(main|master|develop|production)$"
+# NEW: (removed - use is_protected_branch() instead)
 
-# Initialize context
-initialize_memory_context "--$WORK_CONTEXT" ${PROJECT_NAME:+"$PROJECT_NAME"}
-
-# Determine memory file path
-if [[ "$WORK_CONTEXT" == "framework" ]]; then
-    LOCAL_MEMORY=".memory/local_memory.json"
-else
-    LOCAL_MEMORY="$PROJECT_NAME/.memory/local_memory.json"
-fi
-
-# Save current global memory to local
-save_memory ".claude/memory.json" "$LOCAL_MEMORY" || die "Failed to save memory"
-
-# Git operations if commit requested
-if [[ -n "$COMMIT_MSG" ]]; then
-    stage_all_changes || die "Failed to stage changes"
-    commit_with_stats "$COMMIT_MSG" "$LOCAL_MEMORY" || die "Commit failed"
-fi
-
-# Restore original global memory
-restore_memory || die "Failed to restore backup"
-
-# Cleanup
-cleanup_temp_files
-```
-
-### revert.sh
-
-1. **Safety Checks**
-   - [ ] Add dry-run mode
-   - [ ] Improve diff preview
-   - [ ] Add multiple backup retention
-
-2. **Commit Validation**
-   - [ ] Verify commit has valid memory structure
-   - [ ] Handle partial reverts
-   - [ ] Add cherry-pick support
-
-## Testing Strategy
-
-### Unit Tests
-- [ ] Create test framework using bats or similar
-- [ ] Test each function in isolation
-- [ ] Mock all external dependencies
-- [ ] Test error paths explicitly
-
-### Integration Tests
-- [ ] Full workflow tests (start → save → stop)
-- [ ] Multi-project scenarios
-- [ ] Concurrent session tests
-- [ ] Platform-specific tests
-
-### Stress Tests
-- [ ] Large memory files (>10MB)
-- [ ] Many projects (>20)
-- [ ] Rapid session creation/destruction
-- [ ] Network failure scenarios
-
-## Additional Hardening Requirements
-
-### Memory Operations (Centralized in migrate-memories.sh)
-- [ ] Implement migrate-memories.sh module with all functions
-- [ ] Lock-free atomic operations in all module functions
-- [ ] Streaming processing throughout the module
-- [ ] Memory validation integrated into load/save operations
-- [ ] Schema-preserving merge algorithm
-- [ ] Performance benchmarks for module functions
-- [ ] Copy-on-write semantics in module implementation
-- [ ] Cleanup operations for temporary files
-
-### Network & Authentication
-- [ ] SSH key handling for private repos
-- [ ] Authentication failure recovery
-- [ ] Network timeout handling
-- [ ] Offline mode improvements
-
-### Advanced Features
-- [ ] Memory analytics and health metrics
-- [ ] Project template support
-- [ ] Debug mode with diagnostic data
-- [ ] Performance profiling hooks
-
-## Implementation Priority (Revised for Complete Vision)
-
-1. **Phase 0 - migrate-memories.sh Module** (Immediate - CRITICAL)
-   - Implement complete migrate-memories.sh module
-   - All memory operations in single source of truth
-   - Schema-preserving merge algorithm
-   - Streaming operations for performance
-   - Lock-free atomic operations throughout
-   - MCP coordination functions (prepare/release)
-   - Performance benchmarks for all functions
-   - Complete function exports for wrapper scripts
-   - This is the foundation for all wrapper scripts
-
-2. **Phase 1 - Core Protocol & Hardening** (Week 1)
-   - Golden Rule enforcement
-   - Entity naming validation
-   - Dynamic NPM cache detection
-   - Enhanced sync-memory.sh
-   - Seamless start.sh workflow
-
-3. **Phase 2 - Branch Management Wrapper** (Week 2)
-   - Branch selection UI
-   - Follow current-focus.md strategy
-   - Memory-aware branch operations
-   - Opinionated workflow implementation
-   - Integration with save/start
-
-4. **Phase 3 - Advanced Features** (Week 3)
-   - Two-commit strategy planning
-   - Enhanced revert with state list
-   - Memory analytics
-   - Platform compatibility
-   - Performance optimization
-
-5. **Phase 4 - Testing & Documentation** (Week 4)
-   - Comprehensive test suite
-   - User documentation
-   - Video tutorials
-   - Example workflows
-
-## Branching Strategy Integration
-
-### Workflow from current-focus.md
-```
-main
-└─> feature_branch
-    └─> test_branch
-        └─> implementation_branch
-```
-
-### Wrapper Integration
-- start.sh: Help select appropriate branch
-- save.sh: Guide commit to right branch
-- Branch-aware memory isolation
-- Prevent cross-branch contamination
-
-## Implementation Standards
-
-### Function Patterns
-- All functions must have explicit return statements
-- Local variables must be declared with 'local'
-- Original directory must be restored if changed
-- Error codes must follow standardized set
-
-### Testing Patterns  
-- Follow component testing branch structure
-- Each feature gets isolated test branch
-- Full regression test suite required
-- Test data generation strategies
-
-### Code Patterns
-```bash
-# Example of required pattern
-function_name() {
-    local arg="$1"
+# Update get_default_branch() function:
+get_default_branch() {
+    local dir="${1:-.}"
     local original_dir=$(pwd)
     
-    # Main logic
+    cd "$dir" >/dev/null 2>&1 || return 1
     
-    # Restore directory
-    [[ "$original_dir" != "$(pwd)" ]] && cd "$original_dir" >/dev/null
+    # First check for AIPM main branch
+    local aipm_main=$(get_main_branch)
+    if branch_exists "$aipm_main"; then
+        echo "$aipm_main"
+        cd "$original_dir" >/dev/null
+        return 0
+    fi
     
-    return $EXIT_SUCCESS
+    # Fall back to detecting existing main
+    local detected=$(detect_existing_main)
+    echo "$detected"
+    
+    cd "$original_dir" >/dev/null
+    return 0
+}
+
+# Update create_branch() to enforce naming:
+create_branch() {
+    local branch_name="$1"
+    local base_branch="${2:-$(get_current_branch)}"
+    local switch="${3:-true}"
+    
+    # Enforce branch naming conventions
+    if ! enforce_branch_operation "create" "$branch_name"; then
+        return 1
+    fi
+    
+    # Suggest AIPM naming if not compliant
+    if ! validate_branch_name "$branch_name"; then
+        local suggested="${AIPM_BRANCH_PREFIX}feature/${branch_name#*/}"
+        if confirm "Use suggested name: $suggested?"; then
+            branch_name="$suggested"
+        fi
+    fi
+    
+    # ... rest of existing implementation
+}
+
+# Update cleanup_merged_branches() to respect AIPM branches:
+cleanup_merged_branches() {
+    # ... existing implementation until line checking protected branches
+    
+    # Replace protection check with:
+    if is_protected_branch "$branch"; then
+        info "  Skipping protected branch"
+        continue
+    fi
+    
+    # Add AIPM lifecycle check:
+    if should_auto_delete "$branch"; then
+        info "  Branch follows auto-delete lifecycle"
+        # ... continue with deletion
+    fi
 }
 ```
 
-## Complete User Journey (Clone to Claude)
+### 3.6 Critical Branching Integration in Wrapper Scripts
 
-### The Ultimate AIPM Experience
+**CORNERSTONE PRINCIPLE**: The opinions-loader.sh module ensures complete isolation between branching rules and their enforcement. This is CRITICAL for multi-team/multi-organization usage.
+
+#### start.sh Branching Integration:
 ```bash
-# Step 1: Clone and start
-git clone https://github.com/org/aipm-project
-cd aipm-project
-./scripts/start.sh
+# Source opinions-loader FIRST (after shell-formatting)
+source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
+source "$SCRIPT_DIR/opinions-loader.sh" || exit 1
+source "$SCRIPT_DIR/version-control.sh" || exit 1
 
-# Step 2: Automatic setup (no manual steps!)
-# - NPM cache detection and symlink creation
-# - Project detection and interactive selection
-# - Backup global memory to backup.json
-# - Pull latest team changes to local_memory.json
-# - Merge team changes if needed
-# - Load local_memory.json into global
-# - Claude Code launch
-
-# Step 3: Work in Claude Code
-# - Global memory contains project memory
-# - All changes happen in global space
-# - MCP updates global throughout session
-
-# Step 4: Save and stop
-./scripts/stop.sh
-# - Automatic save.sh call:
-#   - Save global → local_memory.json
-#   - Restore backup.json → global
-#   - Global is back to pre-session state
-# - Clean exit
+# During initialization:
+main() {
+    # ... existing initialization ...
+    
+    # Initialize AIPM branches for project
+    if [[ "$WORK_CONTEXT" == "project" ]]; then
+        initialize_aipm_branches "$PROJECT_NAME"
+    fi
+    
+    # Create session branch (optional)
+    if [[ "$(get_branch_operation_mode)" == "session_branches" ]]; then
+        local session_branch="${AIPM_BRANCH_PREFIX}session/${SESSION_ID}"
+        create_branch "$session_branch" "$(get_main_branch)"
+        info "Working on session branch: $session_branch"
+    fi
+    
+    # Record AIPM main branch in session
+    SESSION_MAIN_BRANCH=$(get_main_branch)
+}
 ```
 
-### Key Differentiators
-1. **Zero Configuration**: Works immediately after clone
-2. **Intelligent Merging**: Not just backup/restore
-3. **Team Aware**: Pulls and merges team changes
-4. **Branch Aware**: Guides through branching strategy
-5. **Visual Feedback**: Every step shown clearly
-6. **Atomic Operations**: Safe at every step
-
-## Success Metrics
-
-- Golden Rule compliance: 100%
-- Entity naming validation: 100%
-- Zero data loss scenarios
-- Memory merge success rate: 95%+
-- Clone-to-Claude time: < 30 seconds
-- **Memory operation performance: < 1s for files up to 10MB**
-- **MCP server never blocked by locks**
-- **Zero schema corruption incidents**
-- **Resource cleanup: 100% on all exit paths**
-- Clear error messages with recovery paths
-- Platform compatibility (macOS, Linux, WSL)
-- Session management reliability
-- Performance with large memory files (streaming)
-- Team collaboration features
-- Protocol compliance verification
-
-## Modular Architecture Summary
-
-The AIPM wrapper scripts follow a strict modular architecture:
-
-### Module Dependencies
+#### save.sh Branching Integration:
+```bash
+# Enforce commit location based on opinions
+prepare_commit() {
+    local current_branch=$(get_current_branch)
+    
+    # Check if commits to main are allowed
+    if ! enforce_branch_operation "commit" "$current_branch"; then
+        # Auto-create feature branch
+        local feature_name="save-$(date +%Y%m%d-%H%M%S)"
+        local feature_branch="$(get_branch_prefix 'feature')$feature_name"
+        
+        info "Creating feature branch for changes..."
+        create_branch "$feature_branch" "$current_branch" || die "Failed to create branch"
+        current_branch="$feature_branch"
+    fi
+    
+    # Stage and commit
+    stage_all_changes || die "Failed to stage changes"
+    commit_with_stats "$COMMIT_MSG" "$MEMORY_FILE" || die "Commit failed"
+    
+    # Offer to merge back to main if on feature branch
+    if [[ "$current_branch" =~ ^${AIPM_BRANCH_PREFIX}feature/ ]]; then
+        if confirm "Merge changes to $(get_main_branch)?"; then
+            switch_branch "$(get_main_branch)"
+            git merge --no-ff "$current_branch" -m "Merge $current_branch"
+            
+            # Clean up if lifecycle says so
+            if should_auto_delete "$current_branch"; then
+                git branch -d "$current_branch"
+                success "Feature branch merged and cleaned up"
+            fi
+        fi
+    fi
+}
 ```
-wrapper scripts (start.sh, stop.sh, save.sh, revert.sh)
-    ├── shell-formatting.sh    # ALL output operations
-    ├── version-control.sh     # ALL git operations  
-    └── migrate-memories.sh    # ALL memory operations (NEW)
+
+#### revert.sh Branching Integration:
+```bash
+# Use AIPM main branch for revert operations
+prepare_revert() {
+    # Always revert from AIPM main history
+    local main_branch=$(get_main_branch)
+    
+    # Update remote references to use AIPM branches
+    for remote in "origin/$main_branch" "origin/$(get_default_branch)"; do
+        if extract_memory_from_git "$remote" "$MEMORY_FILE" "$REMOTE_MEMORY" 2>/dev/null; then
+            found_remote=true
+            break
+        fi
+    done
+}
 ```
 
-### Key Benefits of Modular Approach
-1. **Single Source of Truth**: Each module owns its domain completely
-2. **Performance Optimization**: Centralized optimization efforts
-3. **Consistent Error Handling**: All modules follow same patterns
-4. **Easy Testing**: Test modules in isolation
-5. **Future Enhancements**: Add features in one place
+#### stop.sh Branching Integration:
+```bash
+# Handle session branch cleanup
+cleanup_session() {
+    local current_branch=$(get_current_branch)
+    
+    # If on session branch, offer to merge or discard
+    if [[ "$current_branch" =~ ^${AIPM_BRANCH_PREFIX}session/ ]]; then
+        if is_repo_clean; then
+            info "No changes on session branch"
+            switch_branch "$(get_main_branch)"
+            git branch -d "$current_branch" 2>/dev/null
+        else
+            warn "Uncommitted changes on session branch"
+            if confirm "Save changes before cleanup?"; then
+                "$SCRIPT_DIR/save.sh" --$WORK_CONTEXT ${PROJECT_NAME:+"$PROJECT_NAME"} "Session end"
+            fi
+        fi
+    fi
+    
+    # Run branch cleanup based on opinions
+    if [[ "$(get_auto_prune_enabled)" == "true" ]]; then
+        cleanup_aipm_branches
+    fi
+}
+```
 
-### Module Responsibilities
+### 3.7 Refactored start.sh
 
-**shell-formatting.sh**:
-- All user output (info, warn, error, success, step)
-- Visual formatting and sections
-- Progress indicators
-- Platform-specific formatting
+**Using All Modules Atomically**:
 
-**version-control.sh**:
-- All git operations (fetch, pull, commit, etc.)
-- Branch management
-- Stash handling
-- Memory context initialization
+```bash
+#!/opt/homebrew/bin/bash
+set -euo pipefail
 
-**migrate-memories.sh** (NEW):
+# Source all modules
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
+source "$SCRIPT_DIR/version-control.sh" || exit 1
+source "$SCRIPT_DIR/migrate-memories.sh" || exit 1
+source "$SCRIPT_DIR/config-manager.sh" || exit 1
+source "$SCRIPT_DIR/session-manager.sh" || exit 1
+
+# Parse arguments (atomic function)
+parse_start_arguments() {
+    WORK_CONTEXT=""
+    PROJECT_NAME=""
+    TEAM_SYNC_MODE="${TEAM_SYNC_MODE:-ask}"
+    claude_args=()
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --framework)
+                WORK_CONTEXT="framework"
+                shift
+                ;;
+            --project)
+                WORK_CONTEXT="project"
+                PROJECT_NAME="$2"
+                shift 2
+                ;;
+            --sync)
+                TEAM_SYNC_MODE="$2"
+                shift 2
+                ;;
+            --model)
+                claude_args+=("--model" "$2")
+                shift 2
+                ;;
+            *)
+                claude_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
+# Context selection (atomic function)
+select_context_interactive() {
+    info "Available contexts:"
+    info "  1) Framework Development"
+    
+    local project_num=2
+    declare -A project_map
+    
+    for dir in */; do
+        if [[ -f "${dir}${MEMORY_DIR}/local_memory.json" ]]; then
+            project_map[$project_num]="${dir%/}"
+            info "  $project_num) Project: ${dir%/}"
+            ((project_num++))
+        fi
+    done
+    
+    read -p "$(format_prompt "Select context (1-$((project_num-1)))")" selection
+    
+    if [[ "$selection" == "1" ]]; then
+        WORK_CONTEXT="framework"
+    elif [[ -n "${project_map[$selection]:-}" ]]; then
+        WORK_CONTEXT="project"
+        PROJECT_NAME="${project_map[$selection]}"
+    else
+        die "Invalid selection"
+    fi
+}
+
+# Main flow (clean and atomic)
+main() {
+    section "AIPM Session Initialization"
+    
+    # 1. Check memory symlink
+    step "Checking memory symlink..."
+    if [[ ! -L "$GLOBAL_MEMORY" ]]; then
+        "$SCRIPT_DIR/sync-memory.sh" || die "Failed to create memory symlink"
+    fi
+    success "Memory symlink verified"
+    
+    # 2. Parse arguments
+    parse_start_arguments "$@"
+    
+    # 3. Interactive context if needed
+    if [[ -z "$WORK_CONTEXT" ]]; then
+        select_context_interactive
+    fi
+    
+    success "Context: $WORK_CONTEXT${PROJECT_NAME:+ - $PROJECT_NAME}"
+    
+    # 4. Get memory file path
+    MEMORY_FILE=$(get_memory_path "$WORK_CONTEXT" "$PROJECT_NAME")
+    
+    # 5. Git sync for projects
+    if [[ "$WORK_CONTEXT" == "project" ]]; then
+        step "Checking project git status..."
+        initialize_memory_context "--project" "$PROJECT_NAME"
+        
+        if check_git_repo "$PROJECT_NAME"; then
+            # Offer to pull latest
+            if fetch_remote "$PROJECT_NAME"; then
+                local behind=$(get_commits_ahead_behind | grep -o 'behind: [0-9]*' | cut -d' ' -f2 || echo "0")
+                if [[ "$behind" -gt 0 ]]; then
+                    if confirm "Pull $behind commits from remote?"; then
+                        pull_latest "$PROJECT_NAME" || warn "Pull failed"
+                    fi
+                fi
+            fi
+        fi
+    fi
+    
+    # 6. Memory operations (all atomic)
+    backup_memory || die "Failed to backup global memory"
+    
+    # 7. Team sync (configurable)
+    if [[ -f "$MEMORY_FILE" ]]; then
+        sync_team_memory "$MEMORY_FILE" "$TEAM_SYNC_MODE" "$MEMORY_MERGE_STRATEGY"
+    fi
+    
+    # 8. Load memory
+    load_memory "$MEMORY_FILE" || die "Failed to load project memory"
+    
+    # 9. Create session
+    SESSION_ID=$(create_session "$WORK_CONTEXT" "$PROJECT_NAME" "$MEMORY_FILE")
+    success "Session created: $SESSION_ID"
+    
+    # 10. Prepare for MCP
+    prepare_for_mcp
+    
+    section_end
+    
+    # 11. Launch Claude
+    info "Launching Claude Code..."
+    info "When done, run: ./scripts/stop.sh"
+    
+    # Add default model if not specified
+    if [[ ! " ${claude_args[@]} " =~ " --model " ]]; then
+        claude_args+=("--model" "$DEFAULT_MODEL")
+    fi
+    
+    claude code "${claude_args[@]}"
+}
+
+# Execute
+main "$@"
+```
+
+### 3.5 Implementation Priority & Sequence
+
+**Phase 1: Foundation Modules** (Do First)
+1. Create config-manager.sh
+2. Create session-manager.sh
+3. Enhance migrate-memories.sh with atomic functions
+
+**Phase 2: Wrapper Script Refactoring** (Do Second)
+1. Refactor start.sh using new modules
+2. Refactor stop.sh using new modules
+3. Refactor save.sh (minimal changes needed)
+4. Refactor revert.sh (biggest changes)
+
+**Phase 3: Testing & Validation** (Do Third)
+1. Test each module in isolation
+2. Test integrated workflows
+3. Verify all learnings preserved
+4. Performance benchmarks
+
+## Part 4: Critical Preservation Checklist
+
+### 4.1 Learnings That MUST Be Preserved
+
+1. **File Reversion Bug Protection**:
+   - ✓ All atomic operations use temp file → move pattern
+   - ✓ Never modify files in place
+   - ✓ Verify operations completed
+
+2. **Platform Compatibility**:
+   - ✓ Dual stat commands (stat -f%z || stat -c%s)
+   - ✓ WSL detection in platform detection
+   - ✓ Timeout command detection (timeout/gtimeout)
+
+3. **MCP Coordination**:
+   - ✓ Never lock global memory.json
+   - ✓ prepare_for_mcp() releases handles
+   - ✓ release_from_mcp() waits safely
+
+4. **Memory Protection**:
+   - ✓ Global memory always restored
+   - ✓ Atomic operations only
+   - ✓ Validation before operations
+
+5. **Performance Optimizations**:
+   - ✓ Streaming processing
+   - ✓ Cached platform detection
+   - ✓ Associative arrays for O(1) lookups
+
+### 4.2 Patterns That MUST Be Preserved
+
+1. **Error Handling**:
+   ```bash
+   function || die "Clear error message"
+   ```
+
+2. **Resource Cleanup**:
+   ```bash
+   trap cleanup_on_exit EXIT
+   ```
+
+3. **Atomic Operations**:
+   ```bash
+   temp_file="${target}.tmp.$$"
+   cp source "$temp_file" && mv -f "$temp_file" target
+   ```
+
+4. **Platform Detection**:
+   ```bash
+   stat -f%z file 2>/dev/null || stat -c%s file 2>/dev/null
+   ```
+
+## Part 5: Migration Strategy
+
+### 5.1 Safe Migration Steps
+
+1. **Create New Modules First**:
+   - Don't modify existing modules initially
+   - Create config-manager.sh
+   - Create session-manager.sh
+   - Test new modules independently
+
+2. **Enhance Existing Modules**:
+   - Add new atomic functions to migrate-memories.sh
+   - Don't remove existing functions
+   - Test enhanced module
+
+3. **Refactor One Script at a Time**:
+   - Start with save.sh (smallest changes)
+   - Then stop.sh
+   - Then start.sh
+   - Finally revert.sh (most complex)
+
+4. **Parallel Testing**:
+   - Keep old scripts as .sh.backup
+   - Test new scripts thoroughly
+   - Compare outputs
+
+### 5.2 Rollback Plan
+
+1. All changes versioned in git
+2. Keep backup of working scripts
+3. Test in isolated environment first
+4. Incremental rollout
+
+## Part 6: Success Metrics
+
+### 6.1 Architecture Metrics
+
+1. **Function Atomicity**: Each function ≤ 50 lines
+2. **Module Cohesion**: Clear single responsibility
+3. **DRY Compliance**: Zero duplicate implementations
+4. **Configuration**: All hardcoded values eliminated
+
+### 6.2 Performance Metrics
+
+1. **Memory Operations**: < 1s for 10MB files
+2. **Session Operations**: < 100ms
+3. **Platform Detection**: Cached after first call
+4. **No Degradation**: Same or better performance
+
+### 6.3 Maintainability Metrics
+
+1. **Test Coverage**: 100% of public functions
+2. **Documentation**: Every function documented
+3. **Error Messages**: Clear recovery path
+4. **Learning Preservation**: 100% retained
+
+## Part 7: Detailed Function Mappings
+
+### 7.1 Where Functions Should Move
+
+**From scripts to config-manager.sh**:
+- Memory path calculations
+- Session ID generation
+- All hardcoded values
+- Default configurations
+
+**From scripts to session-manager.sh**:
+- Session file operations
+- Session state tracking
+- Duration calculations
+- Session cleanup
+
+**Stay in migrate-memories.sh**:
 - All memory file operations
-- Atomic backup/restore
-- Memory validation
-- Performance-optimized merging
-- MCP coordination
-- Temporary file cleanup
+- Add new atomic functions
+- Keep existing functions
 
-### Implementation Order
-1. First: Implement migrate-memories.sh module
-2. Then: Update wrapper scripts to use all three modules
-3. Finally: Test the complete integrated system
+**Stay in shell-formatting.sh**:
+- All output functions
+- Platform utilities
+- Already well-organized
 
-## Related Documents
+**Stay in version-control.sh**:
+- All git operations
+- Already well-organized
 
-- AIPM_Design_Docs/memory-management.md
-- scripts/test/workflow.md
-- scripts/test/version-control.md
-- AIPM.md
-- current-focus.md
+### 7.2 New Atomic Functions Needed
+
+1. **parse_arguments()** - Standardized argument parsing
+2. **detect_projects()** - Find all AIPM projects
+3. **select_project_interactive()** - Interactive project selection
+4. **sync_team_memory()** - Configurable team sync
+5. **filter_memory_entities()** - For partial revert
+6. **create_session_metadata()** - Session file creation
+7. **parse_session_file()** - Structured session parsing
+
+## Part 8: Risk Mitigation
+
+### 8.1 High-Risk Areas
+
+1. **Session Management**: Test concurrent sessions
+2. **Memory Operations**: Verify atomicity preserved
+3. **Platform Compatibility**: Test on all platforms
+4. **Git Integration**: Test all edge cases
+
+### 8.2 Testing Strategy
+
+1. **Unit Tests**: Each atomic function
+2. **Integration Tests**: Module interactions
+3. **End-to-End Tests**: Complete workflows
+4. **Performance Tests**: Large file handling
+5. **Platform Tests**: macOS, Linux, WSL
+
+## Part 9: CRITICAL - Branching Architecture (CORNERSTONE)
+
+### 9.1 Why Branching Opinions Are The Cornerstone
+
+**CRITICAL**: The branching architecture with complete opinion/implementation separation is THE CORNERSTONE of AIPM because:
+
+1. **Namespace Isolation**: AIPM_ prefix ensures framework NEVER conflicts with user branches
+2. **Multi-Organization**: Each org can customize opinions.json without changing code
+3. **Workflow Consistency**: Teams follow same branching patterns automatically
+4. **Zero Conflicts**: AIPM branches are visually distinct and programmatically isolated
+5. **Migration Safety**: Existing repos work immediately without branch conflicts
+
+### 9.2 Branching Opinion Architecture
+
+```
+ISOLATION LAYERS:
+┌─────────────────────────────────────┐
+│         opinions.json               │  <- Customizable per org
+├─────────────────────────────────────┤
+│       opinions-loader.sh            │  <- Loads & compiles opinions
+├─────────────────────────────────────┤
+│       version-control.sh            │  <- Enforces but doesn't define
+├─────────────────────────────────────┤
+│    Wrapper Scripts (start/stop/     │  <- Use opinions transparently
+│         save/revert)                │
+└─────────────────────────────────────┘
+```
+
+### 9.3 Critical Design Decisions
+
+1. **AIPM_ Prefix is Non-Negotiable**:
+   - Creates protected namespace
+   - Visual distinction in `git branch`
+   - Enables automated cleanup
+   - Prevents accidental operations on user branches
+
+2. **AIPM_MAIN as Framework Main**:
+   - Separate from user's main/master
+   - Framework operations use AIPM_MAIN
+   - User's main branch untouched
+   - Clear separation of concerns
+
+3. **Branch Types with Lifecycles**:
+   - `AIPM_feature/*` - Merge and delete
+   - `AIPM_session/*` - Auto-delete after inactivity
+   - `AIPM_backup/*` - Rotate keeping N newest
+   - `AIPM_sync/*` - Temporary for team sync
+
+4. **Enforcement Modes**:
+   - Soft: Warnings and suggestions
+   - Hard: Block non-compliant operations
+   - Gradual: Detect and adapt
+
+### 9.4 Migration Strategy for Existing Projects
+
+```bash
+# Phase 1: First Run Detection
+$ ./scripts/start.sh --project ExistingProject
+> Detecting existing branch structure...
+> Found main branch: master
+> Creating AIPM_MAIN from master...
+> AIPM branches initialized!
+
+# Phase 2: Parallel Operation
+main (user's branch)
+master (user's branch)
+AIPM_MAIN (framework branch)
+AIPM_feature/memory-update
+AIPM_session/20240621_140523
+
+# Phase 3: Clear Separation
+- User continues work on their branches
+- AIPM operations ONLY on AIPM_* branches
+- No interference, no conflicts
+```
+
+### 9.5 Why This Is Critical for Success
+
+Without proper branching isolation:
+- Framework commits mix with user commits
+- Branch naming conflicts arise
+- Team workflows become inconsistent  
+- Automation becomes impossible
+- Multi-org usage fails
+
+With opinions-based branching:
+- Complete namespace isolation
+- Consistent workflows across teams
+- Safe automation (cleanup, rotation)
+- Works in ANY git repository
+- Scales to enterprise usage
+
+### 9.6 Implementation Priority
+
+**THIS MUST BE IMPLEMENTED FIRST** in the refactoring:
+
+1. Create opinions-loader.sh module
+2. Update version-control.sh to use opinions
+3. Update ALL wrapper scripts to respect opinions
+4. Test with existing repositories
+5. Verify zero conflicts with user branches
+
+## Conclusion
+
+This refactoring plan provides a path to clean, maintainable, and performant AIPM wrapper scripts while preserving all hard-won learnings and optimizations. The branching architecture with complete opinion/implementation separation is the CORNERSTONE that enables AIPM to work consistently across any organization.
+
+**Remember**: 
+- Atomicity enables flexibility
+- Modularity enables maintainability  
+- Configuration enables adaptability
+- Isolation enables universality
+- Testing enables confidence
+
+The result will be a professional-grade system that follows SOLID principles while maintaining all the robustness and performance optimizations developed through extensive hardening.

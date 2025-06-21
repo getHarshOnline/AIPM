@@ -237,7 +237,7 @@ cleanup_temp_files
 section "Cleanup Complete"
 success "Session ended successfully"
 info "Thank you for using AIPM!"
-info ""
+# Final instructions to user
 warn "Please exit Claude Code manually"
 info "Use Ctrl+C or close the terminal window"
 section_end

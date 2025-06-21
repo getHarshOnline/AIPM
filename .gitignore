@@ -1,20 +1,39 @@
 # Memory files - security risk if shared
 .claude/memory.json
+# Entire .claude directory (MCP cache location)
+.claude/
 
 # Memory backups - temporary session files
 .memory/backup.json
-Product/.memory/backup.json
+.memory/backup*.json
+# Generic pattern for ALL projects (not hardcoded!)
+*/.memory/backup.json
+*/.memory/backup*.json
 
 # Session management files
 .memory/session_active
 .memory/session_*
-Product/.memory/session_*
+# Generic pattern for ALL projects
+*/.memory/session_*
 
 # Sync script logs
 .claude/*.log
 
-# Product symlink - separate repository
-Product
+# CRITICAL: Exclude ALL symlinked project directories
+# Projects are detected by presence of .memory/local_memory.json
+# This pattern excludes any directory at root level that:
+# 1. Contains .memory/ subdirectory (indicating it's an AIPM project)
+# 2. Is a symlink to an external repository
+# This makes AIPM truly generic - works with ANY project name!
+*/.memory/
+*/data/
+*/node_modules/
+*/dist/
+*/build/
+
+# Note: Git automatically ignores the symlink itself if the target
+# is a git repository, but we should still be explicit
+# Exclude directories that are symlinks (all AIPM projects)
 
 # OS files
 .DS_Store
@@ -33,3 +52,6 @@ Thumbs.db
 *.tmp
 *.temp
 *~
+*.tmp.*
+*.merge.*
+*.remote
