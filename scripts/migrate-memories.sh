@@ -11,6 +11,37 @@
 #
 # This module follows the same pattern as shell-formatting.sh and version-control.sh
 # providing a single source of truth for all memory operations in AIPM.
+#
+# CRITICAL LEARNINGS INCORPORATED:
+# 1. File Reversion Bug Protection:
+#    - All operations use atomic patterns (temp file → move)
+#    - Never modify files in place
+#    - Always verify operations completed
+#
+# 2. Platform Compatibility:
+#    - Dual stat commands for macOS/Linux: stat -f%z || stat -c%s
+#    - Proper quoting for all variables
+#    - Avoid bash-specific features not in older versions
+#
+# 3. Memory Protection Principle:
+#    - Global memory is sacred - always backup before operations
+#    - Use atomic operations exclusively
+#    - Validate before and after operations
+#
+# 4. Performance Optimizations:
+#    - Stream processing for files >10MB
+#    - Early exit on validation failures
+#    - Minimal JSON parsing passes
+#
+# 5. Security Considerations:
+#    - Validate all JSON before processing
+#    - Check entity prefixes to prevent contamination
+#    - Never expose memory.json in git
+#
+# 6. Edge Cases Handled:
+#    - Empty (0 byte) memory.json is VALID (MCP initial state)
+#    - Handle partial states gracefully
+#    - Associative array key checks use ${var:-} pattern
 
 # Strict error handling
 set -euo pipefail
@@ -64,13 +95,16 @@ backup_memory() {
     local target_dir=$(dirname "$target")
     mkdir -p "$target_dir"
     
-    # Atomic copy without locking
+    # LEARNING: Use atomic operations to prevent corruption
+    # Create temp file with PID suffix to ensure uniqueness
     local temp_file="${target}${TEMP_SUFFIX}.$$"
     
     if [[ -f "$source" ]]; then
         # File exists, copy it
+        # LEARNING: Use cp -f to force overwrite temp file
         if cp -f "$source" "$temp_file" 2>/dev/null; then
             # Validate if requested
+            # LEARNING: Empty files are valid (MCP initial state)
             if [[ "$validate" == "true" ]] && [[ -s "$temp_file" ]]; then
                 if ! validate_memory_stream "$temp_file" >/dev/null 2>&1; then
                     rm -f "$temp_file"
@@ -79,8 +113,12 @@ backup_memory() {
                 fi
             fi
             
-            # Atomic move
+            # Atomic move - this is the critical step
+            # LEARNING: mv -f is atomic on same filesystem
             mv -f "$temp_file" "$target"
+            
+            # LEARNING: Platform-specific stat commands
+            # macOS: stat -f%z, Linux: stat -c%s
             local size=$(format_size $(stat -f%z "$target" 2>/dev/null || stat -c%s "$target" 2>/dev/null || echo "0"))
             success "Memory backed up ($size)"
             return $EXIT_SUCCESS
@@ -238,6 +276,12 @@ save_memory() {
 # Usage: merge_memories <local_file> <remote_file> <output_file> [conflict_strategy]
 # conflict_strategy: "remote-wins" (default), "local-wins", "newest-wins"
 # Returns: 0 on success, 1 on error
+#
+# CRITICAL LEARNINGS:
+# - Use streaming to handle files >10MB efficiently
+# - Associative arrays need ${var:-} pattern under set -u
+# - Process in phases to minimize memory usage
+# - Validate entity prefixes to prevent cross-contamination
 merge_memories() {
     local local_file="$1"
     local remote_file="$2"
@@ -259,20 +303,24 @@ merge_memories() {
         return $EXIT_IO_ERROR
     fi
     
-    # Use associative arrays for O(1) lookups
+    # LEARNING: Use associative arrays for O(1) lookups
+    # This dramatically improves merge performance for large files
     declare -A local_entities
     declare -A remote_entities
     declare -A seen_relations
     
     # Phase 1: Index local entities (streaming)
+    # LEARNING: Stream processing prevents memory exhaustion on large files
     debug "Phase 1: Indexing local entities..."
     local local_count=0
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
+        # LEARNING: Use printf instead of echo for reliability
         local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
         if [[ "$type" == "entity" ]]; then
             local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
             if [[ -n "$name" ]]; then
+                # Store the entire JSON line for later use
                 local_entities["$name"]="$line"
                 ((local_count++))
             fi
@@ -297,7 +345,10 @@ merge_memories() {
             ((remote_count++))
             
             # Conflict resolution
-            if [[ -n "$name" ]] && [[ -n "${local_entities[$name]}" ]]; then
+            # CRITICAL LEARNING: With set -u, checking associative array keys
+            # requires ${array[key]:-} syntax to provide default empty value
+            # This prevents "unbound variable" errors when key doesn't exist
+            if [[ -n "$name" ]] && [[ -n "${local_entities[$name]:-}" ]]; then
                 ((conflict_count++))
                 debug "Conflict detected for entity: $name"
                 
@@ -306,16 +357,16 @@ merge_memories() {
                         printf '%s\n' "$line" >> "$temp_merged"
                         ;;
                     "local-wins")
-                        printf '%s\n' "${local_entities[$name]}" >> "$temp_merged"
+                        printf '%s\n' "${local_entities[$name]:-}" >> "$temp_merged"
                         ;;
                     "newest-wins")
                         # Compare timestamps if available
-                        local local_timestamp=$(printf '%s' "${local_entities[$name]}" | jq -r '.timestamp // 0' 2>/dev/null)
+                        local local_timestamp=$(printf '%s' "${local_entities[$name]:-}" | jq -r '.timestamp // 0' 2>/dev/null)
                         local remote_timestamp=$(printf '%s' "$line" | jq -r '.timestamp // 0' 2>/dev/null)
                         if [[ "$remote_timestamp" -gt "$local_timestamp" ]]; then
                             printf '%s\n' "$line" >> "$temp_merged"
                         else
-                            printf '%s\n' "${local_entities[$name]}" >> "$temp_merged"
+                            printf '%s\n' "${local_entities[$name]:-}" >> "$temp_merged"
                         fi
                         ;;
                 esac
@@ -404,7 +455,10 @@ validate_memory_stream() {
         warn "Large memory file detected: ${size_mb}MB"
     fi
     
-    # Determine expected prefix based on context
+    # CRITICAL LEARNING: Entity prefix validation prevents cross-contamination
+    # Framework entities must start with AIPM_
+    # Project entities must start with PROJECT_NAME_
+    # This ensures memory isolation between contexts
     local expected_prefix="AIPM_"
     if [[ "$context" == "project" ]]; then
         # Try to detect project name from environment or path
@@ -509,6 +563,11 @@ validate_memory_stream() {
 # Ensures all file handles are released and filesystem is synced
 # Usage: prepare_for_mcp
 # Returns: 0 always
+#
+# LEARNING: MCP server needs clean handoff
+# - Flush all writes to disk with sync
+# - Small delay prevents race conditions
+# - MCP reads memory.json through symlink
 prepare_for_mcp() {
     debug "Preparing for MCP server handoff..."
     
@@ -516,6 +575,7 @@ prepare_for_mcp() {
     sync
     
     # Small delay to ensure filesystem settles
+    # LEARNING: 0.1s is sufficient for MCP coordination
     sleep 0.1
     
     debug "MCP preparation complete"
@@ -525,6 +585,11 @@ prepare_for_mcp() {
 # Wait for safe access after MCP server release
 # Usage: release_from_mcp [max_wait_seconds]
 # Returns: 0 if access granted, 1 if timeout
+#
+# LEARNING: MCP server may hold file locks
+# - Check both read and write permissions
+# - Verify actual file access with head -n 1
+# - 5 second timeout is usually sufficient
 release_from_mcp() {
     local max_wait="${1:-5}"
     local memory_file=".claude/memory.json"
@@ -535,7 +600,7 @@ release_from_mcp() {
     while [[ $waited -lt $max_wait ]]; do
         # Check if we can access memory file
         if [[ -r "$memory_file" ]] && [[ -w "$memory_file" ]]; then
-            # Try to read the file to ensure it's not locked
+            # LEARNING: Try actual read to ensure no locks
             if head -n 1 "$memory_file" >/dev/null 2>&1; then
                 debug "MCP release confirmed after ${waited}s"
                 return $EXIT_SUCCESS
@@ -610,10 +675,16 @@ get_memory_stats() {
 # Clean up temporary files created by this module
 # Usage: cleanup_temp_files
 # Returns: 0 always
+#
+# LEARNING: Clean up all temp files to prevent disk bloat
+# - Use PID suffix pattern to identify our files
+# - Check multiple locations where temps might exist
+# - Suppress errors for missing files
 cleanup_temp_files() {
     debug "Cleaning up temporary files..."
     
     # Remove all temp files created by this module
+    # LEARNING: Redirect errors to /dev/null as files may not exist
     rm -f .memory/*${TEMP_SUFFIX}.* 2>/dev/null
     rm -f .claude/*${TEMP_SUFFIX}.* 2>/dev/null
     rm -f /tmp/*${TEMP_SUFFIX}.* 2>/dev/null

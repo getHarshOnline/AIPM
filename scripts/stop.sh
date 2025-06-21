@@ -16,6 +16,22 @@
 #   ./scripts/stop.sh --framework        # Explicit framework context
 #   ./scripts/stop.sh --project Product  # Explicit project context
 #
+# CRITICAL LEARNINGS INCORPORATED:
+# 1. Session Detection:
+#    - Read session file to recover context
+#    - Handle missing session gracefully
+#    - Support explicit context override
+#
+# 2. MCP Coordination:
+#    - Wait for MCP server to release memory file
+#    - Use release_from_mcp with timeout
+#    - Proceed anyway if timeout occurs
+#
+# 3. Memory Restoration:
+#    - Always restore backup after save
+#    - Clean up session artifacts
+#    - Handle errors without data loss
+#
 # Created by: AIPM Framework
 # License: Apache 2.0
 
@@ -70,6 +86,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # TASK 1: Detect Session Context
+# CRITICAL: Must recover session state to clean up properly
+# LEARNING: Session file created by start.sh contains all metadata
 step "Detecting active session..."
 
 if [[ ! -f "$SESSION_FILE" ]]; then
@@ -79,6 +97,7 @@ if [[ ! -f "$SESSION_FILE" ]]; then
 fi
 
 # Read session metadata
+# LEARNING: Parse session file line by line for robustness
 SESSION_ID=$(grep "Session:" "$SESSION_FILE" | cut -d' ' -f2-)
 SESSION_CONTEXT=$(grep "Context:" "$SESSION_FILE" | cut -d' ' -f2-)
 SESSION_PROJECT=$(grep "Project:" "$SESSION_FILE" | cut -d' ' -f2-)
@@ -139,6 +158,10 @@ fi
 section_end
 
 # TASK 3: Wait for MCP Server Release
+# CRITICAL: MCP server may be actively using memory.json
+# LEARNING: release_from_mcp waits up to 5 seconds
+# - Checks file permissions and actual access
+# - Timeout is not fatal - we proceed anyway
 step "Waiting for safe memory access..."
 
 # Ensure MCP server has released the memory file
@@ -179,11 +202,16 @@ if ! restore_memory; then
 fi
 
 # TASK 6: Clean Session Artifacts
+# LEARNING: Clean up removes session lock and archives metadata
+# - Session log preserved for debugging
+# - Session file renamed to indicate completion
+# - Temp files cleaned via migrate-memories.sh
 step "Cleaning up session artifacts..."
 
 # Update session log
 SESSION_LOG=".memory/session_${SESSION_ID}.log"
 if [[ -f "$SESSION_LOG" ]]; then
+    # LEARNING: Append final entries to session log
     cat >> "$SESSION_LOG" <<EOF
 
 [$(date +%H:%M:%S)] Session ending
@@ -195,6 +223,7 @@ EOF
 fi
 
 # Archive session file
+# LEARNING: mv is atomic - prevents partial state
 if mv "$SESSION_FILE" ".memory/session_${SESSION_ID}_complete" 2>/dev/null; then
     success "Session artifacts cleaned"
 else

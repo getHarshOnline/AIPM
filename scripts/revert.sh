@@ -16,6 +16,22 @@
 #   ./scripts/revert.sh --project Product [commit]   # Revert project memory
 #   ./scripts/revert.sh                              # Interactive mode
 #
+# CRITICAL LEARNINGS INCORPORATED:
+# 1. Active Session Safety:
+#    - Warn if reverting during active session
+#    - Suggest saving current state first
+#    - Allow override with confirmation
+#
+# 2. Memory File Validation:
+#    - Check commit contains the memory file
+#    - Show statistics before/after revert
+#    - Create timestamped backup
+#
+# 3. Interactive Selection:
+#    - Show relevant commits with stats
+#    - Allow browsing history
+#    - Validate commit references
+#
 # Created by: AIPM Framework
 # License: Apache 2.0
 
@@ -53,6 +69,11 @@ CONTEXT_DISPLAY=""
 declare -A project_map
 
 # TASK 1: Check for Active Session
+# CRITICAL: Reverting during active session can corrupt state
+# LEARNING: Offer safe options to user
+# - Abort is safest
+# - Save first preserves current work
+# - Force is dangerous but sometimes needed
 if [[ -f ".memory/session_active" ]]; then
     error "Active session detected!"
     warn "Reverting during an active session may cause data loss."
@@ -180,6 +201,9 @@ if [[ -z "$COMMIT_REF" ]]; then
 fi
 
 # Validate commit
+# LEARNING: Use version-control.sh functions for validation
+# - validate_commit checks if commit exists
+# - file_exists_in_commit ensures memory file is present
 step "Validating commit..."
 
 if ! validate_commit "$COMMIT_REF"; then
@@ -222,15 +246,19 @@ if ! confirm "Proceed with revert?"; then
 fi
 
 # TASK 8: Perform Revert
+# CRITICAL: Always backup before destructive operations
+# LEARNING: Timestamped backups prevent accidental overwrites
 step "Creating backup..."
 
 # Create timestamped backup using migrate-memories.sh
+# LEARNING: Use date format that sorts chronologically
 BACKUP_NAME="$MEMORY_FILE.backup-$(date +%Y%m%d-%H%M%S)"
 if ! backup_memory "$MEMORY_FILE" "$BACKUP_NAME" "false"; then
     die "Failed to create backup"
 fi
 
 # Perform revert
+# LEARNING: checkout_file uses git to restore specific version
 step "Reverting to $COMMIT_REF..."
 
 if checkout_file "$COMMIT_REF" "$MEMORY_FILE"; then

@@ -16,6 +16,22 @@
 #
 # Note: This is called by stop.sh but can also be used standalone
 #
+# CRITICAL LEARNINGS INCORPORATED:
+# 1. File Reversion Bug:
+#    - Must verify saves actually complete
+#    - Use atomic operations via migrate-memories.sh
+#    - Check git diff before committing
+#
+# 2. Golden Rule Implementation:
+#    - stage_all_changes ensures all files are tracked
+#    - .gitignore properly configured
+#    - Never leave untracked files
+#
+# 3. Memory Protection:
+#    - Always restore original memory after save
+#    - Validate memory before and after operations
+#    - Handle missing backups gracefully
+#
 # Created by: AIPM Framework
 # License: Apache 2.0
 
@@ -112,6 +128,9 @@ fi
 success "Memory path: $LOCAL_MEMORY"
 
 # TASK 3: Save Global Memory to Local (Using migrate-memories.sh)
+# CRITICAL: This is where we capture all session learnings
+# LEARNING: Use atomic save_memory function to prevent corruption
+# The global memory contains all entities created during the session
 if ! save_memory ".claude/memory.json" "$LOCAL_MEMORY"; then
     die "Failed to save memory to $LOCAL_MEMORY"
 fi
@@ -121,6 +140,10 @@ ENTITY_COUNT=$(count_entities_stream "$LOCAL_MEMORY")
 RELATION_COUNT=$(count_relations_stream "$LOCAL_MEMORY")
 
 # TASK 4: Restore Original Memory from Backup (Using migrate-memories.sh)
+# CRITICAL: This implements the "Global Protection Principle"
+# - Global memory must be restored to pre-session state
+# - This ensures next session starts clean
+# LEARNING: Missing backup is OK for standalone calls
 if ! restore_memory; then
     warn "Failed to restore original memory"
     info "This is normal if save.sh was called standalone"
@@ -131,16 +154,21 @@ fi
 if [[ -n "$COMMIT_MSG" ]]; then
     step "Committing changes..."
     
-    # Use version-control.sh golden rule
+    # LEARNING: Golden Rule implementation via version-control.sh
+    # - check_git_repo validates we're in a repo
+    # - stage_all_changes implements the golden rule
+    # - commit_with_stats adds memory statistics to commit
     if ! check_git_repo; then
         warn "Not in a git repository - skipping commit"
     else
         # Stage all changes per golden rule
+        # CRITICAL: This ensures NO untracked files remain
         if ! stage_all_changes; then
             error "Failed to stage changes"
             warn "Memory saved but not committed"
         else
             # Use commit_with_stats for memory files
+            # LEARNING: Adds entity/relation counts to commit message
             if ! commit_with_stats "$COMMIT_MSG" "$LOCAL_MEMORY"; then
                 error "Commit failed"
                 warn "Memory saved but not committed"

@@ -17,6 +17,27 @@
 #   ./scripts/start.sh --framework        # Framework development
 #   ./scripts/start.sh --project Product  # Project work
 #
+# CRITICAL LEARNINGS INCORPORATED:
+# 1. Session Management:
+#    - Create session lock file to detect active sessions
+#    - Track session metadata for debugging
+#    - Handle interruptions gracefully
+#
+# 2. Memory Symlink:
+#    - Must verify symlink before any operations
+#    - Dynamic NPM cache detection
+#    - Handle MCP server installation
+#
+# 3. Git Synchronization:
+#    - Check for uncommitted changes
+#    - Offer team sync options
+#    - Use version-control.sh functions exclusively
+#
+# 4. Memory Loading:
+#    - Backup global memory first (atomic)
+#    - Load context-specific memory
+#    - Validate all operations
+#
 # Created by: AIPM Framework
 # License: Apache 2.0
 
@@ -56,9 +77,12 @@ PROJECT_NAME=""
 declare -a claude_args=()
 
 # TASK 1: Verify/Create Memory Symlink
+# CRITICAL: Without this symlink, MCP server cannot function
+# LEARNING: sync-memory.sh handles dynamic NPM cache detection
 step "Checking memory symlink..."
 if [[ ! -L ".claude/memory.json" ]]; then
     warn "Memory symlink missing, creating..."
+    # LEARNING: sync-memory.sh will offer to install MCP if needed
     if ! "$SCRIPT_DIR/sync-memory.sh"; then
         die "Failed to create memory symlink"
     fi
@@ -172,11 +196,18 @@ else
 fi
 
 # TASK 4: Memory Backup (Using migrate-memories.sh)
+# CRITICAL: This is the cornerstone of memory isolation
+# - Preserves current global state before loading context memory
+# - Enables restoration at session end
+# LEARNING: backup_memory uses atomic operations
 if ! backup_memory; then
     die "Failed to backup global memory"
 fi
 
 # TASK 5: Load Context-Specific Memory with Team Merge
+# LEARNING: Context-specific memory contains relevant knowledge
+# - Framework: AIPM_ prefixed entities
+# - Project: PROJECT_ prefixed entities
 step "Loading $WORK_CONTEXT memory..."
 
 # Determine memory file path
@@ -189,11 +220,16 @@ else
 fi
 
 # Check if we need to merge team changes
+# LEARNING: Team collaboration via memory merge
+# - Detects when git pull brought new memory updates
+# - Uses "remote-wins" strategy for team contributions
+# - Preserves local work if merge fails
 if [[ "${TEAM_SYNC_PERFORMED:-}" == "true" ]] && [[ -f "$MEMORY_FILE" ]]; then
     # Create a temporary file for the remote memory
     REMOTE_MEMORY="${MEMORY_FILE}.remote"
     
     # Get the latest version from git
+    # LEARNING: get_file_from_commit extracts file from HEAD
     if get_file_from_commit "HEAD" "$MEMORY_FILE" > "$REMOTE_MEMORY" 2>/dev/null; then
         # Check if remote is different from local
         if ! memory_changed "$MEMORY_FILE" "$REMOTE_MEMORY"; then
@@ -201,6 +237,7 @@ if [[ "${TEAM_SYNC_PERFORMED:-}" == "true" ]] && [[ -f "$MEMORY_FILE" ]]; then
             rm -f "$REMOTE_MEMORY"
         else
             # Merge team changes
+            # LEARNING: merge_memories handles entity-level deduplication
             step "Merging team memory updates..."
             if merge_memories "$MEMORY_FILE" "$REMOTE_MEMORY" "$MEMORY_FILE" "remote-wins"; then
                 success "Team memories merged successfully"
@@ -221,9 +258,14 @@ fi
 prepare_for_mcp
 
 # TASK 6: Create Session Metadata
+# LEARNING: Session tracking enables recovery and debugging
+# - SESSION_FILE acts as a lock to prevent concurrent sessions
+# - Contains all metadata needed to understand session state
+# - Used by stop.sh to detect active sessions
 step "Creating session metadata..."
 
 # Create session file with all metadata
+# LEARNING: Using heredoc preserves formatting
 cat > "$SESSION_FILE" <<EOF
 Session: $SESSION_ID
 Context: $WORK_CONTEXT
