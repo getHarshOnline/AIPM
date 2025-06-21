@@ -381,10 +381,10 @@ settings:
   
   # Framework-specific settings (only for type: framework)
   frameworkPaths:
-    modules: "scripts/"             # Where AIPM modules live
-    tests: "scripts/test/"          # AIPM test files
-    docs: "AIPM_Design_Docs/"       # AIPM documentation
-    templates: ".aipm/templates/"   # Project templates
+    modules: ".aipm/scripts/modules/"     # Where AIPM modules live
+    tests: ".aipm/scripts/test/"          # AIPM test files
+    docs: ".aipm/docs/"                   # AIPM documentation
+    templates: ".aipm/templates/"         # Project templates
     
   # Development workflow (applies to THIS workspace)
   workflow:
@@ -455,10 +455,9 @@ settings:
 # │   │   ├── session_*        # Session files (gitignored)
 # │   │   └── [merge files]    # Temporary merge files
 # │   ├── templates/           # Project initialization templates
-# │   │   ├── default.yaml     # Standard project template
-# │   │   ├── web.yaml         # Web project template
-# │   │   └── [custom].yaml    # Custom templates
+# │   │   └── README.md        # Templates documentation (templates coming soon)
 # │   ├── scripts/             # All AIPM scripts
+# │   │   ├── init.sh          # Project initialization
 # │   │   ├── start.sh         # Session management
 # │   │   ├── stop.sh          
 # │   │   ├── save.sh          
@@ -467,22 +466,30 @@ settings:
 # │   │   │   ├── shell-formatting.sh
 # │   │   │   ├── version-control.sh
 # │   │   │   ├── migrate-memories.sh
-# │   │   │   └── sync-memory.sh
+# │   │   │   ├── sync-memory.sh
+# │   │   │   └── cleanup-global.sh
 # │   │   └── test/            # Test files
 # │   └── docs/                # All documentation
+# │       ├── DOCS.md          # Documentation hub
 # │       ├── memory-management.md
-# │       ├── documentation-structure.md
-# │       └── [architecture docs]
-# ├── start.sh -> .aipm/scripts/start.sh    # Convenience symlinks
+# │       ├── version-control.md
+# │       └── workflow.md
+# ├── init.sh -> .aipm/scripts/init.sh      # Convenience symlinks
+# ├── start.sh -> .aipm/scripts/start.sh
 # ├── stop.sh -> .aipm/scripts/stop.sh
 # ├── save.sh -> .aipm/scripts/save.sh
 # ├── revert.sh -> .aipm/scripts/revert.sh
+# ├── .claude/                  # Legacy MCP settings (gitignored)
+# │   └── settings.local.json   # MCP server configuration
+# ├── .obsidian/                # Obsidian editor settings (partially gitignored)
+# ├── .gitignore                # Git ignore rules
 # ├── .agentrules               # AI behavior rules (vendor-agnostic)
 # ├── AIPM.md                   # Framework documentation
 # ├── README.md                 # Quick start guide
 # ├── current-focus.md          # Active framework tasks
 # ├── broad-focus.md            # Framework vision
 # ├── changelog.md              # Framework history
+# ├── LICENSE                   # Apache 2.0 license
 # │
 # └── MyProject/                # Symlink to your project
 #     ├── .aipm/                # ⭐ PROJECT'S AIPM HUB
