@@ -11,47 +11,63 @@
 # HOW THIS FILE IS LOADED BY opinions-loader.sh:
 # =============================================
 loading:
-  # Discovery is simple: ALWAYS at fixed path
+  # REQUIRED: Discovery configuration
   discovery:
+    # REQUIRED: Path to opinions file
     path: "./.aipm/opinions.yaml"      # ALWAYS this path, no searching
     # Why: We always work from workspace root (framework or project)
     # Framework: AIPM/.aipm/opinions.yaml
     # Project: Product/.aipm/opinions.yaml (via symlink)
   
-  # Validation performed by opinions-loader.sh
+  # REQUIRED: Validation performed by opinions-loader.sh
   validation:
-    # Required sections for minimal functionality
+    # REQUIRED: Sections needed for minimal functionality
     required: ["workspace", "branching", "memory", "lifecycle", "workflows"]
     
-    # Optional but recommended sections
-    recommended: ["naming", "team", "validation", "sessions", "defaults"]
+    # OPTIONAL: Recommended sections
+    recommended: ["naming", "team", "validation", "sessions", "defaults"]  # Default: []
     
-    # Validation behavior
-    strictMode: true                    # Fail on unknown keys
-    hashCheck: true                     # Verify file hasn't changed during session
-    schemaVersion: "1.0"                # Minimum schema version required
+    # OPTIONAL: Validation behavior
+    strictMode: true                    # Fail on unknown keys (Default: true)
+    hashCheck: true                     # Verify file hasn't changed during session (Default: true)
+    schemaVersion: "1.0"                # Minimum schema version required (Default: "1.0")
     
-    # Error handling
-    onError: "fail"                     # Options: fail | warn | use-defaults
+    # OPTIONAL: Error handling
+    onError: "fail"                     # Options: fail | warn | use-defaults (Default: "fail")
     # - fail: Stop execution with clear error
     # - warn: Show warning but continue
     # - use-defaults: Use framework defaults
-  
-  # Context detection by opinions-loader.sh
-  context:
-    detectBy: "workspace.name"          # Use name field to identify
-    validatePrefix: true                # Ensure prefix matches workspace
-    enforceIsolation: true              # Block cross-workspace operations
     
-    # Prefix validation rules
-    prefixRules:
-      mustMatch: ["branching.prefix", "memory.entityPrefix"]  # These must align
-      pattern: "^[A-Z][A-Z0-9_]*_$"     # Required format: UPPERCASE_
-      reserved: ["GIT_", "TEMP_", "BACKUP_"]  # Can't use these
+    # Cross-validation rules (enforced by opinions-loader.sh)
+    # - All naming types must have lifecycle rules
+    # - All lifecycle types must exist in naming
+    # - branching.prefix must match memory.entityPrefix
+    # - All workflow branch patterns must exist in naming
+    # - Protected branches must use valid patterns
+    # - session namePattern must reference valid naming field
   
-  # Inheritance (DISABLED for v1.0)
+  # REQUIRED: Context detection by opinions-loader.sh
+  context:
+    # REQUIRED: How to identify workspace
+    detectBy: "workspace.name"          # Use name field to identify
+    # OPTIONAL: Prefix validation
+    validatePrefix: true                # Ensure prefix matches workspace (Default: true)
+    # OPTIONAL: Workspace isolation
+    enforceIsolation: true              # Block cross-workspace operations (Default: true)
+    
+    # OPTIONAL: Prefix validation rules
+    prefixRules:
+      # REQUIRED (if prefixRules defined): Fields that must match
+      mustMatch: ["branching.prefix", "memory.entityPrefix"]  # These must align
+      # REQUIRED (if prefixRules defined): Valid prefix pattern
+      pattern: "^[A-Z][A-Z0-9_]*_$"     # Required format: UPPERCASE_
+      # OPTIONAL: Reserved prefixes
+      reserved: ["GIT_", "TEMP_", "BACKUP_"]  # Can't use these (Default: [])
+  
+  # OPTIONAL: Inheritance (DISABLED for v1.0)
   inheritance:
-    enabled: false                      # No inheritance in v1.0
+    # REQUIRED (if inheritance defined): Enable/disable
+    enabled: false                      # No inheritance in v1.0 (Default: false)
     # Future versions may support:
     # - Framework defaults for projects
     # - Organizational templates
@@ -141,6 +157,12 @@ branching:
   # CONVENTION: Always use 'MAIN' unless you have a specific reason
   mainBranchSuffix: MAIN
   
+  # COMPUTED: Full main branch name
+  # {mainBranch} = {prefix} + {mainBranchSuffix}
+  # Example: AIPM_ + MAIN = AIPM_MAIN
+  # This computed value is used throughout the configuration
+  # References: workflows, initialization, validation, etc.
+  
   # REQUIRED: Branch initialization mapping
   # AIPM creates its own branches from your existing branches
   # Once created, AIPM abandons the original branch and works on its own
@@ -166,11 +188,13 @@ branching:
   
   # Primary branch mapping (most important)
   initialization:
-    # Source branch -> AIPM branch mapping
+    # REQUIRED: Source branch -> AIPM branch mapping
     # Only provide suffix; prefix will be added automatically
     main:                           # From user's 'main' branch
+      # REQUIRED: Branch suffix
       suffix: MAIN                  # Creates: {prefix}MAIN (e.g., AIPM_MAIN)
-      fromCommit: HEAD              # Optional: specific commit SHA or HEAD
+      # OPTIONAL: Source commit
+      fromCommit: HEAD              # Optional: specific commit SHA or HEAD (Default: HEAD)
       # Normal mode: If AIPM_MAIN exists, this is ignored
       # --remap mode: Forces recreation even if exists
     
@@ -253,12 +277,29 @@ naming:
 
 # How long do branches live?
 lifecycle:
-  # Global lifecycle settings (apply to all branch types)
+  # OPTIONAL: Global lifecycle settings (apply to all branch types)
   global:
-    handleUncommitted: "stash"     # What to do with uncommitted changes: stash|block|warn
-    conflictResolution: "prompt"   # On merge conflicts: prompt|newest|fail
-    allowOverride: true            # User can override per branch type
-    trackActivity: true            # Monitor branch activity for cleanup
+    # OPTIONAL: Uncommitted changes handling
+    handleUncommitted: "stash"     # What to do with uncommitted changes: stash|block|warn (Default: "stash")
+    # - stash: Automatically stash changes before operations
+    # - block: Refuse to proceed with uncommitted changes
+    # - warn: Show warning but allow to continue
+    
+    # OPTIONAL: Merge conflict resolution
+    conflictResolution: "prompt"   # On merge conflicts: prompt|newest|fail (Default: "prompt")
+    # - prompt: Interactive resolution
+    #   Prompts: "Merge conflict detected. How to resolve?"
+    #   Options: 1) Open editor to resolve (→ launches merge tool)
+    #           2) Keep local version (→ uses current branch changes)
+    #           3) Keep remote version (→ uses incoming changes)
+    #           4) Abort operation (→ cancels merge)
+    # - newest: Automatically choose most recent commit
+    # - fail: Stop and require manual resolution
+    
+    # OPTIONAL: Branch-specific overrides
+    allowOverride: true            # User can override per branch type (Default: true)
+    # OPTIONAL: Activity tracking
+    trackActivity: true            # Monitor branch activity for cleanup (Default: true)
   # ⚠️ CRITICAL SAFETY INFORMATION ⚠️
   # ==================================
   # AIPM ONLY manages branches that match {prefix}{pattern}
@@ -315,6 +356,31 @@ lifecycle:
     deleteAfterMerge: false         # Never delete on merge
     daysToKeep: -1                  # Keep forever
     # Example: AIPM_release/v1.0.0 → permanent
+  
+  framework:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 7                   # 7 days after merge (grace period)
+    # Example: AIPM_framework/opinions-loader merged → deleted after 7 days
+  
+  refactor:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 3                   # 3 days after merge
+    # Example: AIPM_refactor/modularize-scripts merged → deleted after 3 days
+  
+  docs:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 0                   # Immediately after merge
+    # Example: AIPM_docs/update-readme merged → deleted same day
+  
+  chore:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 0                   # Immediately after merge
+    # Example: AIPM_chore/cleanup-logs merged → deleted same day
+  
+  bugfix:
+    deleteAfterMerge: true          # Delete after merge
+    daysToKeep: 0                   # Immediately after merge
+    # Example: AIPM_fix/memory-leak merged → deleted same day
 
 # How do I manage memory?
 memory:
@@ -368,12 +434,16 @@ memory:
   #   - SEO                        # SEO optimizations
   #   - PERFORMANCE                # Performance improvements
   
-  # Category enforcement rules
+  # OPTIONAL: Category enforcement rules
   categoryRules:
-    strict: true                    # Only allow defined categories
-    allowDynamic: false            # Can't add new categories on the fly
-    uncategorized: "block"         # What to do with uncategorized: block|warn|allow
-    caseInsensitive: true          # PROTOCOL = protocol = Protocol
+    # OPTIONAL: Strict category enforcement
+    strict: true                    # Only allow defined categories (Default: true)
+    # OPTIONAL: Dynamic category creation
+    allowDynamic: false            # Can't add new categories on the fly (Default: false)
+    # OPTIONAL: Uncategorized entity handling
+    uncategorized: "block"         # What to do with uncategorized: block|warn|allow (Default: "block")
+    # OPTIONAL: Case sensitivity
+    caseInsensitive: true          # PROTOCOL = protocol = Protocol (Default: true)
 
 # How do I work with my team?
 team:
@@ -381,49 +451,62 @@ team:
   # Options: manual | prompt | auto
   # - manual: User must explicitly sync
   # - prompt: Ask when updates detected
+  #   Prompts: "Remote has updates. Sync now?"
+  #   Options: 1) Yes, sync now (→ pulls and merges)
+  #           2) View changes (→ shows what's new)
+  #           3) Skip for now (→ continues without sync)
   # - auto: Sync without asking (dangerous!)
   syncMode: manual                  
   
-  # Check for remote updates on session start
-  fetchOnStart: true
+  # OPTIONAL: Check for remote updates on session start
+  fetchOnStart: true               # Default: true
   
-  # Alert when local and remote have diverged
-  warnOnDivergence: true
+  # OPTIONAL: Alert when local and remote have diverged
+  warnOnDivergence: true           # Default: true
   
-  # Require pull requests for mainBranch
+  # OPTIONAL: Require pull requests for mainBranch
   # Framework: true (careful development)
   # Projects: might start with false
-  requirePullRequest: true
+  requirePullRequest: true         # Default: false
   
-  # Detailed sync behavior
+  # OPTIONAL: Detailed sync behavior
   sync:
-    # When to prompt for sync
+    # OPTIONAL: When to prompt for sync
     prompt:
+      # REQUIRED (if prompt defined): Trigger conditions
       triggers: ["remote-ahead", "diverged", "merge-conflicts"]
-      timeout: 30                  # Seconds to wait for user response
-      default: "skip"              # What to do on timeout: skip|abort|sync
+      # OPTIONAL: Response timeout
+      timeout: 30                  # Seconds to wait for user response (Default: 30)
+      # OPTIONAL: Timeout action
+      default: "skip"              # What to do on timeout: skip|abort|sync (Default: "skip")
     
-    # How to handle divergence
+    # OPTIONAL: How to handle divergence
     divergence:
-      definition: "local and remote have different commits"
+      # OPTIONAL: Definition for clarity
+      definition: "local and remote have different commits"  # (Default: built-in)
+      # REQUIRED (if divergence defined): Resolution strategy
       resolution: "prompt"         # How to resolve: prompt|merge|rebase|fail
       #   Prompts: "Your branch and remote have diverged. How to proceed?"
       #   Options: 1) Merge remote changes (→ creates merge commit)
       #           2) Rebase onto remote (→ replays your changes)
       #           3) Keep mine only (→ force push later)
       #           4) View differences (→ shows both versions)
-      showDiff: true              # Show what's different
+      # OPTIONAL: Show differences
+      showDiff: true              # Show what's different (Default: true)
     
-    # Conflict handling
+    # OPTIONAL: Conflict handling
     conflicts:
+      # REQUIRED (if conflicts defined): Resolution strategy
       strategy: "prompt"           # Resolution strategy: prompt|ours|theirs
       #   Prompts: "Merge conflict detected. How to resolve?"
       #   Options: 1) Keep my version (→ uses local changes)
       #           2) Take their version (→ uses remote changes)
       #           3) Manual merge (→ opens merge tool)
       #           4) Abort operation (→ cancels merge)
-      backup: true                # Create backup before resolution
-      abortOnFail: true           # Abort entire operation on conflict
+      # OPTIONAL: Backup before resolution
+      backup: true                # Create backup before resolution (Default: true)
+      # OPTIONAL: Failure behavior
+      abortOnFail: true           # Abort entire operation on conflict (Default: true)
 
 # How do I handle temporary work sessions?
 sessions:
@@ -440,12 +523,12 @@ sessions:
   # OPTIONAL: When to create session branches
   # Controls whether start.sh creates a session branch automatically
   # Most users prefer on-demand creation to avoid branch proliferation
-  autoCreate: false               # Create automatically on start.sh
+  autoCreate: false               # Create automatically on start.sh (Default: false)
   
   # OPTIONAL: Automatic merge behavior
   # Should stop.sh automatically merge session work?
   # Usually false - users decide what's worth keeping
-  autoMerge: false               # Merge automatically on stop.sh
+  autoMerge: false               # Merge automatically on stop.sh (Default: false)
   
   # REQUIRED: Can multiple sessions exist?
   # Multiple sessions can be confusing for non-technical users
@@ -455,12 +538,13 @@ sessions:
   # REQUIRED: How to name session branches
   # Pattern uses same variables as naming section
   # {timestamp} ensures uniqueness without user input
-  namePattern: "session/{timestamp}" # Pattern for session branch names
+  # References the pattern defined in naming.session
+  namePattern: "{naming.session}" # Uses pattern from naming section
   
   # OPTIONAL: Conflict handling
   # What to do when session has conflicts with parent
   # Prompting helps users understand what's happening
-  promptOnConflict: true         # Ask user when conflicts detected
+  promptOnConflict: true         # Ask user when conflicts detected (Default: true)
   #   Prompts: "Session has conflicts with parent branch. Continue?"
   #   Options: 1) Merge anyway (→ opens conflict resolution)
   #           2) Keep session separate (→ no merge)
@@ -469,25 +553,32 @@ sessions:
   # OPTIONAL: Post-merge cleanup
   # Should merged session branches be deleted?
   # Usually true to keep branch list clean
-  cleanupOnMerge: true          # Delete after successful merge
+  cleanupOnMerge: true          # Delete after successful merge (Default: true)
 
 # How strict am I?
 validation:
-  # Overall enforcement level
+  # REQUIRED: Overall enforcement level
   # Options: strict | relaxed | gradual
   # - strict: Block non-compliant operations (framework)
   # - relaxed: Warn but allow (new projects)
   # - gradual: Start relaxed, increase over time
   mode: strict
   
-  # Gradual mode settings (only applies when mode: gradual)
+  # OPTIONAL: Gradual mode settings (only applies when mode: gradual)
   gradual:
+    # REQUIRED (if gradual defined): Initial level
     startLevel: "relaxed"          # Initial enforcement level
+    # REQUIRED (if gradual defined): Target level
     endLevel: "strict"             # Target enforcement level
+    # OPTIONAL: Progression configuration
     progression:
+      # REQUIRED (if progression defined): Progress trigger
       trigger: "days"              # Progress based on: days|commits|merges
+      # REQUIRED (if progression defined): Trigger value
       value: 30                    # After 30 days
-      warnings: 7                  # Warn for 7 days before enforcing
+      # OPTIONAL: Warning period
+      warnings: 7                  # Warn for 7 days before enforcing (Default: 7)
+      # OPTIONAL: Progression milestones
       milestones:                  # Optional milestones
         - day: 7
           level: "warn"            # Start warning after 7 days
@@ -496,18 +587,25 @@ validation:
         - day: 30
           level: "strict"          # Full enforcement
   
+  # OPTIONAL: Validation rules
   rules:
-    # What to enforce
-    enforceNaming: true             # Must follow branch patterns
-    blockWrongPrefix: true          # Can't use PRODUCT_ in AIPM
-    requireCleanTree: false         # Can work with uncommitted
-    validateMemory: true            # Check entity prefixes
+    # OPTIONAL: Enforce naming patterns
+    enforceNaming: true             # Must follow branch patterns (Default: true)
+    # OPTIONAL: Block wrong prefixes
+    blockWrongPrefix: true          # Enforces loading.context.prefixRules (Default: true)
+    # OPTIONAL: Clean tree requirement
+    requireCleanTree: false         # Can work with uncommitted (Default: false)
+    # OPTIONAL: Memory validation
+    validateMemory: true            # Check entity prefixes (Default: true)
     
-  # What stops operations cold (even in relaxed mode)
+  # OPTIONAL: What stops operations cold (even in relaxed mode)
   blockers:
-    wrongWorkspace: true            # Can't mix AIPM_ and PRODUCT_
-    invalidPrefix: true             # Must use correct prefix
-    corruptMemory: true            # Malformed memory file
+    # OPTIONAL: Workspace mixing
+    wrongWorkspace: true            # Can't mix AIPM_ and PRODUCT_ (Default: true)
+    # OPTIONAL: Prefix validation
+    invalidPrefix: true             # Must use correct prefix (Default: true)
+    # OPTIONAL: Memory corruption
+    corruptMemory: true            # Malformed memory file (Default: true)
 
 # How do I handle initialization?
 initialization:
@@ -524,16 +622,17 @@ initialization:
     type: "commit"                # Create as commit (not tag)
     
     # REQUIRED: Commit message format
-    # Variables: {workspace.name}, {timestamp}, {user}
-    message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace"
+    # Variables: {workspace.name}, {timestamp}, {user}, {parent.branch}
+    # Includes parent branch for tracking lineage
+    message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace from {parent.branch}"
     
     # OPTIONAL: Include configuration snapshot
     # Helps debug "what settings were used at init?"
-    includeMetadata: true         # Add opinions.yaml hash to commit
+    includeMetadata: true         # Add opinions.yaml hash to commit (Default: true)
     
     # OPTIONAL: Verification on startup
     # Ensures branches haven't been tampered with
-    verifyOnStart: true          # Check marker exists on session start
+    verifyOnStart: true          # Check marker exists on session start (Default: true)
   
   # REQUIRED: Branch creation rules
   # Controls how AIPM creates its initial branches
@@ -544,11 +643,11 @@ initialization:
     
     # OPTIONAL: Backup strategy
     # Usually false - user branches are already the backup
-    backupOriginal: false        # Don't create backup branches
+    backupOriginal: false        # Don't create backup branches (Default: false)
     
     # OPTIONAL: User communication
     # Shows what AIPM will create before doing it
-    showDiff: true              # Show what will be created
+    showDiff: true              # Show what will be created (Default: true)
 
 # What are my system limits and defaults?
 defaults:
@@ -556,21 +655,21 @@ defaults:
   # Prevents runaway operations and hung processes
   # These apply to all AIPM operations unless overridden
   timeouts:
-    # Maximum session duration
+    # Maximum session duration (seconds)
     # Helps prevent forgotten sessions consuming resources
-    session: 3600                # 1 hour max session
+    sessionSeconds: 3600         # 1 hour max session
     
-    # Individual operation timeout
+    # Individual operation timeout (seconds)
     # Catches stuck git operations or slow networks
-    operation: 30                # 30 seconds per operation
+    operationSeconds: 30         # 30 seconds per operation
     
-    # Git-specific operations
+    # Git-specific operations (seconds)
     # Some git operations legitimately take longer
-    git: 60                      # 1 minute for git operations
+    gitSeconds: 60               # 1 minute for git operations
     
-    # User interaction timeout
+    # User interaction timeout (seconds)
     # How long to wait for user response before defaulting
-    prompt: 30                   # 30 seconds for user prompts
+    promptSeconds: 30            # 30 seconds for user prompts
   
   # REQUIRED: Size and count limits
   # Prevents unlimited growth of logs, memories, and branches
@@ -585,42 +684,77 @@ defaults:
     # Older ones are deleted automatically
     backupCount: 10              # Max backups to keep
     
-    # Session history retention
+    # Session history retention (days)
     # How long to keep detailed session logs
     # After this: summary only or deletion
-    sessionHistory: 30           # Days to keep session logs
+    sessionHistoryDays: 30       # Days to keep session logs
     
-    # Branch staleness warning
+    # Branch staleness warning (days)
     # When to warn about potentially abandoned branches
     # Doesn't delete - just notifies
-    branchAge: 90               # Days before warning about old branches
+    branchAgeDays: 90            # Days before warning about old branches
   
-  # REQUIRED: Logging configuration
-  # Controls verbosity and retention of AIPM logs
+  # OPTIONAL: Logging configuration
+  # Controls verbosity and retention of AIPM logs  
   logging:
-    # Verbosity level
+    # OPTIONAL: Verbosity level
     # - debug: Everything (verbose)
     # - info: Normal operations
     # - warn: Problems that don't stop execution
     # - error: Only serious issues
-    level: "info"                # debug, info, warn, error
+    level: "info"                # debug, info, warn, error (Default: "info")
     
-    # Log storage location
+    # OPTIONAL: Log storage location
     # Relative to workspace root
-    location: ".aipm/logs/"      # Log directory
+    location: ".aipm/logs/"      # Log directory (Default: ".aipm/logs/")
     
-    # Log rotation schedule
+    # OPTIONAL: Log rotation schedule
     # Prevents single massive log file
     # Options: daily | weekly | size:10MB | never
-    rotate: "daily"              # Rotation schedule
+    rotate: "daily"              # Rotation schedule (Default: "daily")
     
-    # Log retention period
+    # OPTIONAL: Log retention period
     # Older logs are compressed or deleted
-    retain: 7                    # Days to retain logs
+    retain: 7                    # Days to retain logs (Default: 7)
+
+# How do I handle errors?
+errorHandling:
+  # What to do when encountering missing branch types
+  onMissingBranchType: "use-default"    # Options: use-default | fail | prompt
+  # - use-default: Fall back to default lifecycle rules
+  # - fail: Stop operation with error
+  # - prompt: Ask user how to proceed
+  #   Prompts: "Unknown branch type. How to handle?"
+  #   Options: 1) Use default rules (→ applies global settings)
+  #           2) Skip this branch (→ ignores it)
+  #           3) Abort operation (→ stops execution)
+  
+  # What to do with invalid variable references
+  onInvalidReference: "fail"            # Options: fail | warn | ignore
+  # - fail: Stop when {unknown.field} is referenced
+  # - warn: Show warning but continue
+  # - ignore: Silently skip invalid references
+  
+  # How to handle circular references
+  onCircularReference: "fail"           # Options: fail | break | warn
+  # - fail: Stop execution on circular dependency
+  # - break: Automatically break the cycle
+  # - warn: Alert but attempt to continue
+  
+  # OPTIONAL: Recovery strategies
+  recovery:
+    # OPTIONAL: Auto-recovery from common issues
+    autoRecover: true                   # Try to fix common problems (Default: true)
+    
+    # OPTIONAL: Backup before risky operations
+    createBackup: true                  # Always backup before recovery (Default: true)
+    
+    # OPTIONAL: User notification
+    notifyUser: "always"                # Options: always | on-failure | never (Default: "always")
 
 # Workspace-specific settings
 settings:
-  # Schema version for migration support
+  # REQUIRED: Schema version for migration support
   schemaVersion: "1.0"
   
   # Template configuration (COMING SOON in Phase 1)
@@ -629,19 +763,25 @@ settings:
   #   available: []              # Will be populated when templates exist
   #   default: "default"         # Will use default template
   
-  # Framework-specific settings (only for type: framework)
+  # OPTIONAL: Framework-specific settings (only for type: framework)
   frameworkPaths:
+    # REQUIRED (if frameworkPaths defined): Module location
     modules: ".aipm/scripts/modules/"     # Where AIPM modules live
-    tests: ".aipm/scripts/test/"          # AIPM test files
-    docs: ".aipm/docs/"                   # AIPM documentation
-    templates: ".aipm/templates/"         # Project templates
+    # OPTIONAL: Test location
+    tests: ".aipm/scripts/test/"          # AIPM test files (Default: ".aipm/scripts/test/")
+    # OPTIONAL: Documentation location
+    docs: ".aipm/docs/"                   # AIPM documentation (Default: ".aipm/docs/")
+    # OPTIONAL: Templates location
+    templates: ".aipm/templates/"         # Project templates (Default: ".aipm/templates/")
     
-  # Development workflow (applies to THIS workspace)
+  # OPTIONAL: Development workflow (applies to THIS workspace)
   workflow:
-    # For framework development (strict)
-    requireTests: true              # Can't merge without tests
-    requireDocs: true               # Must document changes
-    requireReview: true             # Peer review required
+    # OPTIONAL: Test requirement
+    requireTests: true              # Can't merge without tests (Default: false)
+    # OPTIONAL: Documentation requirement
+    requireDocs: true               # Must document changes (Default: false)
+    # OPTIONAL: Review requirement
+    requireReview: true             # Peer review required (Default: false)
     # Projects might set these all to false initially
 
 # When should scripts perform git operations?
@@ -800,6 +940,7 @@ workflows:
       # When creating branches via start.sh or save.sh
       default: "current"                 # Options: current | main | prompt
       # - current: Branch from whatever branch you're on
+      #   Note: If no current branch exists, falls back to {mainBranch}
       # - main: Always branch from {mainBranch}
       # - prompt: Ask user where to branch from
       #   Prompts: "Create new branch from:"
@@ -838,17 +979,21 @@ workflows:
     
     # OPTIONAL: Parent tracking
     # How to remember where branches came from
-    parentTracking: "init-commit"        # Options: init-commit | branch-desc | none
+    parentTracking: "init-commit"        # Options: init-commit | branch-desc | none (Default: "init-commit")
     # - init-commit: Store in AIPM_INIT_HERE message
-    # - branch-desc: Use git branch description
+    # - branch-desc: Use git branch description  
     # - none: Don't track (relies on conventions)
 
 # File metadata
 metadata:
+  # REQUIRED: Schema version
   version: "1.0"                    # Schema version
-  schema: "https://rawthoughts.in/aipm/schemas/opinions/v1"
-  lastModified: "2025-06-21T20:30:00Z"
-  compatibility: ">=1.0"            # Minimum AIPM version required
+  # OPTIONAL: Schema URL
+  schema: "https://rawthoughts.in/aipm/schemas/opinions/v1"  # (Default: none)
+  # OPTIONAL: Last modification timestamp
+  lastModified: "2025-06-21T20:30:00Z"  # (Default: auto-generated)
+  # OPTIONAL: Minimum AIPM version
+  compatibility: ">=1.0"            # Minimum AIPM version required (Default: ">=1.0")
 
 # PROJECT INITIALIZATION:
 # =======================
@@ -971,3 +1116,32 @@ metadata:
 # - broad-focus.md: Long-term vision
 # - changelog.md: Progress tracking
 # - local_memory.json: Knowledge persistence
+
+# COMPUTED VALUES (for script reference)
+# =====================================
+# These values are computed by opinions-loader.sh for use in scripts.
+# They are not directly configurable but derived from other settings.
+computed:
+  # Full main branch name
+  mainBranch: "{branching.prefix}{branching.mainBranchSuffix}"
+  # Example: AIPM_ + MAIN = AIPM_MAIN
+  
+  # Current branch detection
+  currentBranch: "$(git rev-parse --abbrev-ref HEAD)"
+  # Runtime detection of active branch
+  
+  # Parent branch extraction
+  parentBranch: "extracted from AIPM_INIT_HERE commit message"
+  # Parsed from initialization marker: "from {parent.branch}"
+  
+  # Workspace path
+  workspacePath: "$(pwd)"
+  # Always workspace root directory
+  
+  # Validation patterns
+  prefixPattern: "^{branching.prefix}"
+  # For branch name validation
+  
+  # Memory entity pattern
+  entityPattern: "^{memory.entityPrefix}[A-Z]+_"
+  # For memory validation
