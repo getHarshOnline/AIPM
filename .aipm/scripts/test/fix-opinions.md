@@ -1,286 +1,214 @@
-# Fix opinions.yaml - Standardization Requirements
+# Fix opinions.yaml - Critical Consistency Issues
 
 **Created**: 2025-06-21  
-**Purpose**: Capture all missing elements and clarifications needed for opinions.yaml
+**Purpose**: Deep review findings and required fixes for opinions.yaml consistency
+**Updated**: 2025-06-21 - Complete rewrite after thorough multi-pass analysis
 
-## 🔴 Critical Missing Elements
+## 🔴 CRITICAL ISSUES REQUIRING IMMEDIATE FIXES
 
-### 1. opinions-loader.sh Integration
-The file doesn't explain how the cornerstone module will use this configuration.
+### 1. Inconsistent Branch Type References
+**Problem**: Branch types defined in naming section not consistently used across file
+- `naming.bugfix` defines pattern as `"fix/{description}"` 
+- `workflows.branchFlow` references as `"fix/*"`
+- `lifecycle` section missing rules for: framework, refactor, docs, chore
 
-**Need to add**:
-- How opinions-loader.sh discovers opinions.yaml files
-- Validation rules and error handling
-- Inheritance model between framework and project opinions
-- Context detection mechanism
-
-**Proposed addition**:
+**Required Fix**:
 ```yaml
-# How is this file loaded?
-loading:
-  # Discovery order
-  discovery:
-    - "./.aipm/opinions.yaml"        # Current directory first
-    - "../.aipm/opinions.yaml"       # Parent directory
-    - "$AIPM_ROOT/.aipm/opinions.yaml"  # Framework fallback
-  
-  # Validation
-  validation:
-    required: ["workspace", "branching", "memory"]
-    schema: ".aipm/schemas/opinions-v1.yaml"
-  
-  # Inheritance
-  inheritance:
-    mode: "override"  # project overrides framework
-    merge: ["protectedBranches", "categories"]  # these merge instead
+# Add to lifecycle section:
+framework:
+  deleteAfterMerge: true
+  daysToKeep: 7
+  # Example: AIPM_framework/opinions-loader merged → deleted after 7 days
+
+refactor:
+  deleteAfterMerge: true
+  daysToKeep: 3
+  # Example: AIPM_refactor/modularize-scripts merged → deleted after 3 days
+
+docs:
+  deleteAfterMerge: true
+  daysToKeep: 0
+  # Example: AIPM_docs/update-readme merged → deleted immediately
+
+chore:
+  deleteAfterMerge: true
+  daysToKeep: 0
+  # Example: AIPM_chore/cleanup-logs merged → deleted immediately
 ```
 
-### 2. Missing Branch Type: 'framework'
-The naming patterns don't include framework-specific work.
+### 2. Session Pattern Redundancy
+**Problem**: Session naming pattern defined in two places
+- Line 240: `naming.session: "session/{timestamp}"`
+- Line 458: `sessions.namePattern: "session/{timestamp}"`
 
-**Current**:
-- feature, bugfix, test, session, release
-
-**Missing**:
-- framework: For AIPM framework improvements
-- refactor: For code reorganization
-- docs: For documentation updates
-- chore: For maintenance tasks
-
-**Add to naming section**:
+**Required Fix**:
 ```yaml
-framework: "framework/{description}"  # AIPM_framework/opinions-loader
-refactor: "refactor/{description}"    # AIPM_refactor/modularize-scripts
-docs: "docs/{description}"            # AIPM_docs/update-readme
-chore: "chore/{description}"          # AIPM_chore/cleanup-logs
+# In sessions section, change:
+namePattern: "session/{timestamp}"
+# To:
+namePattern: "{naming.session}"  # Reference naming section pattern
 ```
 
-### 3. Session Branch Handling
-Session branches are mentioned but not fully specified.
+### 3. Missing {mainBranch} Construction
+**Problem**: `{mainBranch}` used throughout but never explicitly defined
+- Used in: workflows, initialization, everywhere
+- Should be: `{branching.prefix} + {branching.mainBranchSuffix}`
 
-**Questions to answer**:
-- Are session branches optional or mandatory?
-- When are they created (start.sh)?
-- Do they auto-merge to main branch?
-- Can multiple sessions exist?
-
-**Proposed addition**:
+**Required Fix**:
 ```yaml
-sessions:
-  enabled: true                    # Can be disabled
-  autoCreate: false               # Create on start.sh
-  autoMerge: false               # Merge on stop.sh
-  allowMultiple: false           # One session at a time
-  namePattern: "session/{timestamp}"
+# Add to branching section after mainBranchSuffix:
+# COMPUTED: Full main branch name
+# {mainBranch} = {prefix} + {mainBranchSuffix}
+# Example: AIPM_ + MAIN = AIPM_MAIN
+# This computed value is used throughout the configuration
 ```
 
-### 4. The AIPM_INIT_HERE Tag
-Line 97 mentions this but doesn't specify details.
+### 4. Wrong Prefix Definition Missing
+**Problem**: `validation.rules.blockWrongPrefix: true` but "wrong" never defined
+- Should reference prefix validation rules from loading section
 
-**Need to clarify**:
-- Is it a git tag or commit message?
-- Exact format and content
-- How it's used by the system
-
-**Proposed addition**:
+**Required Fix**:
 ```yaml
-initialization:
-  marker:
-    type: "commit"  # or "tag"
-    message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace"
-    tag: "aipm-init-{workspace.name}-{timestamp}"
-    includeMetadata: true  # Add opinions.yaml hash to commit
+# In validation.rules, update:
+blockWrongPrefix: true  # Can't use PRODUCT_ in AIPM
+# To include reference:
+blockWrongPrefix: true  # Enforces loading.context.prefixRules
 ```
 
-## 🟡 Needs Clarification
+### 5. Inconsistent Option Naming Convention
+**Problem**: Mixed naming styles for option values
+- Hyphenated: "check-first", "on-stop", "if-clean"
+- CamelCase: Used for field names but not option values
+- Will cause parsing inconsistencies
 
-### 5. Template System Reality
-Templates section references non-existent files.
-
-**Options**:
-1. Comment out until templates exist
-2. Create minimal stub templates
-3. Remove from framework opinions, add when ready
-
-**Recommendation**: Option 3 - Remove now, add when implemented
-
-### 6. Missing Configurations
-
-**Add new section**:
+**Required Fix**: Standardize all option values to hyphen-case
 ```yaml
-# System defaults
-defaults:
-  timeouts:
-    session: 3600              # 1 hour
-    operation: 30              # 30 seconds
-    git: 60                    # 1 minute for git operations
-  
-  limits:
-    memorySize: "10MB"         # Max memory file size
-    backupCount: 10            # Max backups to keep
-    sessionHistory: 30         # Days to keep session logs
-  
-  logging:
-    level: "info"              # debug, info, warn, error
-    location: ".aipm/logs/"
-    rotate: "daily"
-    retain: 7
+# Examples of changes needed:
+- autoCreate → auto-create
+- deleteAfterMerge → delete-after-merge
+- allowMultiple → allow-multiple
 ```
 
-### 7. Branch Lifecycle Gaps
+### 6. Parent Tracking Incomplete Loop
+**Problem**: Parent tracking mentioned but not fully implemented
+- `workflows.branchFlow.parentTracking: "init-commit"`
+- But `initialization.marker.message` doesn't include parent info
 
-**Missing rules**:
+**Required Fix**:
 ```yaml
-lifecycle:
-  # Global settings
-  global:
-    handleUncommitted: "stash"    # or "block", "warn"
-    conflictResolution: "newest"  # or "prompt", "fail"
-    allowOverride: true           # User can override per branch
-  
-  # Per-type settings (existing)
-  feature:
-    deleteAfterMerge: true
-    # ... existing rules ...
+# In initialization.marker:
+message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace"
+# Change to:
+message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace from {parent.branch}"
 ```
 
-### 8. Team Sync Details
+### 7. Circular Reference Risk
+**Problem**: `workflows.branchFlow.sources.default: "current"` with no fallback
+- What if no current branch exists?
+- Could cause infinite loop or crash
 
-**Clarify team section**:
+**Required Fix**:
 ```yaml
-team:
-  syncMode: manual
-  
-  # NEW: Detailed sync behavior
-  sync:
-    prompt:
-      triggers: ["remote-ahead", "diverged"]
-      timeout: 30
-      default: "skip"
-    
-    divergence:
-      definition: "local and remote have different commits"
-      resolution: "prompt"  # or "merge", "rebase", "fail"
-    
-    conflicts:
-      strategy: "prompt"    # or "ours", "theirs"
-      backup: true
+# Add fallback chain to workflows.branchFlow.sources:
+fallback: "{mainBranch}"  # If no current branch, use main
+# Or make it explicit in documentation:
+# Note: If no current branch exists, falls back to {mainBranch}
 ```
 
-### 9. Validation Gradual Mode
+### 8. Time Format Inconsistency
+**Problem**: Mixed time value formats
+- Numbers: `daysToKeep: 7`
+- Strings: `"7 days"` in some comments
+- Unclear units in some places
 
-**Explain gradual progression**:
+**Required Fix**: Standardize all time values as numbers with clear units
 ```yaml
-validation:
-  mode: gradual
-  
-  # NEW: Gradual mode settings
-  gradual:
-    startLevel: "relaxed"
-    endLevel: "strict"
-    progression:
-      trigger: "days"       # or "commits", "merges"
-      value: 30            # After 30 days
-      warnings: 7          # Warn for 7 days before enforcing
+# All time values should specify units in field name:
+- timeouts.sessionSeconds: 3600  # not just "session"
+- limits.sessionHistoryDays: 30  # not just "sessionHistory"
 ```
 
-### 10. Memory Categories Validation
+## 🟡 CONSISTENCY IMPROVEMENTS NEEDED
 
-**Clarify enforcement**:
+### 1. Documentation Verbosity Mismatch
+**Issue**: Early sections have extensive docs, later sections terse
+- Example: `lifecycle.global` (lines 257-261) lacks detail
+
+**Fix**: Add same level of documentation throughout
+
+### 2. Required Field Marking
+**Issue**: Inconsistent REQUIRED/OPTIONAL marking
+- Some sections mark every field
+- Others (team.sync) don't mark subfields
+
+**Fix**: Every configurable field needs REQUIRED/OPTIONAL marker
+
+### 3. Default Value Documentation
+**Issue**: Some options show defaults, others don't
+- User doesn't know what happens if field omitted
+
+**Fix**: Document default behavior for all optional fields
+
+## 🔧 RECOMMENDED ADDITIONS
+
+### 1. Computed Values Section
+Add new section to make implicit values explicit:
 ```yaml
-memory:
-  categories:
-    # Existing categories...
-  
-  # NEW: Category rules
-  categoryRules:
-    strict: true           # Only allow defined categories
-    allowDynamic: false    # Can't add new ones on the fly
-    uncategorized: "block" # or "warn", "allow"
-    caseInsensitive: true  # PROTOCOL = protocol
+# COMPUTED VALUES (for script reference)
+computed:
+  mainBranch: "{branching.prefix}{branching.mainBranchSuffix}"
+  currentBranch: "$(git rev-parse --abbrev-ref HEAD)"
+  parentBranch: "extracted from AIPM_INIT_HERE commit message"
+  workspacePath: "$(pwd)"  # Always workspace root
 ```
 
-## 🟢 New Sections to Add
-
-### 1. Metadata Section
+### 2. Cross-Validation Rules
+Add to loading.validation:
 ```yaml
-# File metadata
-metadata:
-  version: "1.0"
-  schema: "https://aipm.dev/schemas/opinions/v1"
-  lastModified: "2025-06-21T19:30:00Z"
-  compatibility: ">=1.0"
+crossChecks:
+  - "all naming types have lifecycle rules"
+  - "all lifecycle types exist in naming"
+  - "branching.prefix matches memory.entityPrefix"
+  - "all workflow branch patterns exist in naming"
 ```
 
-### 2. Hooks Section
+### 3. Missing Error Handling
+Add section for error scenarios:
 ```yaml
-# Extensibility hooks
-hooks:
-  # Script hooks
-  scripts:
-    preStart: []           # Run before start.sh
-    postStop: []           # Run after stop.sh
-    preSave: []           # Run before save.sh
-    postSave: []          # Run after save.sh
-  
-  # Validation hooks
-  validation:
-    branch: []            # Custom branch validators
-    memory: []            # Custom memory validators
-```
-
-### 3. Error Handling Section
-```yaml
-# Error handling behavior
 errorHandling:
-  onInvalidOpinions: "fail"      # or "warn", "use-defaults"
-  onMissingDependency: "prompt"  # or "fail", "skip"
-  onConflict: "prompt"           # or "abort", "merge", "ours", "theirs"
-  onCorruption: "backup-restore" # or "fail", "rebuild"
+  onMissingBranchType: "use-default"  # or "fail"
+  onInvalidReference: "fail"          # for {unknown.field}
+  onCircularReference: "fail"         # for self-references
 ```
 
-### 4. Platform-Specific Settings
-```yaml
-# Platform overrides
-platforms:
-  darwin:  # macOS
-    timeouts:
-      git: 30  # Faster on macOS
-  
-  linux:
-    paths:
-      temp: "/tmp/aipm/"
-  
-  wsl:
-    warnings:
-      - "Performance may be slower in WSL"
-```
+## 📋 Implementation Checklist
 
-## 🔧 Implementation Priority
+1. [ ] Add missing lifecycle rules for new branch types
+2. [ ] Remove session pattern redundancy
+3. [ ] Document {mainBranch} construction
+4. [ ] Define "wrong prefix" validation
+5. [ ] Standardize all options to hyphen-case
+6. [ ] Complete parent tracking in initialization
+7. [ ] Add circular reference protection
+8. [ ] Fix all time format inconsistencies
+9. [ ] Equalize documentation verbosity
+10. [ ] Mark all fields as REQUIRED/OPTIONAL
+11. [ ] Document all default values
+12. [ ] Add computed values section
+13. [ ] Add cross-validation rules
+14. [ ] Add error handling section
 
-1. **High Priority** (Block implementation):
-   - opinions-loader.sh integration
-   - Session branch handling
-   - AIPM_INIT_HERE clarification
+## Priority Order
 
-2. **Medium Priority** (Can work around):
-   - Missing branch types
-   - Team sync details
-   - Default configurations
+**HIGH** (Blocks implementation):
+- Items 1, 2, 3, 6, 7 (branch flow breaks without these)
 
-3. **Low Priority** (Nice to have):
-   - Hooks system
-   - Platform-specific settings
-   - Gradual validation mode
+**MEDIUM** (Causes confusion):
+- Items 4, 5, 8, 9 (inconsistency issues)
 
-## Next Steps
-
-1. Decide on each issue above
-2. Update opinions.yaml with agreed changes
-3. Create minimal template files or remove section
-4. Document decisions in changelog.md
-5. Update wrapper-scripts-hardening-plan.md with new requirements
+**LOW** (Nice to have):
+- Items 10-14 (improvements for robustness)
 
 ---
 
-*This document captures all standardization needs for opinions.yaml as of 2025-06-21*
+*This review represents a deep, multi-pass analysis with focus on implementation success*

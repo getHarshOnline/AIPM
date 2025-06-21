@@ -8,6 +8,56 @@
 # 2. Load the opinions.yaml from the selected workspace
 # 3. All operations use that workspace's rules
 #
+# HOW THIS FILE IS LOADED BY opinions-loader.sh:
+# =============================================
+loading:
+  # Discovery is simple: ALWAYS at fixed path
+  discovery:
+    path: "./.aipm/opinions.yaml"      # ALWAYS this path, no searching
+    # Why: We always work from workspace root (framework or project)
+    # Framework: AIPM/.aipm/opinions.yaml
+    # Project: Product/.aipm/opinions.yaml (via symlink)
+  
+  # Validation performed by opinions-loader.sh
+  validation:
+    # Required sections for minimal functionality
+    required: ["workspace", "branching", "memory", "lifecycle", "workflows"]
+    
+    # Optional but recommended sections
+    recommended: ["naming", "team", "validation", "sessions", "defaults"]
+    
+    # Validation behavior
+    strictMode: true                    # Fail on unknown keys
+    hashCheck: true                     # Verify file hasn't changed during session
+    schemaVersion: "1.0"                # Minimum schema version required
+    
+    # Error handling
+    onError: "fail"                     # Options: fail | warn | use-defaults
+    # - fail: Stop execution with clear error
+    # - warn: Show warning but continue
+    # - use-defaults: Use framework defaults
+  
+  # Context detection by opinions-loader.sh
+  context:
+    detectBy: "workspace.name"          # Use name field to identify
+    validatePrefix: true                # Ensure prefix matches workspace
+    enforceIsolation: true              # Block cross-workspace operations
+    
+    # Prefix validation rules
+    prefixRules:
+      mustMatch: ["branching.prefix", "memory.entityPrefix"]  # These must align
+      pattern: "^[A-Z][A-Z0-9_]*_$"     # Required format: UPPERCASE_
+      reserved: ["GIT_", "TEMP_", "BACKUP_"]  # Can't use these
+  
+  # Inheritance (DISABLED for v1.0)
+  inheritance:
+    enabled: false                      # No inheritance in v1.0
+    # Future versions may support:
+    # - Framework defaults for projects
+    # - Organizational templates
+    # - Team-specific overrides
+    # For now: Each workspace is completely independent
+#
 # USAGE EXAMPLES:
 # ==============
 # Framework workspace (this file):
@@ -190,6 +240,12 @@ naming:
   session: "session/{timestamp}"        # Creates: AIPM_session/20240621_143022
   release: "release/v{version}"         # Creates: AIPM_release/v1.2.0
   
+  # Missing branch types (to be added):
+  framework: "framework/{description}"  # Creates: AIPM_framework/opinions-loader
+  refactor: "refactor/{description}"    # Creates: AIPM_refactor/modularize-scripts
+  docs: "docs/{description}"            # Creates: AIPM_docs/update-readme
+  chore: "chore/{description}"          # Creates: AIPM_chore/cleanup-logs
+  
   # PROJECT PATTERNS (what projects might add):
   # deploy: "deploy/{environment}"      # Creates: PRODUCT_deploy/staging
   # hotfix: "hotfix/{description}"      # Creates: PRODUCT_hotfix/payment-bug
@@ -197,6 +253,12 @@ naming:
 
 # How long do branches live?
 lifecycle:
+  # Global lifecycle settings (apply to all branch types)
+  global:
+    handleUncommitted: "stash"     # What to do with uncommitted changes: stash|block|warn
+    conflictResolution: "prompt"   # On merge conflicts: prompt|newest|fail
+    allowOverride: true            # User can override per branch type
+    trackActivity: true            # Monitor branch activity for cleanup
   # ⚠️ CRITICAL SAFETY INFORMATION ⚠️
   # ==================================
   # AIPM ONLY manages branches that match {prefix}{pattern}
@@ -305,6 +367,13 @@ memory:
   #   - DESIGN                     # Design decisions
   #   - SEO                        # SEO optimizations
   #   - PERFORMANCE                # Performance improvements
+  
+  # Category enforcement rules
+  categoryRules:
+    strict: true                    # Only allow defined categories
+    allowDynamic: false            # Can't add new categories on the fly
+    uncategorized: "block"         # What to do with uncategorized: block|warn|allow
+    caseInsensitive: true          # PROTOCOL = protocol = Protocol
 
 # How do I work with my team?
 team:
@@ -325,6 +394,82 @@ team:
   # Framework: true (careful development)
   # Projects: might start with false
   requirePullRequest: true
+  
+  # Detailed sync behavior
+  sync:
+    # When to prompt for sync
+    prompt:
+      triggers: ["remote-ahead", "diverged", "merge-conflicts"]
+      timeout: 30                  # Seconds to wait for user response
+      default: "skip"              # What to do on timeout: skip|abort|sync
+    
+    # How to handle divergence
+    divergence:
+      definition: "local and remote have different commits"
+      resolution: "prompt"         # How to resolve: prompt|merge|rebase|fail
+      #   Prompts: "Your branch and remote have diverged. How to proceed?"
+      #   Options: 1) Merge remote changes (→ creates merge commit)
+      #           2) Rebase onto remote (→ replays your changes)
+      #           3) Keep mine only (→ force push later)
+      #           4) View differences (→ shows both versions)
+      showDiff: true              # Show what's different
+    
+    # Conflict handling
+    conflicts:
+      strategy: "prompt"           # Resolution strategy: prompt|ours|theirs
+      #   Prompts: "Merge conflict detected. How to resolve?"
+      #   Options: 1) Keep my version (→ uses local changes)
+      #           2) Take their version (→ uses remote changes)
+      #           3) Manual merge (→ opens merge tool)
+      #           4) Abort operation (→ cancels merge)
+      backup: true                # Create backup before resolution
+      abortOnFail: true           # Abort entire operation on conflict
+
+# How do I handle temporary work sessions?
+sessions:
+  # REQUIRED: Should AIPM use session branches?
+  # Session branches are temporary branches for exploratory work
+  # They're perfect for "let me try something" without commitment
+  # 
+  # WHY THIS MATTERS:
+  # - Keeps experimental work separate from real features
+  # - Easy to throw away failed attempts
+  # - Can merge good ideas back to feature branches
+  enabled: true                    # Can be disabled for simpler workflows
+  
+  # OPTIONAL: When to create session branches
+  # Controls whether start.sh creates a session branch automatically
+  # Most users prefer on-demand creation to avoid branch proliferation
+  autoCreate: false               # Create automatically on start.sh
+  
+  # OPTIONAL: Automatic merge behavior
+  # Should stop.sh automatically merge session work?
+  # Usually false - users decide what's worth keeping
+  autoMerge: false               # Merge automatically on stop.sh
+  
+  # REQUIRED: Can multiple sessions exist?
+  # Multiple sessions can be confusing for non-technical users
+  # Recommended: false to keep things simple
+  allowMultiple: false           # Only one session at a time
+  
+  # REQUIRED: How to name session branches
+  # Pattern uses same variables as naming section
+  # {timestamp} ensures uniqueness without user input
+  namePattern: "session/{timestamp}" # Pattern for session branch names
+  
+  # OPTIONAL: Conflict handling
+  # What to do when session has conflicts with parent
+  # Prompting helps users understand what's happening
+  promptOnConflict: true         # Ask user when conflicts detected
+  #   Prompts: "Session has conflicts with parent branch. Continue?"
+  #   Options: 1) Merge anyway (→ opens conflict resolution)
+  #           2) Keep session separate (→ no merge)
+  #           3) Discard session (→ loses session work)
+  
+  # OPTIONAL: Post-merge cleanup
+  # Should merged session branches be deleted?
+  # Usually true to keep branch list clean
+  cleanupOnMerge: true          # Delete after successful merge
 
 # How strict am I?
 validation:
@@ -334,6 +479,22 @@ validation:
   # - relaxed: Warn but allow (new projects)
   # - gradual: Start relaxed, increase over time
   mode: strict
+  
+  # Gradual mode settings (only applies when mode: gradual)
+  gradual:
+    startLevel: "relaxed"          # Initial enforcement level
+    endLevel: "strict"             # Target enforcement level
+    progression:
+      trigger: "days"              # Progress based on: days|commits|merges
+      value: 30                    # After 30 days
+      warnings: 7                  # Warn for 7 days before enforcing
+      milestones:                  # Optional milestones
+        - day: 7
+          level: "warn"            # Start warning after 7 days
+        - day: 14
+          level: "mixed"           # Some strict, some relaxed
+        - day: 30
+          level: "strict"          # Full enforcement
   
   rules:
     # What to enforce
@@ -348,36 +509,125 @@ validation:
     invalidPrefix: true             # Must use correct prefix
     corruptMemory: true            # Malformed memory file
 
+# How do I handle initialization?
+initialization:
+  # REQUIRED: The AIPM_INIT_HERE marker
+  # This special commit marks where AIPM branches diverge from user branches
+  # It's our "point of no return" - AIPM owns everything after this
+  #
+  # WHY THIS MATTERS:
+  # - Clear boundary between user's git history and AIPM's
+  # - Enables clean reversion if needed
+  # - Audit trail for when AIPM took control
+  marker:
+    # REQUIRED: What type of git object to create
+    type: "commit"                # Create as commit (not tag)
+    
+    # REQUIRED: Commit message format
+    # Variables: {workspace.name}, {timestamp}, {user}
+    message: "AIPM_INIT_HERE: Initialize {workspace.name} workspace"
+    
+    # OPTIONAL: Include configuration snapshot
+    # Helps debug "what settings were used at init?"
+    includeMetadata: true         # Add opinions.yaml hash to commit
+    
+    # OPTIONAL: Verification on startup
+    # Ensures branches haven't been tampered with
+    verifyOnStart: true          # Check marker exists on session start
+  
+  # REQUIRED: Branch creation rules
+  # Controls how AIPM creates its initial branches
+  branchCreation:
+    # REQUIRED: Working tree state requirement
+    # Clean tree prevents accidental loss of work
+    requireClean: true           # Working tree must be clean
+    
+    # OPTIONAL: Backup strategy
+    # Usually false - user branches are already the backup
+    backupOriginal: false        # Don't create backup branches
+    
+    # OPTIONAL: User communication
+    # Shows what AIPM will create before doing it
+    showDiff: true              # Show what will be created
+
+# What are my system limits and defaults?
+defaults:
+  # REQUIRED: Timeout settings (in seconds)
+  # Prevents runaway operations and hung processes
+  # These apply to all AIPM operations unless overridden
+  timeouts:
+    # Maximum session duration
+    # Helps prevent forgotten sessions consuming resources
+    session: 3600                # 1 hour max session
+    
+    # Individual operation timeout
+    # Catches stuck git operations or slow networks
+    operation: 30                # 30 seconds per operation
+    
+    # Git-specific operations
+    # Some git operations legitimately take longer
+    git: 60                      # 1 minute for git operations
+    
+    # User interaction timeout
+    # How long to wait for user response before defaulting
+    prompt: 30                   # 30 seconds for user prompts
+  
+  # REQUIRED: Size and count limits
+  # Prevents unlimited growth of logs, memories, and branches
+  limits:
+    # Memory file size cap
+    # Prevents memory bloat affecting performance
+    # When exceeded: rotation or compression
+    memorySize: "10MB"           # Max memory file size
+    
+    # Backup retention
+    # How many session backups to keep
+    # Older ones are deleted automatically
+    backupCount: 10              # Max backups to keep
+    
+    # Session history retention
+    # How long to keep detailed session logs
+    # After this: summary only or deletion
+    sessionHistory: 30           # Days to keep session logs
+    
+    # Branch staleness warning
+    # When to warn about potentially abandoned branches
+    # Doesn't delete - just notifies
+    branchAge: 90               # Days before warning about old branches
+  
+  # REQUIRED: Logging configuration
+  # Controls verbosity and retention of AIPM logs
+  logging:
+    # Verbosity level
+    # - debug: Everything (verbose)
+    # - info: Normal operations
+    # - warn: Problems that don't stop execution
+    # - error: Only serious issues
+    level: "info"                # debug, info, warn, error
+    
+    # Log storage location
+    # Relative to workspace root
+    location: ".aipm/logs/"      # Log directory
+    
+    # Log rotation schedule
+    # Prevents single massive log file
+    # Options: daily | weekly | size:10MB | never
+    rotate: "daily"              # Rotation schedule
+    
+    # Log retention period
+    # Older logs are compressed or deleted
+    retain: 7                    # Days to retain logs
+
 # Workspace-specific settings
 settings:
   # Schema version for migration support
   schemaVersion: "1.0"
   
-  # Template configuration (for framework workspace only)
+  # Template configuration (COMING SOON in Phase 1)
   # Projects should NOT have this section
-  templates:
-    # Available templates for new project initialization
-    # When running: ./scripts/init.sh --template <name>
-    available:
-      - name: "default"
-        path: ".aipm/templates/default.yaml"
-        description: "Standard project setup"
-      
-      - name: "web"
-        path: ".aipm/templates/web-project.yaml"
-        description: "Web application with deploy branches"
-        
-      - name: "library"
-        path: ".aipm/templates/library.yaml"
-        description: "Library with release management"
-        
-      # Teams can add custom templates:
-      # - name: "microservice"
-      #   path: ".aipm/templates/microservice.yaml"
-      #   description: "Microservice with staging/prod"
-    
-    # Default template if none specified
-    default: "default"
+  # templates:
+  #   available: []              # Will be populated when templates exist
+  #   default: "default"         # Will use default template
   
   # Framework-specific settings (only for type: framework)
   frameworkPaths:
@@ -393,6 +643,212 @@ settings:
     requireDocs: true               # Must document changes
     requireReview: true             # Peer review required
     # Projects might set these all to false initially
+
+# When should scripts perform git operations?
+# ===========================================
+# This section orchestrates WHEN to apply the branching, naming, and lifecycle
+# rules defined above. These flags tell wrapper scripts exactly when to act.
+#
+# CRITICAL: This is the automation layer that makes AIPM work for non-technical users
+# They don't need to know about git - these rules handle it all automatically
+workflows:
+  # BRANCH CREATION TRIGGERS
+  # When should scripts create new branches?
+  branchCreation:
+    # REQUIRED: Behavior when starting work
+    # What happens when user runs start.sh?
+    # Most non-technical users want "check-first" to avoid branch explosion
+    startBehavior: "check-first"        # Options: always | check-first | manual
+    # - always: Create new branch every start
+    # - check-first: Only if no active branch exists
+    # - manual: User must explicitly request
+    
+    # REQUIRED: Saving to protected branches
+    # What happens when user tries to save directly to main?
+    # "prompt" is safest - educates users about branching
+    protectionResponse: "prompt"        # Options: auto-branch | prompt | block
+    # - auto-branch: Automatically create feature branch
+    # - prompt: Ask user what to do
+    #   Prompts: "You're trying to save to main branch. What would you like to do?"
+    #   Options: 1) Create feature branch (continues save)
+    #           2) Create session branch (for experiments)
+    #           3) Cancel (aborts save)
+    # - block: Prevent save, show error
+    
+    # OPTIONAL: How to pick branch type
+    # When creating a branch, how to determine its type?
+    # "prompt" lets users choose appropriate type
+    typeSelection: "prompt"             # Options: auto-detect | prompt | default
+    # - auto-detect: Guess from content/context
+    # - prompt: Ask user which type
+    #   Prompts: "What type of work is this?"
+    #   Options: 1) Feature - New functionality (→ feature/description)
+    #           2) Bug Fix - Fixing an issue (→ fix/description)
+    #           3) Documentation - Docs only (→ docs/description)
+    #           4) Experiment - Just trying (→ test/description)
+    # - default: Always use feature type
+
+  # MERGE TRIGGERS
+  # When should branches be merged?
+  merging:
+    # REQUIRED: Session branch handling
+    # Session branches are temporary - when to fold them back?
+    # "on-stop" is cleanest - consolidates work at natural boundary
+    sessionMerge: "on-stop"             # Options: on-stop | on-save | manual | never
+    # - on-stop: Merge when stop.sh runs
+    # - on-save: Merge after each save
+    # - manual: User must request merge
+    # - never: Keep session branches separate
+    
+    # REQUIRED: Feature completion detection
+    # How to know when a feature is ready to merge?
+    # "prompt" prevents premature merges
+    featureComplete: "prompt"           # Options: auto-detect | prompt | manual
+    # - auto-detect: When marked as done
+    # - prompt: Ask if ready to merge
+    #   Prompts: "Is this feature complete and ready to merge?"
+    #   Options: 1) Yes, merge now (→ starts merge process)
+    #           2) No, keep working (→ stays on branch)
+    #           3) Create PR for review (→ push & create PR)
+    # - manual: Explicit merge command
+    
+    # REQUIRED: Merge conflict behavior
+    # What to do when git can't auto-merge?
+    # "interactive" helps users understand conflicts
+    conflictHandling: "interactive"     # Options: interactive | abort | force-local | force-remote
+    # - interactive: Walk through conflicts
+    # - abort: Stop and notify user
+    # - force-local: Keep local version
+    # - force-remote: Take remote version
+
+  # SYNC TRIGGERS  
+  # When to sync with remote?
+  synchronization:
+    # REQUIRED: Pull behavior on startup
+    # Should we get latest changes when starting?
+    # "if-clean" is safest - prevents conflicts
+    pullOnStart: "if-clean"             # Options: always | if-clean | prompt | never
+    # - always: Pull every time
+    # - if-clean: Only if no local changes
+    # - prompt: Ask user
+    #   Prompts: "Remote has new changes. Update now?"
+    #   Options: 1) Yes, update (→ pulls changes)
+    #           2) No, work offline (→ continues without pull)
+    #           3) View changes first (→ shows what's new)
+    # - never: Don't auto-pull
+    
+    # REQUIRED: Push behavior on shutdown
+    # Should we share changes when stopping?
+    # "if-feature" shares real work but not experiments
+    pushOnStop: "if-feature"            # Options: always | if-feature | prompt | never
+    # - always: Push all branches
+    # - if-feature: Only push feature branches
+    # - prompt: Ask what to push
+    #   Prompts: "You have unpushed changes. Share them?"
+    #   Options: 1) Yes, push all (→ pushes to remote)
+    #           2) Push some (→ lists branches to choose)
+    #           3) No, keep local (→ changes stay local only)
+    # - never: Manual push only
+    
+    # OPTIONAL: Backup strategy during work
+    # How often to backup work to remote?
+    # "on-save" ensures nothing is lost
+    autoBackup: "on-save"               # Options: on-save | periodic | manual | never
+    # - on-save: Push after each save
+    # - periodic: Based on intervals
+    # - manual: User controls
+    # - never: No auto-backup
+
+  # CLEANUP TRIGGERS
+  # When to clean up branches?
+  cleanup:
+    # REQUIRED: Post-merge cleanup
+    # What to do with branches after merging?
+    # "prompt" lets users decide case-by-case
+    afterMerge: "prompt"                # Options: immediate | prompt | scheduled | never
+    # - immediate: Delete right after merge
+    # - prompt: Ask user
+    #   Prompts: "Branch merged successfully. Delete it?"
+    #   Options: 1) Yes, delete now (→ removes branch)
+    #           2) Keep for now (→ branch remains)
+    #           3) Archive it (→ renames to archive/*)
+    # - scheduled: According to lifecycle rules
+    # - never: Keep all branches
+    
+    # OPTIONAL: Stale branch detection
+    # How to handle old, unused branches?
+    # "notify" keeps users informed without being aggressive
+    staleHandling: "notify"             # Options: auto-clean | notify | ignore
+    # - auto-clean: Delete based on lifecycle
+    # - notify: Tell user about stale branches
+    # - ignore: Don't check for staleness
+    
+    # OPTIONAL: Failed work handling
+    # What to do with abandoned experiments?
+    # "archive" preserves history while cleaning active list
+    failedWork: "archive"               # Options: archive | delete | keep
+    # - archive: Move to archive namespace
+    # - delete: Remove completely
+    # - keep: Leave as-is
+  
+  # BRANCH FLOW RULES
+  # Where branches come from and where they merge to
+  branchFlow:
+    # REQUIRED: Source rules (where to branch FROM)
+    # Tells scripts which branch to use as source for new branches
+    sources:
+      # When creating branches via start.sh or save.sh
+      default: "current"                 # Options: current | main | prompt
+      # - current: Branch from whatever branch you're on
+      # - main: Always branch from {mainBranch}
+      # - prompt: Ask user where to branch from
+      #   Prompts: "Create new branch from:"
+      #   Options: 1) Current branch (→ branches from current)
+      #           2) Main branch (→ branches from {mainBranch})
+      #           3) Other branch (→ lists branches to choose)
+      
+      # Per-type overrides (uses naming patterns)
+      byType:
+        "feature/*": "{mainBranch}"      # Features always from main
+        "fix/*": "{mainBranch}"          # Fixes always from main  
+        "session/*": "current"           # Sessions from current work
+        "test/*": "current"              # Tests from current work
+        "release/*": "{mainBranch}"      # Releases from main
+    
+    # REQUIRED: Target rules (where to merge TO)
+    # Tells scripts the merge destination for each branch
+    targets:
+      # Default merge behavior
+      default: "parent"                  # Options: parent | main | prompt
+      # - parent: Merge back to where it came from
+      # - main: Always merge to {mainBranch}
+      # - prompt: Ask user where to merge
+      #   Prompts: "Merge this branch to:"
+      #   Options: 1) Parent branch (→ where it came from)
+      #           2) Main branch (→ {mainBranch})
+      #           3) Other branch (→ lists branches)
+      
+      # Per-type overrides
+      byType:
+        "feature/*": "{mainBranch}"      # Features to main
+        "fix/*": "{mainBranch}"          # Fixes to main
+        "session/*": "parent"            # Sessions to parent
+        "test/*": "parent"               # Tests to parent
+        "release/*": "none"              # Releases don't merge back
+    
+    # OPTIONAL: Parent tracking
+    # How to remember where branches came from
+    parentTracking: "init-commit"        # Options: init-commit | branch-desc | none
+    # - init-commit: Store in AIPM_INIT_HERE message
+    # - branch-desc: Use git branch description
+    # - none: Don't track (relies on conventions)
+
+# File metadata
+metadata:
+  version: "1.0"                    # Schema version
+  schema: "https://rawthoughts.in/aipm/schemas/opinions/v1"
+  lastModified: "2025-06-21T20:30:00Z"
+  compatibility: ">=1.0"            # Minimum AIPM version required
 
 # PROJECT INITIALIZATION:
 # =======================
