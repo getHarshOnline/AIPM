@@ -624,7 +624,12 @@ export -f filter_relations_for_entities sync_team_memory
 
 **Purpose**: Complete separation of branching opinions from implementation
 
-**CORNERSTONE PRINCIPLE**: This module enables AIPM to work consistently across ANY organization by isolating branching rules from their enforcement. The AIPM_ prefix namespace ensures zero conflicts with user branches.
+**CORNERSTONE PRINCIPLE**: This module enables AIPM to be a self-building, truly extensible system:
+- Each workspace (framework or project) has its own opinions.json
+- Organizations customize at every level: framework → org → team → project
+- Scripts dynamically load opinions based on current workspace context
+- Framework opinions serve as templates for new projects
+- Projects can evolve independently with their own branching rules
 
 ```bash
 #!/opt/homebrew/bin/bash
@@ -632,34 +637,63 @@ export -f filter_relations_for_entities sync_team_memory
 #
 # CRITICAL: This is the CORNERSTONE of AIPM's branching architecture
 # - Complete isolation between opinions and implementation
-# - AIPM_ prefix ensures namespace separation
-# - Works across any organization or team
-# - Compiled at startup for performance
+# - Workspace-agnostic: Each project has its own opinions
+# - Framework has its template opinions
+# - Works across any organization, team, or project
+# - Self-building and truly extensible system
 
 source "$SCRIPT_DIR/shell-formatting.sh" || exit 1
 
-# Default opinions path
-readonly OPINIONS_FILE="${AIPM_OPINIONS_FILE:-.aipm/opinions.json}"
-readonly OPINIONS_COMPILED="${OPINIONS_FILE%.json}.compiled"
-readonly OPINIONS_CACHE="/tmp/aipm_opinions_$$"
+# Workspace-aware opinions paths
+get_opinions_path() {
+    local context="${1:-framework}"
+    local project="${2:-}"
+    
+    if [[ "$context" == "framework" ]]; then
+        # Framework opinions
+        echo ".aipm/opinions.json"
+    else
+        # Project-specific opinions
+        echo "${project}/.aipm/opinions.json"
+    fi
+}
+
+# Dynamic paths based on context
+OPINIONS_FILE=""
+OPINIONS_COMPILED=""
+OPINIONS_CACHE="/tmp/aipm_opinions_$$"
 
 # Cache variables (set once per session)
 AIPM_BRANCH_PREFIX=""
 AIPM_MAIN_BRANCH=""
 AIPM_BRANCH_RULES=""
 
-# Load and compile opinions
+# Load and compile opinions (workspace-aware)
 load_opinions() {
-    local force="${1:-false}"
+    local context="${1:-framework}"
+    local project="${2:-}"
+    local force="${3:-false}"
     
-    # Check if already loaded (unless forced)
-    if [[ "$force" != "true" ]] && [[ -n "$AIPM_BRANCH_PREFIX" ]]; then
+    # Determine opinions file based on context
+    OPINIONS_FILE=$(get_opinions_path "$context" "$project")
+    OPINIONS_COMPILED="${OPINIONS_FILE%.json}.compiled"
+    
+    # Check if already loaded for this context (unless forced)
+    local cache_key="${context}_${project}"
+    if [[ "$force" != "true" ]] && [[ -n "${AIPM_LOADED_CONTEXT:-}" ]] && [[ "${AIPM_LOADED_CONTEXT}" == "$cache_key" ]]; then
         return 0
     fi
     
-    # Ensure opinions file exists
+    # Ensure opinions file exists (create from framework template if needed)
     if [[ ! -f "$OPINIONS_FILE" ]]; then
-        create_default_opinions
+        if [[ "$context" == "project" ]] && [[ -f ".aipm/opinions.json" ]]; then
+            # Copy framework template to project
+            mkdir -p "$(dirname "$OPINIONS_FILE")"
+            cp ".aipm/opinions.json" "$OPINIONS_FILE"
+            info "Created project opinions from framework template: $OPINIONS_FILE"
+        else
+            create_default_opinions "$context" "$project"
+        fi
     fi
     
     # Compile for performance (only if source is newer)
@@ -685,21 +719,35 @@ load_opinions() {
     # Export for child processes
     export AIPM_BRANCH_PREFIX AIPM_MAIN_BRANCH AIPM_BRANCH_RULES
     export AIPM_OPINIONS_LOADED=true
+    export AIPM_LOADED_CONTEXT="$cache_key"
     
-    debug "Opinions loaded: prefix=$AIPM_BRANCH_PREFIX, main=$AIPM_MAIN_BRANCH"
+    debug "Opinions loaded for $context${project:+/$project}: prefix=$AIPM_BRANCH_PREFIX, main=$AIPM_MAIN_BRANCH"
     return 0
 }
 
-# Create default opinions file
+# Create default opinions file (context-aware)
 create_default_opinions() {
+    local context="${1:-framework}"
+    local project="${2:-}"
+    
     mkdir -p "$(dirname "$OPINIONS_FILE")"
     
-    cat > "$OPINIONS_FILE" <<'EOF'
+    # Adjust defaults based on context
+    local prefix="AIPM_"
+    local main_branch="AIPM_MAIN"
+    
+    if [[ "$context" == "project" ]] && [[ -n "$project" ]]; then
+        # Project-specific defaults
+        prefix="${project^^}_"  # Uppercase project name
+        main_branch="${prefix}MAIN"
+    fi
+    
+    cat > "$OPINIONS_FILE" <<EOF
 {
   "version": "1.0",
   "branching": {
-    "prefix": "AIPM_",
-    "main_branch": "AIPM_MAIN",
+    "prefix": "$prefix",
+    "main_branch": "$main_branch",
     "protected_patterns": [
       "^AIPM_.*",
       "^main$",
@@ -756,20 +804,30 @@ create_default_opinions() {
 }
 EOF
     
-    debug "Created default opinions file: $OPINIONS_FILE"
+    debug "Created default opinions for $context${project:+/$project}: $OPINIONS_FILE"
+    
+    if [[ "$context" == "project" ]]; then
+        info "Project opinions created with prefix: $prefix"
+        info "Customize $OPINIONS_FILE to adjust branching rules for this project"
+    fi
 }
 
-# Get configured main branch
+# Get configured main branch (context-aware)
 get_main_branch() {
-    [[ -z "$AIPM_MAIN_BRANCH" ]] && load_opinions
+    local context="${WORK_CONTEXT:-framework}"
+    local project="${PROJECT_NAME:-}"
+    
+    [[ -z "$AIPM_MAIN_BRANCH" ]] && load_opinions "$context" "$project"
     printf "%s" "$AIPM_MAIN_BRANCH"
 }
 
-# Get branch prefix for type
+# Get branch prefix for type (context-aware)
 get_branch_prefix() {
     local branch_type="${1:-feature}"
+    local context="${WORK_CONTEXT:-framework}"
+    local project="${PROJECT_NAME:-}"
     
-    [[ -z "$AIPM_BRANCH_RULES" ]] && load_opinions
+    [[ -z "$AIPM_BRANCH_RULES" ]] && load_opinions "$context" "$project"
     
     local prefix=$(echo "$AIPM_BRANCH_RULES" | jq -r --arg type "$branch_type" '.[$type].prefix // empty')
     [[ -z "$prefix" ]] && prefix="${AIPM_BRANCH_PREFIX}${branch_type}/"
@@ -777,11 +835,13 @@ get_branch_prefix() {
     printf "%s" "$prefix"
 }
 
-# Check if branch is protected
+# Check if branch is protected (context-aware)
 is_protected_branch() {
     local branch="$1"
+    local context="${WORK_CONTEXT:-framework}"
+    local project="${PROJECT_NAME:-}"
     
-    [[ ! -f "$OPINIONS_CACHE.protected" ]] && load_opinions
+    [[ ! -f "$OPINIONS_CACHE.protected" ]] && load_opinions "$context" "$project"
     
     while IFS= read -r pattern; do
         if [[ "$branch" =~ $pattern ]]; then
@@ -792,12 +852,14 @@ is_protected_branch() {
     return 1
 }
 
-# Validate branch name against rules
+# Validate branch name against rules (context-aware)
 validate_branch_name() {
     local branch="$1"
     local branch_type="${2:-}"
+    local context="${WORK_CONTEXT:-framework}"
+    local project="${PROJECT_NAME:-}"
     
-    [[ -z "$AIPM_BRANCH_PREFIX" ]] && load_opinions
+    [[ -z "$AIPM_BRANCH_PREFIX" ]] && load_opinions "$context" "$project"
     
     # Check if it's an AIPM branch
     if [[ ! "$branch" =~ ^${AIPM_BRANCH_PREFIX} ]]; then
@@ -891,12 +953,12 @@ enforce_branch_operation() {
     return 0
 }
 
-# Initialize AIPM branches for project
+# Initialize branches for workspace (using workspace opinions)
 initialize_aipm_branches() {
     local project="${1:-}"
     local source_branch="${2:-}"
     
-    step "Initializing AIPM branches..."
+    step "Initializing branches for ${project:-framework} workspace..."
     
     # Detect existing main if not specified
     if [[ -z "$source_branch" ]]; then
@@ -904,7 +966,7 @@ initialize_aipm_branches() {
         info "Detected existing main branch: $source_branch"
     fi
     
-    # Create AIPM_MAIN if it doesn't exist
+    # Create framework main branch if it doesn't exist
     local aipm_main=$(get_main_branch)
     if ! branch_exists "$aipm_main"; then
         info "Creating $aipm_main from $source_branch..."
@@ -1007,8 +1069,11 @@ export -f get_branch_lifecycle should_auto_delete enforce_branch_operation
 export -f initialize_aipm_branches detect_existing_main cleanup_aipm_branches
 export -f get_branch_age_days
 
-# Load opinions on source (non-blocking)
-load_opinions >/dev/null 2>&1 || true
+# CRITICAL: Workspace Context Detection
+# All wrapper scripts MUST set these variables before using opinion functions:
+# - WORK_CONTEXT: "framework" or "project"
+# - PROJECT_NAME: Name of project (when WORK_CONTEXT="project")
+# This enables true workspace-agnostic behavior where each workspace has its own opinions
 ```
 
 ### 3.5 Updated version-control.sh Integration
@@ -1022,6 +1087,9 @@ source "$SCRIPT_DIR/opinions-loader.sh" || {
     exit 1
 }
 
+# CRITICAL: version-control.sh functions rely on WORK_CONTEXT and PROJECT_NAME
+# being set by the calling script to load the correct workspace opinions
+
 # Replace hardcoded protected branch pattern (line 105):
 # OLD: readonly PROTECTED_BRANCHES="^(main|master|develop|production)$"
 # NEW: (removed - use is_protected_branch() instead)
@@ -1033,7 +1101,7 @@ get_default_branch() {
     
     cd "$dir" >/dev/null 2>&1 || return 1
     
-    # First check for AIPM main branch
+    # First check for framework main branch (from opinions)
     local aipm_main=$(get_main_branch)
     if branch_exists "$aipm_main"; then
         echo "$aipm_main"
@@ -1104,19 +1172,22 @@ source "$SCRIPT_DIR/version-control.sh" || exit 1
 main() {
     # ... existing initialization ...
     
-    # Initialize AIPM branches for project
+    # Load workspace-specific opinions
+    load_opinions "$WORK_CONTEXT" "$PROJECT_NAME"
+    
+    # Initialize branches based on loaded opinions
     if [[ "$WORK_CONTEXT" == "project" ]]; then
         initialize_aipm_branches "$PROJECT_NAME"
     fi
     
     # Create session branch (optional)
     if [[ "$(get_branch_operation_mode)" == "session_branches" ]]; then
-        local session_branch="${AIPM_BRANCH_PREFIX}session/${SESSION_ID}"
+        local session_branch="$(get_branch_prefix 'session')${SESSION_ID}"
         create_branch "$session_branch" "$(get_main_branch)"
         info "Working on session branch: $session_branch"
     fi
     
-    # Record AIPM main branch in session
+    # Record framework main branch in session
     SESSION_MAIN_BRANCH=$(get_main_branch)
 }
 ```
@@ -1160,9 +1231,9 @@ prepare_commit() {
 
 #### revert.sh Branching Integration:
 ```bash
-# Use AIPM main branch for revert operations
+# Use framework main branch for revert operations
 prepare_revert() {
-    # Always revert from AIPM main history
+    # Always revert from framework main history (from opinions)
     local main_branch=$(get_main_branch)
     
     # Update remote references to use AIPM branches
@@ -1548,24 +1619,27 @@ main "$@"
 
 **CRITICAL**: The branching architecture with complete opinion/implementation separation is THE CORNERSTONE of AIPM because:
 
-1. **Namespace Isolation**: AIPM_ prefix ensures framework NEVER conflicts with user branches
-2. **Multi-Organization**: Each org can customize opinions.json without changing code
-3. **Workflow Consistency**: Teams follow same branching patterns automatically
-4. **Zero Conflicts**: AIPM branches are visually distinct and programmatically isolated
-5. **Migration Safety**: Existing repos work immediately without branch conflicts
+1. **True Workspace Agnosticism**: Each project has its own opinions.json, not just one global config
+2. **Self-Building System**: Use AIPM to improve AIPM itself with framework opinions
+3. **Multi-Level Customization**: Framework → Organization → Team → Project opinions cascade
+4. **Zero Conflicts**: Each workspace's prefix ensures no branch conflicts
+5. **Migration Safety**: Projects adopt framework template then customize independently
+6. **Extensibility**: New projects inherit and adapt opinions for their needs
 
 ### 9.2 Branching Opinion Architecture
 
 ```
 ISOLATION LAYERS:
 ┌─────────────────────────────────────┐
-│         opinions.json               │  <- Customizable per org
+│   .aipm/opinions.json (framework)   │  <- Framework template
+│   Project/.aipm/opinions.json       │  <- Project-specific
+│   Another/.aipm/opinions.json       │  <- Each project customizes
 ├─────────────────────────────────────┤
-│       opinions-loader.sh            │  <- Loads & compiles opinions
+│       opinions-loader.sh            │  <- Context-aware loading
 ├─────────────────────────────────────┤
-│       version-control.sh            │  <- Enforces but doesn't define
+│       version-control.sh            │  <- Enforces loaded opinions
 ├─────────────────────────────────────┤
-│    Wrapper Scripts (start/stop/     │  <- Use opinions transparently
+│    Wrapper Scripts (start/stop/     │  <- Set context, use opinions
 │         save/revert)                │
 └─────────────────────────────────────┘
 ```
@@ -1578,11 +1652,12 @@ ISOLATION LAYERS:
    - Enables automated cleanup
    - Prevents accidental operations on user branches
 
-2. **AIPM_MAIN as Framework Main**:
-   - Separate from user's main/master
-   - Framework operations use AIPM_MAIN
-   - User's main branch untouched
-   - Clear separation of concerns
+2. **Workspace Main Branch (from workspace's opinions.json)**:
+   - Each workspace (framework/project) has its own main branch
+   - Framework might use AIPM_MAIN, projects might use PROJECT_MAIN
+   - Operations use get_main_branch() which loads correct opinions
+   - User's original branches untouched
+   - Complete workspace isolation
 
 3. **Branch Types with Lifecycles**:
    - `AIPM_feature/*` - Merge and delete
@@ -1600,17 +1675,29 @@ ISOLATION LAYERS:
 ```bash
 # Phase 1: First Run Detection
 $ ./scripts/start.sh --project ExistingProject
+> Loading opinions for project/ExistingProject
+> No project opinions found, copying from framework template
+> Created: ExistingProject/.aipm/opinions.json
 > Detecting existing branch structure...
 > Found main branch: master
-> Creating AIPM_MAIN from master...
-> AIPM branches initialized!
+> Creating EXISTINGPROJECT_MAIN from master...
+> Project branches initialized!
 
-# Phase 2: Parallel Operation
-main (user's branch)
-master (user's branch)
-AIPM_MAIN (framework branch)
-AIPM_feature/memory-update
+# Phase 2: Each Workspace Has Its Own Branches
+# Framework workspace:
+AIPM_MAIN (framework main)
+AIPM_feature/improve-scripts
 AIPM_session/20240621_140523
+
+# ExistingProject workspace:
+main (user's original)
+master (user's original)
+EXISTINGPROJECT_MAIN (project's main)
+EXISTINGPROJECT_feature/new-feature
+
+# AnotherProject workspace:
+ANOTHERPROJECT_MAIN (different project's main)
+ANOTHERPROJECT_feature/api-update
 
 # Phase 3: Clear Separation
 - User continues work on their branches
@@ -1646,7 +1733,13 @@ With opinions-based branching:
 
 ## Conclusion
 
-This refactoring plan provides a path to clean, maintainable, and performant AIPM wrapper scripts while preserving all hard-won learnings and optimizations. The branching architecture with complete opinion/implementation separation is the CORNERSTONE that enables AIPM to work consistently across any organization.
+This refactoring plan provides a path to clean, maintainable, and performant AIPM wrapper scripts while preserving all hard-won learnings and optimizations. The workspace-agnostic branching architecture is the CORNERSTONE that enables AIPM to be a self-building, truly extensible system where:
+
+- Each workspace (framework or project) has its own opinions
+- Organizations can customize at every level
+- The framework itself can be improved using AIPM
+- Projects inherit and adapt from templates
+- True isolation ensures no conflicts between workspaces
 
 **Remember**: 
 - Atomicity enables flexibility

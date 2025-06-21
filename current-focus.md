@@ -339,17 +339,19 @@ This plan addresses all architectural issues while preserving all learnings and 
 **CRITICAL DISCOVERY**: The plan now includes a complete branching architecture that is THE CORNERSTONE of AIPM's multi-organization capability.
 
 **Key Innovation**: Complete separation of branching opinions from implementation via:
-- **opinions.json**: Customizable branching rules per organization
-- **opinions-loader.sh**: NEW module that loads and enforces rules
-- **AIPM_ prefix**: Creates protected namespace for all framework branches
-- **AIPM_MAIN**: Framework's main branch, separate from user's main/master
+- **Workspace-specific opinions.json**: Each workspace (framework/project) has its own
+- **opinions-loader.sh**: NEW module that dynamically loads based on context
+- **Self-building system**: Use AIPM to improve AIPM itself
+- **True extensibility**: Projects inherit framework template then customize
+- **Multi-level customization**: Framework → Org → Team → Project cascade
 
 **Why This Is The Cornerstone**:
-1. Zero conflicts with existing user branches
-2. Works in ANY git repository immediately
-3. Enables consistent workflows across all teams
-4. Allows customization without code changes
-5. Visual distinction: `AIPM_*` branches clearly visible
+1. **True workspace agnosticism**: Each workspace has independent opinions
+2. **Self-building**: Use AIPM to improve AIPM with framework opinions
+3. **Multi-level extensibility**: Customize at any level (framework/org/team/project)
+4. **Zero conflicts**: Each workspace's prefix ensures isolation
+5. **Template inheritance**: Projects start with framework template, then evolve
+6. **Dynamic context**: Scripts detect and load appropriate opinions automatically
 
 ### Next Implementation Steps (UPDATED PRIORITY):
 1. **Phase 0**: IMPLEMENT BRANCHING ARCHITECTURE FIRST
@@ -375,6 +377,129 @@ This plan addresses all architectural issues while preserving all learnings and 
 
 **🚨 CRITICAL**: The branching architecture MUST be implemented first! Read Part 9 of the plan!
 
+## 📋 Comprehensive Refactoring TODO List (2025-06-21)
+
+### Phase 0: CORNERSTONE - Branching Architecture (MUST DO FIRST)
+References: wrapper-scripts-hardening-plan.md Part 9 (lines 1545-1646), Part 3.4 (lines 623-1012)
+
+- [ ] **Create opinions-loader.sh module** (383 lines)
+  - Workspace-aware: dynamically loads correct opinions.json
+  - Framework has .aipm/opinions.json as template
+  - Each project has Project/.aipm/opinions.json
+  - Context-aware functions detect workspace automatically
+  - Self-building system enables framework improvement
+  - See: hardening-plan.md lines 629-1012 for complete implementation
+
+- [ ] **Update version-control.sh to integrate opinions**
+  - Source opinions-loader.sh after shell-formatting.sh
+  - Remove hardcoded PROTECTED_BRANCHES pattern
+  - Update get_default_branch() to check workspace main branch (using get_main_branch())
+  - Update create_branch() to enforce workspace-specific naming conventions
+  - Update cleanup_merged_branches() to use is_protected_branch()
+  - Ensure WORK_CONTEXT and PROJECT_NAME are available for opinion loading
+  - See: hardening-plan.md lines 1014-1090
+
+- [ ] **Test branching architecture**
+  - Verify zero conflicts with user branches
+  - Test framework main branch creation from existing main/master
+  - Validate namespace isolation
+  - Test branch lifecycle rules (auto-delete, rotation)
+
+### Phase 1: Foundation Modules
+References: wrapper-scripts-hardening-plan.md Part 3.1-3.3 (lines 346-621)
+
+- [ ] **Create config-manager.sh** (43 lines)
+  - Centralize all paths (MEMORY_DIR, CLAUDE_DIR, etc.)
+  - Define all defaults (model, timeouts, merge strategy)
+  - Environment override support
+  - get_memory_path() and get_session_id() functions
+  - See: hardening-plan.md lines 346-393
+
+- [ ] **Create session-manager.sh** (73 lines)
+  - create_session(), read_session(), detect_active_session()
+  - cleanup_session() with proper archival
+  - calculate_session_duration() with platform awareness
+  - All session file operations centralized
+  - See: hardening-plan.md lines 395-472
+
+- [ ] **Enhance migrate-memories.sh with 5 atomic functions**
+  - index_entities() - O(1) entity lookup from file
+  - resolve_entity_conflict() - strategy-based resolution
+  - filter_entities() - pattern-based filtering
+  - filter_relations_for_entities() - relation filtering
+  - sync_team_memory() - configurable team sync (ask|auto|skip)
+  - See: hardening-plan.md lines 474-621
+
+### Phase 2: Script Refactoring
+References: wrapper-scripts-hardening-plan.md Part 3.6-3.7 (lines 1092-1359)
+
+- [ ] **Refactor save.sh** (minimal changes)
+  - Add branching enforcement (enforce_branch_operation)
+  - Use config-manager.sh for paths
+  - Auto-create feature branch if main commits blocked
+  - Offer merge back to framework main branch (using get_main_branch())
+  - See: hardening-plan.md lines 1124-1159
+
+- [ ] **Refactor stop.sh**
+  - Integrate session-manager.sh completely
+  - Handle session branch cleanup
+  - Remove manual grep/cut operations
+  - Add branch pruning based on opinions
+  - See: hardening-plan.md lines 1178-1203
+
+- [ ] **Refactor start.sh** (biggest refactor - 260+ lines to 150)
+  - Full modular rewrite using 11-step atomic flow
+  - parse_start_arguments() function
+  - select_context_interactive() function
+  - Initialize AIPM branches for project
+  - Optional session branch creation
+  - See: hardening-plan.md lines 1205-1359 for complete example
+
+- [ ] **Refactor revert.sh** (most complex - 415 lines)
+  - Break into atomic functions
+  - Use framework main branch for revert operations (using get_main_branch())
+  - Update remote references to use AIPM branches
+  - Integrate branching opinions
+  - See: hardening-plan.md lines 1161-1176
+
+- [ ] **Update all scripts for branching integration**
+  - Source opinions-loader.sh in all scripts
+  - Update branch references to use get_main_branch()
+  - Add branch operation enforcement
+  - Test with existing repositories
+
+### Phase 3: Testing & Validation
+References: wrapper-scripts-hardening-plan.md Part 8 (lines 1528-1544)
+
+- [ ] **Create unit tests for each atomic function**
+  - Test each new function in isolation
+  - Mock dependencies
+  - Test error paths
+  - Use bats or similar framework
+
+- [ ] **Performance benchmarks**
+  - Memory operations < 1s for 10MB files
+  - Session operations < 100ms
+  - Platform detection cached after first call
+  - Verify streaming operations work
+
+- [ ] **Platform testing**
+  - Test on macOS (native)
+  - Test on Linux
+  - Test on WSL (Windows Subsystem for Linux)
+  - Verify dual stat commands work everywhere
+
+### Critical Success Metrics
+References: wrapper-scripts-hardening-plan.md Part 6 (lines 1465-1487)
+
+- Function atomicity: Each function ≤ 50 lines
+- Module cohesion: Clear single responsibility
+- DRY compliance: Zero duplicate implementations
+- All hardcoded values eliminated
+- Memory operations < 1s for 10MB files
+- 100% of learnings preserved
+- Works in ANY git repository
+
 ### 🐛 Critical Fix Applied (2025-06-21)
 
 **Issue**: `.gitignore` had hardcoded "Product" entries, breaking multi-project support
@@ -382,6 +507,37 @@ This plan addresses all architectural issues while preserving all learnings and 
 **Impact**: AIPM now works with ANY project name, not just "Product"
 
 This was a critical architectural bug that prevented AIPM from being truly generic!
+
+## 🎯 Critical Understanding: Workspace-Agnostic Architecture
+
+**AIPM is a self-building, truly extensible system** where:
+
+1. **Each workspace has its own opinions**:
+   - Framework: `.aipm/opinions.json`
+   - Project A: `ProjectA/.aipm/opinions.json`
+   - Project B: `ProjectB/.aipm/opinions.json`
+
+2. **Dynamic context loading**:
+   - Scripts detect workspace context (framework vs project)
+   - Load appropriate opinions.json automatically
+   - Each workspace can have completely different branching rules
+
+3. **Template inheritance**:
+   - New projects start with framework template
+   - Then customize for their specific needs
+   - Evolution is independent per workspace
+
+4. **Self-improvement**:
+   - Use AIPM to improve AIPM itself
+   - Framework workspace has its own branching
+   - Eat our own dog food!
+
+5. **True extensibility**:
+   - Organizations customize at every level
+   - Framework → Organization → Team → Project
+   - Each level inherits and adapts
+
+This is THE CORNERSTONE that makes AIPM universally applicable!
 
 ## Helper Scripts Status (Post-Refactoring Analysis)
 - ✅ **shell-formatting.sh** - Well-organized, 63 functions properly scoped
