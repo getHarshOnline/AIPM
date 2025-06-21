@@ -4,6 +4,54 @@
 
 ## [Unreleased]
 
+## 2025-06-21 - Major Architectural Restructuring
+
+### Changed
+- **Complete Restructuring** - Everything AIPM-related moved to .aipm/ directory
+  - Scripts moved to .aipm/scripts/
+  - Modules moved to .aipm/scripts/modules/
+  - Documentation moved to .aipm/docs/
+  - Memory files moved to .aipm/memory/
+  - Created convenience symlinks at root for easy access
+
+- **AI-Agnostic Architecture** - Renamed CLAUDE.md → .agentrules
+  - Makes AIPM work with any AI assistant, not just Claude
+  - Updated all references throughout the codebase
+  - Reinforced critical guardrails in .agentrules
+
+- **Documentation Overhaul**
+  - README.md: Complete rewrite emphasizing "organizational amnesia" problem
+  - AIPM.md: Gentle architectural introduction with mermaid diagrams
+  - broad-focus.md: Expansive future vision (NPM package, MCP server, integrations)
+  - .agentrules: Strengthened with mandatory startup sequence and wrapper rules
+
+- **License Update** - Changed to RawThoughts Enterprises Private Limited
+  - Added explicit AION sponsorship details
+  - Clarified relationship and support provided
+
+### Added
+- **.aipm/opinions.yaml** - The cornerstone of AIPM's branching architecture
+  - Workspace-specific configuration system
+  - Enables true multi-workspace support
+  - Self-building capability (use AIPM to improve AIPM)
+  - Complete isolation between workspaces
+
+- **Documentation Organization**
+  - Created .aipm/docs/README.md as documentation index
+  - Moved version-control.md and workflow.md to docs/
+  - Kept wrapper-scripts-hardening-plan.md in test/ as active working document
+
+### Fixed
+- **.gitignore** - Removed hardcoded project-specific patterns
+  - Was blocking multi-project support with hardcoded "Product" references
+  - Now properly generic for any project name
+
+### Philosophy Clarification
+- AIPM solves organizational amnesia for ALL teams, not just developers
+- Brings git-powered decision tracking to marketing, design, operations, etc.
+- Every decision is an asset that should be versioned
+- Context is king - the "why" matters more than "what"
+
 ## 2025-06-20 - Critical Bug Discovery & save.sh Re-implementation
 
 ### Fixed

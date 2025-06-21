@@ -1,16 +1,50 @@
-# CLAUDE.md - AIPM Framework Entry Point
+# .agentrules - AI Behavior Rules for AIPM
 
-## 🚦 START HERE: Two Distinct Tracks
+**CRITICAL**: This file defines how AI assistants must work with AIPM. Read this ENTIRE file completely before starting ANY work.
 
-You are working with **AIPM (AI Project Manager)**, a protocol-driven framework for AI-assisted project management. There are TWO separate contexts to understand:
+## 🛑 MANDATORY STARTUP SEQUENCE - DO NOT SKIP
 
-### ⚠️ CRITICAL IMPLEMENTATION DIRECTIVES
+### 1. Read Everything First
+**BEFORE ANY ACTION**, you MUST:
+1. Read this ENTIRE .agentrules file completely
+2. Run `ls -la` to understand the workspace structure
+3. Read AIPM.md in its entirety
+4. Read current-focus.md completely
+5. Read changelog.md to understand previous session state
 
-#### 🔴 CRITICAL FILE REVERSION BUG IN CLAUDE CODE
-**WARNING**: Claude Code has a critical bug where files can spontaneously revert to previous states during a session. This can cause implemented code to be lost!
+**NO EXCEPTIONS**: Do not create files, run commands, or make changes until you've completed this sequence.
+
+### 2. Critical Guardrails
+- **NEVER touch memory files directly** - Only use scripts to control them
+- **NEVER use git commands directly** - ALWAYS use wrapper scripts (save.sh, revert.sh, start.sh, stop.sh)
+- **NEVER create parallel paths** - Always understand existing structure first
+- **ALWAYS verify before acting** - Use `ls -la`, read files, understand context
+
+### 3. Consistency is Mandatory
+- **Read key learnings** from existing files
+- **Follow established patterns** exactly
+- **Use existing utilities** - don't recreate what exists
+- **Respect the architecture** - it exists for good reasons
+
+## 🚦 Core Understanding: AIPM Solves Organizational Amnesia
+
+AIPM brings git-powered decision tracking to ALL teams - not just developers. It creates isolated workspaces where:
+- Every decision is tracked with full context
+- AI assistants maintain persistent memory per workspace
+- Teams work in parallel without conflicts
+- Knowledge transfers seamlessly between sessions
+
+**Key Innovation**: Each workspace has `.aipm/opinions.yaml` that defines how that specific team works.
+
+---
+
+## ⚠️ CRITICAL IMPLEMENTATION DIRECTIVES
+
+### 🔴 CRITICAL FILE REVERSION BUG WARNING
+**KNOWN ISSUE**: Some AI coding environments have a bug where files can spontaneously revert to previous states during a session. This can cause implemented code to be lost!
 
 **GUARDRAILS TO PREVENT DATA LOSS**:
-1. **COMMIT FREQUENTLY**: After implementing each script, commit immediately
+1. **COMMIT FREQUENTLY**: After implementing each script/module, commit immediately
 2. **VERIFY CHANGES**: Always grep/check that your edits actually persisted
 3. **WATCH FOR SYSTEM REMINDERS**: Messages like "file was modified by user or linter" indicate potential reversions
 4. **RE-CHECK BEFORE COMMITTING**: Run `git diff` to ensure all expected changes are present
@@ -21,194 +55,188 @@ You are working with **AIPM (AI Project Manager)**, a protocol-driven framework 
 - Check all files in the commit, not just the one you're working on
 - Document the issue in changelog.md for awareness
 
+### 📋 Module Implementation Rules
+
 #### When implementing wrapper scripts (start.sh, stop.sh, save.sh, revert.sh):
-**MANDATORY**: Read `scripts/test/workflow.md` FIRST - it is the single source of truth
+**MANDATORY**: Read `.aipm/scripts/test/workflow.md` FIRST - it is the single source of truth
 - **NO DIRECT OUTPUT**: Never use echo/printf - ONLY shell-formatting.sh functions
 - **NO DIRECT GIT**: Never use git commands - ONLY version-control.sh functions
+- **NO DIRECT MEMORY OPS**: Never manipulate memory files - ONLY migrate-memories.sh functions
 - **FOLLOW GUARDRAILS**: Workflow.md has exact line references and patterns
 - **TEST INCREMENTALLY**: Implement section by section, test before proceeding
 
-#### When working on version-control.sh or shell-formatting.sh:
-- These are CORE FOUNDATIONS that CANNOT fail
-- version-control.sh: ALL git operations go through these functions
-- shell-formatting.sh: ALL output goes through these functions
+#### When working on core modules:
+- **shell-formatting.sh**: ALL output goes through these functions
+- **version-control.sh**: ALL git operations go through these functions
+- **migrate-memories.sh**: ALL memory operations go through these functions
+- **opinions-loader.sh**: THE CORNERSTONE - loads workspace-specific configuration
 - Modularity is MANDATORY - each function must be independently testable
 - 100% test coverage achieved on version-control.sh - maintain this standard
 
-#### Manual Review Directive:
+### ✅ Manual Review Directive
 **CRITICAL**: NO change is considered complete until manually reviewed by the user
 - After implementing any change, WAIT for explicit user confirmation
-- Document what was changed in the commit message
+- Document what was changed clearly
 - The user will test and verify before moving to the next task
 - This prevents cascading errors and ensures quality
 
-### Track 1: AIPM Framework Development
-**Purpose**: Understanding and developing the AIPM framework itself  
-**Location**: Current directory (AIPM root)
+---
 
-### Track 2: Product Management
-**Purpose**: Using AIPM to manage a specific product/project  
-**Location**: Work from AIPM root, target `Product/` via scripts
+## 🎯 Workspace Context Management
+
+### Understanding Workspaces
+Every workspace (framework or project) has its own:
+- `.aipm/opinions.yaml` - Defines branching rules, memory categories, lifecycle policies
+- `.aipm/memory/` - Isolated AI memory that persists between sessions
+- Branch namespace - e.g., `AIPM_*` for framework, `MKT_*` for marketing
+
+### Determining Your Context
+Before ANY work, determine which workspace you're in:
+
+1. **Framework Workspace**: Improving AIPM itself
+   - Working on AIPM core functionality
+   - Updating framework documentation
+   - Branches use `AIPM_` prefix
+
+2. **Project Workspace**: Using AIPM for a specific project
+   - Working on project-specific tasks
+   - Project files in symlinked directory
+   - Branches use project-specific prefix
+
+**NEVER mix contexts. Each workspace is completely isolated.**
 
 ---
 
-## 📍 CRITICAL: Determine Your Context First
+## 📂 Updated Directory Structure
 
-Before proceeding, you MUST determine which track you're working on:
-
-1. **Framework Work**: Improving AIPM itself
-2. **Product Work**: Managing a project using AIPM
-
-**NEVER mix these contexts. Always update ONLY the relevant documentation.**
+```
+AIPM/                              # Framework workspace
+├── .aipm/                         # THE AIPM HUB - Everything lives here
+│   ├── opinions.yaml             # Framework workspace configuration
+│   ├── memory.json               # Symlink to MCP memory (AI-agnostic)
+│   ├── memory/                   # Persistent memory storage
+│   │   ├── local_memory.json     # Framework memory (git-tracked)
+│   │   └── backup.json           # Session backup (gitignored)
+│   ├── scripts/                  # All AIPM scripts
+│   │   ├── modules/              # Core modules
+│   │   └── test/                 # Test files and docs
+│   ├── docs/                     # Technical documentation
+│   └── templates/                # Project templates
+│
+├── start.sh → .aipm/scripts/start.sh    # Convenience symlinks
+├── stop.sh → .aipm/scripts/stop.sh
+├── save.sh → .aipm/scripts/save.sh
+├── revert.sh → .aipm/scripts/revert.sh
+│
+├── .agentrules                   # This file - AI behavior rules
+├── AIPM.md                       # Framework architecture
+├── README.md                     # High-level overview
+├── current-focus.md              # Active tasks
+├── broad-focus.md                # Future vision
+├── changelog.md                  # Change history
+│
+└── YourProject/                  # Symlink to actual project
+    └── .aipm/                    # Project's AIPM configuration
+        ├── opinions.yaml         # Project-specific rules
+        └── memory/               # Project-specific memory
+```
 
 ---
 
-## 🚀 Track 1: AIPM Framework Onboarding
+## 🔄 MANDATORY: Use Wrapper Scripts ONLY
 
-### Initial Understanding (Read in Order)
-1. **README.md** - Framework overview and quick start
-2. **current-focus.md** - Active framework development tasks
-3. **broad-focus.md** - Framework vision and objectives
-4. **changelog.md** - Recent framework changes
+### Git Operations - NEVER Direct Commands
+**WRONG**: `git add .`, `git commit`, `git push`, `git checkout`  
+**RIGHT**: Use the wrapper scripts below
 
-### Deep Understanding
+### The Only Git Interface You Should Use:
+
+#### save.sh - For ALL Git Operations
+```bash
+# This is your ONLY interface to git
+./save.sh "Clear description of changes"
+
+# What it does for you:
+# - Stages all changes (git add -A)
+# - Commits with your message
+# - Includes memory statistics
+# - Maintains audit trail
+```
+
+#### revert.sh - For Time Travel
+```bash
+# Browse and restore previous states
+./revert.sh
+
+# What it does for you:
+# - Interactive commit selection
+# - Safe memory restoration
+# - Backup before reverting
+```
+
+#### start.sh / stop.sh - Session Management
+```bash
+# Start work
+./start.sh                        # Interactive mode
+./start.sh --framework            # Framework work
+./start.sh --project ProjectName  # Project work
+
+# End work (MUST match how you started)
+./stop.sh
+./stop.sh --framework
+./stop.sh --project ProjectName
+```
+
+### Why This Matters
+1. **Memory Safety**: Scripts handle memory backup/restore
+2. **Branch Management**: Scripts respect workspace opinions
+3. **Audit Trail**: Scripts maintain proper history
+4. **Consistency**: Scripts enforce standards
+
+**VIOLATION EXAMPLE**: If user says "commit the changes", you should:
+- ❌ NOT run: `git add . && git commit -m "message"`
+- ✅ DO run: `./save.sh "message"`
+
+**EXCEPTION**: Only use direct git commands if user EXPLICITLY says:
+- "Run git status for me"
+- "Show me git log directly"
+- "I want you to use git diff"
+
+---
+
+## 📚 Documentation Rules
+
+### Read These First (In Order)
+1. **README.md** - Understand the problem AIPM solves
+2. **AIPM.md** - Understand the architecture
+3. **current-focus.md** - Know what's being worked on
+4. **.aipm/opinions.yaml** - Understand workspace configuration
+
+### Documentation Updates
+- **Framework changes** → Update framework docs only
+- **Project work** → Update project docs only
+- **Each workspace maintains**:
+  - current-focus.md (active tasks)
+  - broad-focus.md (vision)
+  - changelog.md (history)
+  - .agentrules (if needed)
+
+### Use Sequential Thinking
+For complex understanding tasks:
 ```
 Use mcp__sequential-thinking__sequentialthinking to analyze AIPM.md
-This will give you complete framework architecture understanding
-```
-
-### Framework Documentation Structure
-```
-AIPM/
-├── CLAUDE.md          # This file - entry point
-├── README.md          # Framework overview
-├── AIPM.md           # Detailed framework documentation
-├── current-focus.md   # Active framework tasks
-├── broad-focus.md     # Framework vision
-├── changelog.md       # Framework history
-├── AIPM_Design_Docs/  # Technical design documents
-│   └── memory-management.md
-└── scripts/           # Session management tools
+This provides complete framework architecture understanding
 ```
 
 ---
 
-## 🎯 Track 2: Product Management Onboarding
+## 🚫 Common Mistakes to Avoid
 
-### ⚠️ Key Difference from Framework Work
-- **Stay in AIPM root directory**
-- **Use `--project Product` flag with all scripts**
-- **Project files are in `Product/` but you work from root**
-
-### Important: All Operations from AIPM Root
-```bash
-# DO NOT cd into Product/
-# Use: ./scripts/start.sh --project Product
-```
-
-### Initial Understanding (Read in Order)
-1. **Product/README.md** - Product overview
-2. **Product/current-focus.md** - Active product tasks
-3. **Product/broad-focus.md** - Product vision
-4. **Product/changelog.md** - Recent product changes
-
-### Product-Specific Instructions
-```
-Read Product/CLAUDE.md for product-specific protocols
-```
-
-### Standardized Project Structure
-```
-Product/                 # Or any project name (symlinked git repo)
-├── .memory/            # AI memory for this project
-│   └── local_memory.json  # Git-tracked AI knowledge
-├── data/               # ACTUAL PROJECT DATA GOES HERE
-│   ├── [databases]
-│   ├── [exports]
-│   └── [any project files]
-├── CLAUDE.md           # Project-specific AI instructions
-├── README.md           # Project documentation
-├── current-focus.md    # Active tasks
-├── broad-focus.md      # Project vision
-└── changelog.md        # Project history
-```
-
-**CRITICAL**: This structure is mandatory for ALL projects
-
----
-
-## ⚠️ CRITICAL RULES
-
-### 1. Context Isolation
-- **NEVER** update framework docs when doing product work
-- **NEVER** update product docs when doing framework work
-- **ALWAYS** verify your current directory before making changes
-
-### 2. Memory Management
-- Framework memories use prefix: `AIPM_`
-- Product memories use project name prefix (e.g., `PRODUCT_`)
-- ALWAYS run scripts from AIPM root directory
-- Use explicit context: `./scripts/start.sh --framework` or `./scripts/start.sh --project Product`
-- End with matching context: `./scripts/stop.sh --framework` or `./scripts/stop.sh --project Product`
-
-### 3. Documentation Updates
-- Framework improvements → Update AIPM framework docs only
-- Product work → Update Product/ docs only
-- Each domain maintains its own:
-  - current-focus.md
-  - broad-focus.md
-  - changelog.md
-
----
-
-## 🔄 Session Workflow
-
-### For ANY Work Session
-```bash
-# 1. Start session (ALWAYS from AIPM root)
-./scripts/start.sh --framework  # For framework work
-# OR
-./scripts/start.sh --project Product  # For project work
-
-# 2. Stay in AIPM root directory
-#    NO NEED to cd into Product/
-
-# 3. Read relevant current-focus.md
-
-# 4. Do your work
-
-# 5. Update relevant documentation
-
-# 6. End session (from AIPM root, match start context)
-./scripts/stop.sh --framework  # If started with --framework
-# OR
-./scripts/stop.sh --project Product  # If started with --project
-
-# 7. Save changes
-./scripts/save.sh --framework "Description"  # For framework
-# OR
-./scripts/save.sh --project Product "Description"  # For project
-```
-
----
-
-## 📚 Key Framework Concepts
-
-For detailed understanding, see:
-- **Protocol System**: AIPM.md → Protocol-Driven Development
-- **Memory Management**: AIPM_Design_Docs/memory-management.md
-- **Session Scripts**: AIPM.md → Session Management Scripts
-- **Documentation Structure**: AIPM_Design_Docs/documentation-structure.md
-
----
-
-## 🎭 Role Clarity
-
-When working in this repository, you are either:
-1. **Framework Developer**: Improving AIPM's capabilities
-2. **Product Manager**: Using AIPM to manage a specific project
-
-**Always be clear about which role you're in.**
+1. **Mixing Workspaces**: Each workspace is isolated - don't cross boundaries
+2. **Direct Operations**: Always use the module functions, never direct commands
+3. **Forgetting Context**: Always know which workspace you're in
+4. **Skipping Opinions**: Always check opinions.yaml for workspace rules
+5. **Manual Memory Edits**: Never edit memory files directly - use migrate-memories.sh
 
 ---
 
@@ -216,38 +244,52 @@ When working in this repository, you are either:
 
 | Question | Answer |
 |----------|--------|
-| What is AIPM? | Read README.md |
-| What needs doing? | Read current-focus.md (framework or product) |
-| What's the vision? | Read broad-focus.md (framework or product) |
-| What changed recently? | Read changelog.md (framework or product) |
-| How does it work? | Use sequential thinking on AIPM.md |
+| What is AIPM? | Read README.md - Git for every team's decisions |
+| How does it work? | Read AIPM.md - Architecture and modules |
+| What needs doing? | Read current-focus.md for active tasks |
+| What's the vision? | Read broad-focus.md for future plans |
+| How is workspace configured? | Check .aipm/opinions.yaml |
+| What are the rules? | You're reading them! |
 
 ---
 
-## 📈 Multi-Project Scaling
+## 🎭 Role Clarity
 
-When you have multiple projects:
+When working with AIPM, you are either:
+1. **Framework Developer**: Improving AIPM's capabilities
+   - Updating core modules
+   - Enhancing documentation
+   - Adding new features
 
-```bash
-AIPM/
-├── Product/           # Current project
-├── ClientWebsite/     # Another project (same structure)
-├── MobileApp/         # Another project (same structure)
-└── DataPipeline/      # Another project (same structure)
-```
+2. **Workspace User**: Using AIPM for specific work
+   - Following workspace opinions
+   - Tracking decisions
+   - Maintaining project memory
 
-**Usage:**
-```bash
-./scripts/start.sh --project ClientWebsite
-./scripts/stop.sh --project ClientWebsite
-```
-
-Each project:
-- Is a separate git repository
-- Maintains its own `.memory/local_memory.json`
-- Follows identical structure
-- Has complete isolation from other projects
+**Always be clear about your role and workspace.**
 
 ---
 
-*Remember: This is a multi-project framework. Always maintain clear separation between framework development and project management.*
+## 🔐 Security and Safety Rules
+
+### Memory Files are SACRED - Never Touch Directly
+1. **NEVER edit .aipm/memory/local_memory.json directly**
+2. **NEVER modify .aipm/memory.json** - It's a symlink to global memory
+3. **NEVER create memory files manually**
+4. **ONLY scripts can touch memory files** - They handle atomicity and safety
+
+### Why Memory Files are Protected
+- **Atomicity**: Scripts ensure operations complete or rollback
+- **Validation**: Scripts verify JSON structure and prefixes
+- **Backup**: Scripts maintain safety backups
+- **Coordination**: Scripts handle MCP server timing
+
+### Other Safety Rules
+1. **Always backup before major operations** - Use migrate-memories.sh functions
+2. **Respect branch protection** - Check opinions.yaml for protected branches
+3. **Validate memory operations** - Ensure proper entity prefixes
+4. **Keep secrets out** - No passwords, tokens, or keys in memory
+
+---
+
+*Remember: AIPM brings git's superpowers to every team. These rules ensure it works reliably and safely.*
