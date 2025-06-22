@@ -4,16 +4,41 @@ This document provides a COMPLETE inventory of all functions available in the AI
 
 **CRITICAL**: This inventory must be exhaustive and accurate. Every function, parameter, return value, and usage example has been documented.
 
+## Export Pattern Design
+
+**CRITICAL ARCHITECTURAL DECISION**: Not all modules export their functions, and this is BY DESIGN:
+
+### Modules WITH Function Exports:
+- **migrate-memories.sh**: Exports all 18 functions via `export -f` because they are utility functions that may be called from subshells or background processes
+
+### Modules WITHOUT Function Exports:
+- **opinions-state.sh**: NO exports - functions work within the same shell context after sourcing to maintain state consistency
+- **shell-formatting.sh**: Only exports flag variable `SHELL_FORMATTING_LOADED=true`
+- **version-control.sh**: Only exports flag variable `VERSION_CONTROL_LOADED=true`
+- **opinions-loader.sh**: Exports environment variables (AIPM_*) but NOT functions
+- **sync-memory.sh**: NO exports - tightly coupled to memory operations
+- **cleanup-global.sh**: NO exports - specialized cleanup context
+
+### Why This Matters:
+1. **State Management**: opinions-state.sh functions maintain locks and shared state that must remain in the same shell context
+2. **Direct Sourcing**: All wrapper scripts source modules directly: `source "$SCRIPT_DIR/modules/opinions-state.sh"`
+3. **No Subshells**: Functions without exports are designed to run in the parent shell only
+4. **Utility vs Core**: Exported functions (migrate-memories.sh) are utilities; non-exported are core state/context-dependent
+
+**IMPLEMENTATION RULE**: When adding new functions, follow the module's existing export pattern. DO NOT add exports to modules that don't have them.
+
 ---
 
 ## Table of Contents
 
-1. [shell-formatting.sh - Formatting and Output](#shell-formattingsh---formatting-and-output)
-2. [version-control.sh - Git Operations](#version-controlsh---git-operations)
-3. [migrate-memories.sh - Memory Operations](#migrate-memoriessh---memory-operations)
-4. [opinions-state.sh - State Management](#opinions-statesh---state-management)
-5. [opinions-loader.sh - Configuration Loading](#opinions-loadersh---configuration-loading)
-6. [sync-memory.sh - Memory Synchronization](#sync-memorysh---memory-synchronization)
+1. [shell-formatting.sh - Formatting and Output](#shell-formattingsh---formatting-and-output) (74 functions)
+2. [version-control.sh - Git Operations](#version-controlsh---git-operations) (89 functions)
+3. [migrate-memories.sh - Memory Operations](#migrate-memoriessh---memory-operations) (18 functions)
+4. [opinions-state.sh - State Management](#opinions-statesh---state-management) (28 functions)
+5. [opinions-loader.sh - Configuration Loading](#opinions-loadersh---configuration-loading) (46 functions)
+6. [sync-memory.sh - Memory Synchronization](#sync-memorysh---memory-synchronization) (4 functions)
+
+**Total Functions**: 259 documented functions across all modules
 
 ---
 
@@ -1095,6 +1120,24 @@ This document provides a COMPLETE inventory of all functions available in the AI
 - **Returns**: 0 on success, 1 on error
 - **Side Effects**: Creates directory if needed
 
+#### `revert_memory_partial(backup_file, output_file, filter_pattern)`
+- **Purpose**: Restore memory with entity filtering for partial reverts
+- **Parameters**: 
+  - backup_file: Source backup file to restore from
+  - output_file: Target file for filtered results
+  - filter_pattern: Regex pattern to match entity names
+- **Returns**: 0 on success, 1 on general error, 2 on validation error, 3 on I/O error
+- **Side Effects**: Creates filtered memory file with matching entities and their relations
+- **Example**: 
+  ```bash
+  # Revert only AIPM_FEATURE entities
+  revert_memory_partial ".memory/backup.json" ".memory/partial.json" "^AIPM_FEATURE"
+  
+  # Revert entities containing "test"
+  revert_memory_partial "backup.json" "filtered.json" ".*test.*"
+  ```
+- **Learning**: Relations are included if either 'from' or 'to' matches an entity in the filter
+
 ### Module Information
 
 #### `migrate_memories_version()`
@@ -1315,6 +1358,43 @@ This document provides a COMPLETE inventory of all functions available in the AI
 - **Returns**: JSON with branch information
 - **Complexity**: High - O(n*m) where n=branches, m=commits
 - **Learning**: Tracks both AIPM and protected user branches
+
+### Session Management Functions
+
+#### `create_session(context, project)`
+- **Purpose**: Create and initialize a new AIPM session with atomic state updates
+- **Parameters**: 
+  - context: Either "framework" or "project" 
+  - project: Project name (optional, required if context is "project")
+- **Returns**: 0 on success, 1 on error
+- **Side Effects**: 
+  - Creates session ID and file
+  - Updates multiple state values atomically
+  - Creates session file at computed memory path
+- **Example**: 
+  ```bash
+  # Framework session
+  create_session "framework"
+  
+  # Project session
+  create_session "project" "PRODUCT"
+  ```
+- **Learning**: Uses atomic operations to ensure all session state updates succeed or fail together
+
+#### `cleanup_session()`
+- **Purpose**: Clean up active session with proper state updates and archival
+- **Parameters**: None (uses current session from state)
+- **Returns**: 0 on success, 1 on error
+- **Side Effects**: 
+  - Updates session state to inactive
+  - Archives session file with timestamp
+  - Clears all session-related state values
+- **Example**: 
+  ```bash
+  # Clean up current session
+  cleanup_session
+  ```
+- **Learning**: Retrieves session info from state, archives to .aipm/state/sessions/
 
 Note: The opinions-state.sh file is very large. The above covers the main utility, lock management, atomic operations, and computation functions. The file also contains many more specialized functions for state initialization, updates, and queries that follow similar patterns.
 

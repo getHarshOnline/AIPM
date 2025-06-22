@@ -4,6 +4,45 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Phase 1 Implementation: Added Missing Functions & Enhanced Documentation
+
+### Added
+- **Session Management Functions**
+  - `create_session()` in opinions-state.sh - Full session lifecycle with atomic state updates
+  - `cleanup_session()` in opinions-state.sh - Proper session cleanup with archival
+  - Both functions use atomic operations to ensure consistency
+
+- **Memory Filtering Function**
+  - `revert_memory_partial()` in migrate-memories.sh - Entity filtering for partial reverts
+  - Supports regex patterns to filter entities and their relations
+  - Properly exported for use in subshells
+
+- **Critical Export Pattern Documentation**
+  - Added "Export Pattern Design" section to _functions.md
+  - Documents why opinions-state.sh has NO exports (by design)
+  - Documents why migrate-memories.sh exports all functions
+  - Critical architectural decision for future developers
+
+### Changed
+- **_functions.md Enhancements**
+  - Updated from 256 to 259 total documented functions
+  - Added export pattern explanation as critical context
+  - Complete parity with current implementation
+  - Added function counts to table of contents
+
+### Fixed
+- **Path-Agnostic Memory Resolution**
+  - wrapper-scripts-fix-plan.md updated for dynamic memory paths
+  - Changed hardcoded paths to use get_memory_path()
+  - Fixed .claude/memory.json to .aipm/memory.json
+  - Fixed opinions.yaml path from .aipm/config/ to .aipm/
+
+### Technical Details
+- Reduced needed functions from 7 to 3 after deep analysis
+- No exports added to opinions-state.sh (maintains design pattern)
+- Proper export added to migrate-memories.sh for new function
+- All echo usage replaced with printf or shell-formatting functions
+
 ## 2025-06-22 - Wrapper Scripts Surgical Fix Plan & Complete Function Inventory
 
 ### Added

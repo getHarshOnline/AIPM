@@ -4905,6 +4905,207 @@ show_state_summary() {
     info "Cleanup Candidates: $(printf "%s\n" "$STATE_CACHE" | jq '.decisions.branchesForCleanup | length')"
 }
 
+# ============================================================================
+# SESSION MANAGEMENT FUNCTIONS
+# ============================================================================
+# These functions provide high-level session lifecycle management for AIPM
+# wrapper scripts. They handle session creation, tracking, and cleanup with
+# proper state integration and atomic operations.
+
+# Create a new session with state tracking
+# PURPOSE: Initialize a new AIPM session with atomic state updates
+# PARAMETERS:
+#   $1 - Context type ("framework" or "project") (required)
+#   $2 - Project name (optional, required if context is "project")
+# RETURNS:
+#   0 - Success
+#   1 - Failed to create session
+# OUTPUTS:
+#   Session ID on stdout
+# SIDE EFFECTS:
+#   - Updates multiple state values atomically
+#   - Creates session tracking file
+# EXAMPLES:
+#   local sid=$(create_session "framework")
+#   local sid=$(create_session "project" "MyProject")
+# LEARNING:
+#   - Session files use workspace-relative paths for symlink support
+#   - All state updates are atomic to prevent corruption
+create_session() {
+    local context="$1"
+    local project="$2"
+    local session_id="AIPM_$(date +%Y%m%d_%H%M%S)_$$"
+    
+    # Validate parameters
+    if [[ -z "$context" ]]; then
+        error "Session context required (framework or project)"
+        return 1
+    fi
+    
+    if [[ "$context" == "project" ]] && [[ -z "$project" ]]; then
+        error "Project name required for project sessions"
+        return 1
+    fi
+    
+    # Create session in state atomically
+    begin_atomic_operation "session:create:$session_id" || return 1
+    
+    # Update all session-related state values
+    update_state_internal "runtime.session.active" "true" && \
+    update_state_internal "runtime.session.id" "\"$session_id\"" && \
+    update_state_internal "runtime.session.context" "\"$context\"" && \
+    update_state_internal "runtime.session.project" "\"${project:-none}\"" && \
+    update_state_internal "runtime.session.startTime" "\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" || {
+        rollback_atomic_operation
+        error "Failed to update session state"
+        return 1
+    }
+    
+    if ! commit_atomic_operation; then
+        error "Failed to commit session creation"
+        return 1
+    }
+    
+    # Create session file
+    # CRITICAL: Use workspace-relative memory path for symlink support
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
+    
+    # Ensure memory directory exists
+    if ! mkdir -p "$memory_dir"; then
+        error "Failed to create memory directory: $memory_dir"
+        return 1
+    fi
+    
+    # Write session file with metadata
+    cat > "$session_file" <<EOF
+Session: $session_id
+Context: $context
+Project: ${project:-N/A}
+Started: $(date)
+Branch: $(get_current_branch 2>/dev/null || printf "%s" "unknown")
+Memory: $(get_memory_path "$context" "$project")
+PID: $$
+EOF
+    
+    debug "Created session: $session_id (context: $context, project: ${project:-none})"
+    printf "%s\n" "$session_id"
+}
+
+# Get current session information from state
+# PURPOSE: Retrieve active session details from state
+# PARAMETERS: None
+# RETURNS:
+#   0 - Session found
+#   1 - No active session
+# OUTPUTS:
+#   Session info as "id:context:project" or empty
+# SIDE EFFECTS:
+#   None - read-only operation
+# EXAMPLES:
+#   local info=$(get_session_info)
+#   IFS=':' read -r sid ctx proj <<< "$info"
+# LEARNING:
+#   - Session file existence check uses workspace-relative path
+#   - All data comes from state, not file parsing
+get_session_info() {
+    # Ensure state is loaded
+    ensure_state
+    
+    # Check if session is active
+    local active=$(get_value "runtime.session.active")
+    if [[ "$active" != "true" ]]; then
+        return 1
+    fi
+    
+    # CRITICAL: Also verify session file exists
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
+    
+    if [[ ! -f "$session_file" ]]; then
+        # State says active but file missing - inconsistency
+        warn "Session state inconsistent - no session file found"
+        return 1
+    fi
+    
+    # Return session info from state
+    local session_id=$(get_value "runtime.session.id")
+    local context=$(get_value "runtime.session.context")
+    local project=$(get_value "runtime.session.project")
+    
+    # Convert "none" to empty for backward compatibility
+    [[ "$project" == "none" ]] && project=""
+    
+    printf "%s\n" "${session_id}:${context}:${project}"
+}
+
+# Clean up session and archive session file
+# PURPOSE: Mark session as inactive and archive session file
+# PARAMETERS:
+#   $1 - Session ID to clean up (required)
+# RETURNS:
+#   0 - Success
+#   1 - Failed to update state
+# OUTPUTS:
+#   None
+# SIDE EFFECTS:
+#   - Updates session state to inactive
+#   - Archives session file to sessions directory
+# EXAMPLES:
+#   cleanup_session "$SESSION_ID"
+#   cleanup_session "$(get_value 'runtime.session.id')"
+# LEARNING:
+#   - Session archival preserves history for debugging
+#   - Uses workspace-relative paths for symlink support
+cleanup_session() {
+    local session_id="$1"
+    
+    if [[ -z "$session_id" ]]; then
+        error "Session ID required for cleanup"
+        return 1
+    fi
+    
+    # Update state atomically
+    begin_atomic_operation "session:cleanup:$session_id" || return 1
+    
+    update_state_internal "runtime.session.active" "false" && \
+    update_state_internal "runtime.session.endTime" "\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" || {
+        rollback_atomic_operation
+        error "Failed to update session state for cleanup"
+        return 1
+    }
+    
+    if ! commit_atomic_operation; then
+        error "Failed to commit session cleanup"
+        return 1
+    fi
+    
+    # Archive session file
+    # CRITICAL: Use workspace-relative memory path
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
+    
+    if [[ -f "$session_file" ]]; then
+        # Create sessions archive directory
+        local sessions_dir="${memory_dir}/sessions"
+        if mkdir -p "$sessions_dir"; then
+            # Archive with timestamp for uniqueness
+            local archive_name="${session_id}_$(date +%Y%m%d_%H%M%S).session"
+            if mv "$session_file" "${sessions_dir}/${archive_name}" 2>/dev/null; then
+                debug "Archived session file: ${archive_name}"
+            else
+                warn "Failed to archive session file"
+            fi
+        else
+            warn "Failed to create sessions archive directory"
+        fi
+    else
+        debug "No session file to archive"
+    fi
+    
+    success "Session cleaned up: $session_id"
+}
+
 # Auto-initialize if executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     case "${1:-}" in

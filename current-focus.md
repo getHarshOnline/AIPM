@@ -219,15 +219,20 @@ All changes committed before implementation phase.
 
 ### Implementation Order
 
-#### Phase 1: Add 3 Missing Functions
-1. **Add to opinions-state.sh**:
-   - `create_session()` - Full session lifecycle management
-   - `cleanup_session()` - Clean session termination
+#### Phase 1: Add 3 Missing Functions ✅ COMPLETE
+1. **Add to opinions-state.sh** ✅:
+   - `create_session()` - Full session lifecycle management ✅
+   - `cleanup_session()` - Clean session termination ✅
    
-2. **Add to migrate-memories.sh**:
-   - `revert_memory_partial()` - Filtered memory restoration
+2. **Add to migrate-memories.sh** ✅:
+   - `revert_memory_partial()` - Filtered memory restoration ✅
 
-#### Phase 2: Refactor Wrapper Scripts
+3. **Updated _functions.md** ✅:
+   - Added export pattern documentation
+   - Added all new functions with complete documentation
+   - Total: 259 documented functions
+
+#### Phase 2: Refactor Wrapper Scripts (READY TO START)
 1. **revert.sh** - Remove 300 lines of business logic
 2. **save.sh** - Remove 150 lines of violations
 3. **start.sh** - Remove 250 lines of reimplementation

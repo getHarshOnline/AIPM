@@ -775,6 +775,119 @@ initialize_empty_memory() {
     return $EXIT_SUCCESS
 }
 
+# Revert memory with entity filtering
+# Usage: revert_memory_partial <backup_file> <output_file> <filter_pattern>
+# Returns: 0 on success, 1 on error
+#
+# This function allows selective restoration of memory entities and their relations
+# based on a filter pattern. It's used by revert.sh for partial reverts.
+#
+# LEARNING: 
+# - Filters both entities and their relations
+# - Relations are included if either 'from' or 'to' matches the filter
+# - Uses streaming to handle large files efficiently
+# - Maintains proper JSON structure in output
+revert_memory_partial() {
+    local backup_file="$1"
+    local output_file="$2"
+    local filter_pattern="$3"
+    
+    step "Performing partial memory revert..."
+    debug "Filter pattern: $filter_pattern"
+    
+    # Validate inputs
+    if [[ ! -f "$backup_file" ]]; then
+        error "Backup file not found: $backup_file"
+        return $EXIT_IO_ERROR
+    fi
+    
+    if [[ -z "$filter_pattern" ]]; then
+        error "Filter pattern required for partial revert"
+        return $EXIT_GENERAL_ERROR
+    fi
+    
+    # Create temp files for atomic operation
+    local temp_filtered="${output_file}${TEMP_SUFFIX}.filter.$$"
+    local temp_final="${output_file}${TEMP_SUFFIX}.final.$$"
+    
+    # First pass: collect matching entities and build entity set
+    declare -A matched_entities
+    local entity_count=0
+    
+    debug "Phase 1: Finding matching entities..."
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        
+        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
+        if [[ "$type" == "entity" ]]; then
+            local name=$(printf '%s' "$line" | jq -r '.name // empty' 2>/dev/null)
+            
+            # Check if entity name matches filter
+            if [[ -n "$name" ]] && [[ "$name" =~ $filter_pattern ]]; then
+                matched_entities["$name"]=1
+                printf '%s\n' "$line" >> "$temp_filtered"
+                ((entity_count++))
+                debug "Matched entity: $name"
+            fi
+        fi
+    done < "$backup_file"
+    
+    debug "Found $entity_count matching entities"
+    
+    # Second pass: collect relations involving matched entities
+    local relation_count=0
+    
+    debug "Phase 2: Finding related relations..."
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        
+        local type=$(printf '%s' "$line" | jq -r '.type // empty' 2>/dev/null)
+        if [[ "$type" == "relation" ]]; then
+            local from=$(printf '%s' "$line" | jq -r '.from // empty' 2>/dev/null)
+            local to=$(printf '%s' "$line" | jq -r '.to // empty' 2>/dev/null)
+            
+            # Include relation if either endpoint matches our entities
+            if [[ -n "${matched_entities[$from]:-}" ]] || [[ -n "${matched_entities[$to]:-}" ]]; then
+                printf '%s\n' "$line" >> "$temp_filtered"
+                ((relation_count++))
+                debug "Matched relation: $from -> $to"
+            fi
+        fi
+    done < "$backup_file"
+    
+    debug "Found $relation_count related relations"
+    
+    # Check if we found anything
+    if [[ $entity_count -eq 0 ]]; then
+        rm -f "$temp_filtered" "$temp_final" 2>/dev/null
+        warn "No entities matched filter pattern: $filter_pattern"
+        return $EXIT_SUCCESS
+    fi
+    
+    # Validate the filtered content
+    if [[ -s "$temp_filtered" ]]; then
+        if validate_memory_stream "$temp_filtered" >/dev/null 2>&1; then
+            # Ensure target directory exists
+            local target_dir=$(dirname "$output_file")
+            mkdir -p "$target_dir"
+            
+            # Atomic move to final location
+            mv -f "$temp_filtered" "$output_file"
+            
+            success "Partial revert completed: $entity_count entities, $relation_count relations"
+            return $EXIT_SUCCESS
+        else
+            rm -f "$temp_filtered" "$temp_final" 2>/dev/null
+            error "Filtered memory validation failed"
+            return $EXIT_VALIDATION_ERROR
+        fi
+    else
+        rm -f "$temp_filtered" "$temp_final" 2>/dev/null
+        warn "No data after filtering"
+        return $EXIT_SUCCESS
+    fi
+}
+
 # ==============================================================================
 # Module Information
 # ==============================================================================
@@ -813,6 +926,7 @@ export -f get_memory_stats
 export -f cleanup_temp_files
 export -f memory_changed
 export -f initialize_empty_memory
+export -f revert_memory_partial
 export -f migrate_memories_version
 export -f extract_memory_from_git
 
