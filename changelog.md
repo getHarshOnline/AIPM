@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Enhanced Wrapper Scripts with Comprehensive Documentation
+
+### Added
+- **Comprehensive in-place documentation for all wrapper scripts**:
+  - Architecture principles and design decisions
+  - What each script does and doesn't do
+  - Critical learnings and maintenance notes
+  - Usage examples and expected behavior
+  - Why it's done this way (historical context)
+  - Inline comments explaining every section
+
+### Improved
+- **Documentation quality**:
+  - Every function call documented with source module
+  - Learning notes for critical operations
+  - Warnings about common pitfalls
+  - Clear separation of concerns explained
+  - Relationships between scripts documented (stop.sh calls save.sh)
+
 ## 2025-06-22 - Phase 2 Complete: Wrapper Scripts Refactored to Thin Orchestration Layers
 
 ### Changed
