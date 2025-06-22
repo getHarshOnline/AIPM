@@ -1,0 +1,1667 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "generated": "2025-06-22T04:29:34Z",
+    "opinionsHash": "e8469888c9bfbc8e4b54efd7cfbb28b9be1c4eced428f4036e1ff9414196714a",
+    "lastRefresh": "2025-06-22T04:29:34Z",
+    "workspace": {
+      "name": "AIPM",
+      "type": "framework"
+    }
+  },
+  "raw_exports": {
+    "AIPM_BRANCHING_MAINBRANCH": "AIPM_MAIN",
+    "AIPM_BRANCHING_MAINBRANCHSUFFIX": "MAIN",
+    "AIPM_BRANCHING_PREFIX": "AIPM_",
+    "AIPM_BRANCHING_PROTECTEDBRANCHES_AIPM": "MAIN",
+    "AIPM_BRANCHING_PROTECTEDBRANCHES_USER": "main master develop staging production",
+    "AIPM_COMPUTED_ENTITYPATTERN": "^AIPM_[A-Z]+_",
+    "AIPM_COMPUTED_FILEHASH": "e8469888c9bfbc8e4b54efd7cfbb28b9be1c4eced428f4036e1ff9414196714a",
+    "AIPM_COMPUTED_MAINBRANCH": "AIPM_MAIN",
+    "AIPM_COMPUTED_PREFIXPATTERN": "^AIPM_",
+    "AIPM_CONTEXT": "framework",
+    "AIPM_DEFAULTS_LIMITS_BACKUPCOUNT": "10",
+    "AIPM_DEFAULTS_LIMITS_BRANCHAGEDAYS": "90",
+    "AIPM_DEFAULTS_LIMITS_MEMORYSIZE": "10MB",
+    "AIPM_DEFAULTS_LIMITS_SESSIONHISTORYDAYS": "30",
+    "AIPM_DEFAULTS_LOGGING_LEVEL": "info",
+    "AIPM_DEFAULTS_LOGGING_LOCATION": ".aipm/logs/",
+    "AIPM_DEFAULTS_LOGGING_RETAIN": "7",
+    "AIPM_DEFAULTS_LOGGING_ROTATE": "daily",
+    "AIPM_DEFAULTS_TIMEOUTS_GITSECONDS": "60",
+    "AIPM_DEFAULTS_TIMEOUTS_OPERATIONSECONDS": "30",
+    "AIPM_DEFAULTS_TIMEOUTS_PROMPTSECONDS": "30",
+    "AIPM_DEFAULTS_TIMEOUTS_SESSIONSECONDS": "3600",
+    "AIPM_ERRORHANDLING_ONCIRCULARREFERENCE": "fail",
+    "AIPM_ERRORHANDLING_ONINVALIDREFERENCE": "fail",
+    "AIPM_ERRORHANDLING_ONMISSINGBRANCHTYPE": "use-default",
+    "AIPM_ERRORHANDLING_RECOVERY_AUTORECOVER": "true",
+    "AIPM_ERRORHANDLING_RECOVERY_CREATEBACKUP": "true",
+    "AIPM_ERRORHANDLING_RECOVERY_NOTIFYUSER": "always",
+    "AIPM_INITIALIZATION_BRANCHCREATION_BACKUPORIGINAL": "true",
+    "AIPM_INITIALIZATION_BRANCHCREATION_REQUIRECLEAN": "true",
+    "AIPM_INITIALIZATION_BRANCHCREATION_SHOWDIFF": "true",
+    "AIPM_INITIALIZATION_MAIN_FROMCOMMIT": "HEAD",
+    "AIPM_INITIALIZATION_MAIN_SUFFIX": "MAIN",
+    "AIPM_INITIALIZATION_MARKER_INCLUDEMETADATA": "true",
+    "AIPM_INITIALIZATION_MARKER_MESSAGE": "AIPM_INIT_HERE: Initialize {workspace.name} workspace from {parent.branch}",
+    "AIPM_INITIALIZATION_MARKER_TYPE": "commit",
+    "AIPM_INITIALIZATION_MARKER_VERIFYONSTART": "true",
+    "AIPM_LIFECYCLE_BUGFIX_DAYSTOKEEP": "0",
+    "AIPM_LIFECYCLE_BUGFIX_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_CHORE_DAYSTOKEEP": "0",
+    "AIPM_LIFECYCLE_CHORE_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_DOCS_DAYSTOKEEP": "0",
+    "AIPM_LIFECYCLE_DOCS_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_FEATURE_DAYSTOKEEP": "0",
+    "AIPM_LIFECYCLE_FEATURE_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_FRAMEWORK_DAYSTOKEEP": "7",
+    "AIPM_LIFECYCLE_FRAMEWORK_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_GLOBAL_ALLOWOVERRIDE": "true",
+    "AIPM_LIFECYCLE_GLOBAL_CONFLICTRESOLUTION": "prompt",
+    "AIPM_LIFECYCLE_GLOBAL_HANDLEUNCOMMITTED": "stash",
+    "AIPM_LIFECYCLE_GLOBAL_TRACKACTIVITY": "true",
+    "AIPM_LIFECYCLE_REFACTOR_DAYSTOKEEP": "3",
+    "AIPM_LIFECYCLE_REFACTOR_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_RELEASE_DAYSTOKEEP": "-1",
+    "AIPM_LIFECYCLE_RELEASE_DELETEAFTERMERGE": "false",
+    "AIPM_LIFECYCLE_SESSION_DAYSTOKEEP": "7",
+    "AIPM_LIFECYCLE_SESSION_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_SESSION_MAXSESSIONS": "10",
+    "AIPM_LIFECYCLE_TEST_DAYSTOKEEP": "3",
+    "AIPM_LIFECYCLE_TEST_DELETEAFTERMERGE": "true",
+    "AIPM_LOADING_CONTEXT_ENFORCEISOLATION": "true",
+    "AIPM_LOADING_CONTEXT_PREFIXRULES_RESERVED": "",
+    "AIPM_LOADING_CONTEXT_VALIDATEPREFIX": "true",
+    "AIPM_LOADING_INHERITANCE_ENABLED": "false",
+    "AIPM_LOADING_VALIDATION_HASHCHECK": "true",
+    "AIPM_LOADING_VALIDATION_ONERROR": "fail",
+    "AIPM_LOADING_VALIDATION_RECOMMENDED": "",
+    "AIPM_LOADING_VALIDATION_SCHEMAVERSION": "1.0",
+    "AIPM_LOADING_VALIDATION_STRICTMODE": "true",
+    "AIPM_MEMORY_CATEGORIES": "PROTOCOL WORKFLOW DESIGN SCRIPT MODULE TEST LEARNING",
+    "AIPM_MEMORY_CATEGORYRULES_ALLOWDYNAMIC": "false",
+    "AIPM_MEMORY_CATEGORYRULES_CASEINSENSITIVE": "true",
+    "AIPM_MEMORY_CATEGORYRULES_STRICT": "true",
+    "AIPM_MEMORY_CATEGORYRULES_UNCATEGORIZED": "block",
+    "AIPM_MEMORY_ENTITYPREFIX": "AIPM_",
+    "AIPM_METADATA_COMPATIBILITY": ">=1.0",
+    "AIPM_METADATA_LASTMODIFIED": "2025-06-21T20:30:00Z",
+    "AIPM_METADATA_SCHEMA": "https://rawthoughts.in/aipm/schemas/opinions/v1",
+    "AIPM_METADATA_VERSION": "1.0",
+    "AIPM_NAMING_BUGFIX": "fix/{description}",
+    "AIPM_NAMING_CHORE": "chore/{description}",
+    "AIPM_NAMING_DOCS": "docs/{description}",
+    "AIPM_NAMING_FEATURE": "feature/{description}",
+    "AIPM_NAMING_FRAMEWORK": "framework/{description}",
+    "AIPM_NAMING_REFACTOR": "refactor/{description}",
+    "AIPM_NAMING_RELEASE": "release/v{version}",
+    "AIPM_NAMING_SESSION": "session/{timestamp}",
+    "AIPM_NAMING_TEST": "test/{description}",
+    "AIPM_NESTING_LEVEL": "1",
+    "AIPM_OPINIONS_LOADED": "true",
+    "AIPM_SESSIONS_ALLOWMULTIPLE": "false",
+    "AIPM_SESSIONS_AUTOCREATE": "true",
+    "AIPM_SESSIONS_AUTOMERGE": "false",
+    "AIPM_SESSIONS_CLEANUPONMERGE": "true",
+    "AIPM_SESSIONS_ENABLED": "true",
+    "AIPM_SESSIONS_NAMEPATTERN": "{naming.session}}",
+    "AIPM_SESSIONS_PROMPTONCONFLICT": "true",
+    "AIPM_SETTINGS_FRAMEWORKPATHS_DOCS": ".aipm/docs/",
+    "AIPM_SETTINGS_FRAMEWORKPATHS_MODULES": ".aipm/scripts/modules/",
+    "AIPM_SETTINGS_FRAMEWORKPATHS_TEMPLATES": ".aipm/templates/",
+    "AIPM_SETTINGS_FRAMEWORKPATHS_TESTS": ".aipm/scripts/test/",
+    "AIPM_SETTINGS_SCHEMAVERSION": "1.0",
+    "AIPM_SETTINGS_WORKFLOW_REQUIREDOCS": "true",
+    "AIPM_SETTINGS_WORKFLOW_REQUIREREVIEW": "true",
+    "AIPM_SETTINGS_WORKFLOW_REQUIRETESTS": "true",
+    "AIPM_TEAM_FETCHONSTART": "true",
+    "AIPM_TEAM_REQUIREPULLREQUEST": "true",
+    "AIPM_TEAM_SYNCMODE": "manual",
+    "AIPM_TEAM_SYNC_CONFLICTS_ABORTONFAIL": "true",
+    "AIPM_TEAM_SYNC_CONFLICTS_BACKUP": "true",
+    "AIPM_TEAM_SYNC_CONFLICTS_STRATEGY": "prompt",
+    "AIPM_TEAM_SYNC_DIVERGENCE_RESOLUTION": "prompt",
+    "AIPM_TEAM_SYNC_DIVERGENCE_SHOWDIFF": "true",
+    "AIPM_TEAM_SYNC_PROMPT_DEFAULT": "skip",
+    "AIPM_TEAM_SYNC_PROMPT_TIMEOUT": "30",
+    "AIPM_TEAM_WARNONDIVERGENCE": "true",
+    "AIPM_VALIDATION_BLOCKERS_CORRUPTMEMORY": "true",
+    "AIPM_VALIDATION_BLOCKERS_INVALIDPREFIX": "true",
+    "AIPM_VALIDATION_BLOCKERS_WRONGWORKSPACE": "true",
+    "AIPM_VALIDATION_MODE": "strict",
+    "AIPM_VALIDATION_RULES_BLOCKWRONGPREFIX": "true",
+    "AIPM_VALIDATION_RULES_ENFORCENAMING": "true",
+    "AIPM_VALIDATION_RULES_REQUIRECLEANTREE": "true",
+    "AIPM_VALIDATION_RULES_VALIDATEMEMORY": "true",
+    "AIPM_WORKFLOWS_BRANCHCREATION_AUTONAME": "false",
+    "AIPM_WORKFLOWS_BRANCHCREATION_DUPLICATESTRATEGY": "suffix",
+    "AIPM_WORKFLOWS_BRANCHCREATION_PROTECTIONRESPONSE": "prompt",
+    "AIPM_WORKFLOWS_BRANCHCREATION_STARTBEHAVIOR": "check-first",
+    "AIPM_WORKFLOWS_BRANCHFLOW_PARENTTRACKING": "init-commit",
+    "AIPM_WORKFLOWS_BRANCHFLOW_SOURCES_DEFAULT": "current}",
+    "AIPM_WORKFLOWS_BRANCHFLOW_TARGETS_DEFAULT": "parent}",
+    "AIPM_WORKFLOWS_CLEANUP_AFTERMERGE": "prompt",
+    "AIPM_WORKFLOWS_CLEANUP_FAILEDWORK": "archive",
+    "AIPM_WORKFLOWS_CLEANUP_STALEHANDLING": "notify",
+    "AIPM_WORKFLOWS_MERGETRIGGERS_CONFLICTHANDLING": "prompt",
+    "AIPM_WORKFLOWS_MERGETRIGGERS_FEATURECOMPLETE": "manual",
+    "AIPM_WORKFLOWS_SYNCHRONIZATION_AUTOBACKUP": "on-save",
+    "AIPM_WORKFLOWS_SYNCHRONIZATION_PULLONSTART": "if-clean",
+    "AIPM_WORKFLOWS_SYNCHRONIZATION_PUSHONSTOP": "if-feature",
+    "AIPM_WORKSPACE_DESCRIPTION": "AI Project Manager Framework Development",
+    "AIPM_WORKSPACE_NAME": "AIPM",
+    "AIPM_WORKSPACE_TYPE": "framework"
+  },
+  "computed": {
+    "mainBranch": "AIPM_MAIN",
+    "branchPatterns": {
+      "bugfix": {
+        "original": "fix/{description}",
+        "full": "AIPM_fix/{description}",
+        "glob": "AIPM_fix/*",
+        "regex": "^AIPM_fix/{description}]+\\}/(.+)}$"
+      },
+      "chore": {
+        "original": "chore/{description}",
+        "full": "AIPM_chore/{description}",
+        "glob": "AIPM_chore/*",
+        "regex": "^AIPM_chore/{description}]+\\}/(.+)}$"
+      },
+      "docs": {
+        "original": "docs/{description}",
+        "full": "AIPM_docs/{description}",
+        "glob": "AIPM_docs/*",
+        "regex": "^AIPM_docs/{description}]+\\}/(.+)}$"
+      },
+      "feature": {
+        "original": "feature/{description}",
+        "full": "AIPM_feature/{description}",
+        "glob": "AIPM_feature/*",
+        "regex": "^AIPM_feature/{description}]+\\}/(.+)}$"
+      },
+      "framework": {
+        "original": "framework/{description}",
+        "full": "AIPM_framework/{description}",
+        "glob": "AIPM_framework/*",
+        "regex": "^AIPM_framework/{description}]+\\}/(.+)}$"
+      },
+      "refactor": {
+        "original": "refactor/{description}",
+        "full": "AIPM_refactor/{description}",
+        "glob": "AIPM_refactor/*",
+        "regex": "^AIPM_refactor/{description}]+\\}/(.+)}$"
+      },
+      "release": {
+        "original": "release/v{version}",
+        "full": "AIPM_release/v{version}",
+        "glob": "AIPM_release/v*",
+        "regex": "^AIPM_release/v{version}]+\\}/(.+)}$"
+      },
+      "session": {
+        "original": "session/{timestamp}",
+        "full": "AIPM_session/{timestamp}",
+        "glob": "AIPM_session/*",
+        "regex": "^AIPM_session/{timestamp}]+\\}/(.+)}$"
+      },
+      "test": {
+        "original": "test/{description}",
+        "full": "AIPM_test/{description}",
+        "glob": "AIPM_test/*",
+        "regex": "^AIPM_test/{description}]+\\}/(.+)}$"
+      }
+    },
+    "protectedBranches": {
+      "userBranches": [
+        "main",
+        "master",
+        "develop",
+        "staging",
+        "production"
+      ],
+      "aipmBranches": [
+        {
+          "suffix": "MAIN",
+          "full": "AIPM_MAIN"
+        }
+      ],
+      "all": [
+        "main",
+        "master",
+        "develop",
+        "staging",
+        "production",
+        "AIPM_MAIN"
+      ]
+    },
+    "lifecycleMatrix": {
+      "bugfix": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteTiming": "immediate",
+        "deleteAfterDays": 0,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete immediately after merge"
+      },
+      "chore": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteTiming": "immediate",
+        "deleteAfterDays": 0,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete immediately after merge"
+      },
+      "docs": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteTiming": "immediate",
+        "deleteAfterDays": 0,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete immediately after merge"
+      },
+      "feature": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteTiming": "immediate",
+        "deleteAfterDays": 0,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete immediately after merge"
+      },
+      "framework": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 7,
+        "deleteTiming": "scheduled",
+        "deleteAfterDays": 7,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete 7 days after merge"
+      },
+      "refactor": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 3,
+        "deleteTiming": "scheduled",
+        "deleteAfterDays": 3,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete 3 days after merge"
+      },
+      "release": {
+        "deleteAfterMerge": false,
+        "daysToKeep": -1,
+        "deleteTiming": "never",
+        "deleteAfterDays": null,
+        "deleteTrigger": "lastCommit",
+        "maxCount": null,
+        "description": "Keep forever"
+      },
+      "session": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 7,
+        "deleteTiming": "scheduled",
+        "deleteAfterDays": 7,
+        "deleteTrigger": "mergeDate",
+        "maxCount": 10,
+        "description": "Delete 7 days after merge"
+      },
+      "test": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 3,
+        "deleteTiming": "scheduled",
+        "deleteAfterDays": 3,
+        "deleteTrigger": "mergeDate",
+        "maxCount": null,
+        "description": "Delete 3 days after merge"
+      },
+      "global": {
+        "handleUncommitted": "stash",
+        "conflictResolution": "prompt",
+        "allowOverride": true,
+        "trackActivity": true
+      }
+    },
+    "workflows": {
+      "branchCreation": {
+        "startBehavior": "check-first",
+        "protectionResponse": "prompt",
+        "typeSelection": "prompt",
+        "prompts": {
+          "protected": {
+            "message": "You're trying to save to main branch. What would you like to do?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Create feature branch",
+                "action": "create-feature"
+              },
+              {
+                "key": "2",
+                "text": "Create session branch",
+                "action": "create-session"
+              },
+              {
+                "key": "3",
+                "text": "Cancel",
+                "action": "cancel"
+              }
+            ]
+          },
+          "typeSelection": {
+            "message": "What type of work is this?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Feature - New functionality",
+                "value": "feature"
+              },
+              {
+                "key": "2",
+                "text": "Bug Fix - Fixing an issue",
+                "value": "bugfix"
+              },
+              {
+                "key": "3",
+                "text": "Documentation - Docs only",
+                "value": "docs"
+              },
+              {
+                "key": "4",
+                "text": "Experiment - Just trying",
+                "value": "test"
+              }
+            ]
+          }
+        }
+      },
+      "merging": {
+        "sessionMerge": "on-stop",
+        "featureComplete": "prompt",
+        "conflictHandling": "interactive",
+        "prompts": {
+          "featureComplete": {
+            "message": "Is this feature complete and ready to merge?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Yes, merge now",
+                "action": "merge"
+              },
+              {
+                "key": "2",
+                "text": "No, keep working",
+                "action": "continue"
+              },
+              {
+                "key": "3",
+                "text": "Create PR for review",
+                "action": "pr"
+              }
+            ]
+          },
+          "mergeConflict": {
+            "message": "Merge conflict detected. How to resolve?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Open editor to resolve",
+                "action": "editor"
+              },
+              {
+                "key": "2",
+                "text": "Keep local version",
+                "action": "local"
+              },
+              {
+                "key": "3",
+                "text": "Keep remote version",
+                "action": "remote"
+              },
+              {
+                "key": "4",
+                "text": "Abort operation",
+                "action": "abort"
+              }
+            ]
+          }
+        }
+      },
+      "synchronization": {
+        "pullOnStart": "if-clean",
+        "pushOnStop": "if-feature",
+        "autoBackup": "on-save",
+        "prompts": {
+          "pullOnStart": {
+            "message": "Remote has new changes. Update now?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Yes, update",
+                "action": "pull"
+              },
+              {
+                "key": "2",
+                "text": "No, work offline",
+                "action": "skip"
+              },
+              {
+                "key": "3",
+                "text": "View changes first",
+                "action": "diff"
+              }
+            ]
+          },
+          "pushOnStop": {
+            "message": "You have unpushed changes. Share them?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Yes, push all",
+                "action": "push-all"
+              },
+              {
+                "key": "2",
+                "text": "Push some",
+                "action": "push-select"
+              },
+              {
+                "key": "3",
+                "text": "No, keep local",
+                "action": "skip"
+              }
+            ]
+          }
+        }
+      },
+      "cleanup": {
+        "afterMerge": "prompt",
+        "staleHandling": "notify",
+        "failedWork": "archive",
+        "prompts": {
+          "afterMerge": {
+            "message": "Branch merged successfully. Delete it?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Yes, delete now",
+                "action": "delete"
+              },
+              {
+                "key": "2",
+                "text": "Keep for now",
+                "action": "keep"
+              },
+              {
+                "key": "3",
+                "text": "Archive it",
+                "action": "archive"
+              }
+            ]
+          }
+        }
+      },
+      "branchFlow": {
+        "sources": {
+          "default": "current}",
+          "byType": {
+            "feature/*": "AIPM_MAIN",
+            "fix/*": "AIPM_MAIN",
+            "session/*": "current",
+            "test/*": "current",
+            "release/*": "AIPM_MAIN"
+          }
+        },
+        "targets": {
+          "default": "parent}",
+          "byType": {
+            "feature/*": "AIPM_MAIN",
+            "fix/*": "AIPM_MAIN",
+            "session/*": "parent",
+            "test/*": "parent",
+            "release/*": "none"
+          }
+        },
+        "parentTracking": "init-commit",
+        "prompts": {
+          "selectSource": {
+            "message": "Create new branch from:",
+            "options": [
+              {
+                "key": "1",
+                "text": "Current branch",
+                "value": "current"
+              },
+              {
+                "key": "2",
+                "text": "Main branch",
+                "value": "AIPM_MAIN"
+              },
+              {
+                "key": "3",
+                "text": "Other branch",
+                "value": "select"
+              }
+            ]
+          },
+          "selectTarget": {
+            "message": "Merge this branch to:",
+            "options": [
+              {
+                "key": "1",
+                "text": "Parent branch",
+                "value": "parent"
+              },
+              {
+                "key": "2",
+                "text": "Main branch",
+                "value": "AIPM_MAIN"
+              },
+              {
+                "key": "3",
+                "text": "Other branch",
+                "value": "select"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "validation": {
+      "mode": "strict",
+      "rules": {
+        "enforceNaming": true,
+        "blockWrongPrefix": true,
+        "requireCleanTree": true,
+        "validateMemory": true
+      },
+      "blockers": {
+        "wrongWorkspace": true,
+        "invalidPrefix": true,
+        "corruptMemory": true
+      }
+    },
+    "memory": {
+      "entityPrefix": "AIPM_",
+      "categories": [
+        "PROTOCOL",
+        "WORKFLOW",
+        "DESIGN",
+        "SCRIPT",
+        "MODULE",
+        "TEST",
+        "LEARNING"
+      ],
+      "entityRegex": "^AIPM_[A-Z]+_",
+      "maxSize": "10MB",
+      "categoryRules": {
+        "strict": true,
+        "allowDynamic": false,
+        "uncategorized": "block",
+        "caseInsensitive": true
+      },
+      "examples": [
+        "AIPM_PROTOCOL_DESCRIPTION",
+        "AIPM_WORKFLOW_DESCRIPTION",
+        "AIPM_DESIGN_DESCRIPTION",
+        "AIPM_SCRIPT_DESCRIPTION",
+        "AIPM_MODULE_DESCRIPTION",
+        "AIPM_TEST_DESCRIPTION",
+        "AIPM_LEARNING_DESCRIPTION"
+      ]
+    },
+    "team": {
+      "syncMode": "manual",
+      "fetchOnStart": true,
+      "warnOnDivergence": true,
+      "requirePullRequest": true,
+      "sync": {
+        "prompt": {
+          "triggers": [
+            "remote-ahead",
+            "diverged",
+            "merge-conflicts"
+          ],
+          "timeout": 30,
+          "default": "skip",
+          "messages": {
+            "remoteAhead": "Remote has updates. Sync now?",
+            "diverged": "Your branch and remote have diverged. How to proceed?",
+            "mergeConflicts": "Merge conflicts detected during sync."
+          }
+        },
+        "divergence": {
+          "definition": "local and remote have different commits",
+          "resolution": "prompt",
+          "showDiff": true,
+          "prompts": {
+            "resolve": {
+              "message": "Your branch and remote have diverged. How to proceed?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Merge remote changes",
+                  "action": "merge"
+                },
+                {
+                  "key": "2",
+                  "text": "Rebase onto remote",
+                  "action": "rebase"
+                },
+                {
+                  "key": "3",
+                  "text": "Keep mine only",
+                  "action": "force"
+                },
+                {
+                  "key": "4",
+                  "text": "View differences",
+                  "action": "diff"
+                }
+              ]
+            }
+          }
+        },
+        "conflicts": {
+          "strategy": "prompt",
+          "backup": true,
+          "abortOnFail": true,
+          "prompts": {
+            "resolve": {
+              "message": "Merge conflict detected. How to resolve?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Keep my version",
+                  "action": "ours"
+                },
+                {
+                  "key": "2",
+                  "text": "Take their version",
+                  "action": "theirs"
+                },
+                {
+                  "key": "3",
+                  "text": "Manual merge",
+                  "action": "manual"
+                },
+                {
+                  "key": "4",
+                  "text": "Abort operation",
+                  "action": "abort"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "sessions": {
+      "enabled": true,
+      "autoCreate": true,
+      "autoMerge": false,
+      "allowMultiple": false,
+      "namePattern": "{naming.session}}",
+      "promptOnConflict": true,
+      "cleanupOnMerge": true,
+      "prompts": {
+        "conflict": {
+          "message": "Session has conflicts with parent branch. Continue?",
+          "options": [
+            {
+              "key": "1",
+              "text": "Merge anyway",
+              "action": "merge"
+            },
+            {
+              "key": "2",
+              "text": "Keep session separate",
+              "action": "keep"
+            },
+            {
+              "key": "3",
+              "text": "Discard session",
+              "action": "discard"
+            }
+          ]
+        }
+      },
+      "resolvedNamePattern": "session/{timestamp}}"
+    },
+    "loading": {
+      "discovery": {
+        "path": "./.aipm/opinions.yaml"
+      },
+      "validation": {
+        "required": [
+          "workspace",
+          "branching",
+          "memory",
+          "lifecycle",
+          "workflows"
+        ],
+        "recommended": [],
+        "strictMode": true,
+        "hashCheck": true,
+        "schemaVersion": "1.0",
+        "onError": "fail",
+        "crossValidationRules": [
+          "All naming types must have lifecycle rules",
+          "All lifecycle types must exist in naming",
+          "branching.prefix must match memory.entityPrefix",
+          "All workflow branch patterns must exist in naming",
+          "Protected branches must use valid patterns",
+          "session namePattern must reference valid naming field"
+        ]
+      },
+      "context": {
+        "detectBy": "",
+        "validatePrefix": true,
+        "enforceIsolation": true,
+        "prefixRules": {
+          "mustMatch": [
+            "branching.prefix",
+            "memory.entityPrefix"
+          ],
+          "pattern": "^[A-Z][A-Z0-9_]*_$",
+          "reserved": []
+        }
+      },
+      "inheritance": {
+        "enabled": false
+      }
+    },
+    "initialization": {
+      "marker": {
+        "type": "commit",
+        "message": "AIPM_INIT_HERE: Initialize {workspace.name} workspace from {parent.branch} workspace from {parent.branch}}",
+        "includeMetadata": true,
+        "verifyOnStart": true
+      },
+      "branchCreation": {
+        "requireClean": true,
+        "backupOriginal": true,
+        "showDiff": true
+      },
+      "mappings": {
+        "main": {
+          "suffix": "MAIN",
+          "fromCommit": "HEAD"
+        }
+      }
+    },
+    "defaults": {
+      "timeouts": {
+        "sessionSeconds": 3600,
+        "operationSeconds": 30,
+        "gitSeconds": 60,
+        "promptSeconds": 30
+      },
+      "limits": {
+        "memorySize": "10MB",
+        "memorySizeBytes": 10485760,
+        "backupCount": 10,
+        "sessionHistoryDays": 30,
+        "branchAgeDays": 90
+      },
+      "logging": {
+        "level": "info",
+        "location": ".aipm/logs/",
+        "rotate": "daily",
+        "retain": 7
+      }
+    },
+    "errorHandling": {
+      "onMissingBranchType": "use-default",
+      "onInvalidReference": "fail",
+      "onCircularReference": "fail",
+      "recovery": {
+        "autoRecover": true,
+        "createBackup": true,
+        "notifyUser": "always"
+      },
+      "prompts": {
+        "missingBranchType": {
+          "message": "Unknown branch type. How to handle?",
+          "options": [
+            {
+              "key": "1",
+              "text": "Use default rules",
+              "action": "default"
+            },
+            {
+              "key": "2",
+              "text": "Skip this branch",
+              "action": "skip"
+            },
+            {
+              "key": "3",
+              "text": "Abort operation",
+              "action": "abort"
+            }
+          ]
+        }
+      }
+    },
+    "settings": {
+      "schemaVersion": "1.0",
+      "frameworkPaths": {
+        "modules": ".aipm/scripts/modules/",
+        "tests": ".aipm/scripts/test/",
+        "docs": ".aipm/docs/",
+        "templates": ".aipm/templates/"
+      },
+      "workflow": {
+        "requireTests": true,
+        "requireDocs": true,
+        "requireReview": true
+      }
+    }
+  },
+  "runtime": {
+    "currentBranch": "test_version_control_hardening",
+    "workingTreeClean": false,
+    "uncommittedChanges": [
+      {
+        "file": ".aipm/docs/state-management.md",
+        "type": "untracked"
+      },
+      {
+        "file": ".aipm/scripts/modules/opinions-loader.sh",
+        "type": "untracked"
+      },
+      {
+        "file": ".aipm/scripts/modules/opinions-state.sh",
+        "type": "untracked"
+      },
+      {
+        "file": ".aipm/scripts/test/opinions-loader-implementation-plan.md",
+        "type": "untracked"
+      },
+      {
+        "file": ".aipm/state/",
+        "type": "untracked"
+      }
+    ],
+    "uncommittedCount": 5,
+    "stashCount": 0,
+    "remoteStatus": {
+      "ahead": 0,
+      "behind": 0,
+      "diverged": false,
+      "upstream": null
+    },
+    "repository": {
+      "root": "/Users/getharsh/Library/CloudStorage/GoogleDrive-hi@getharsh.in/Shared drives/[A] HJ<>AION | Product/__root__/AIPM",
+      "currentPath": "/Users/getharsh/Library/CloudStorage/GoogleDrive-hi@getharsh.in/Shared drives/[A] HJ<>AION | Product/__root__/AIPM"
+    },
+    "operationInProgress": null,
+    "branches": {
+      "main": {
+        "exists": true,
+        "head": "b118e4f394ea50fb1b8c210f4bfee8b05889fa6b",
+        "parent": null,
+        "initMarker": null,
+        "created": "2025-06-20T16:48:17+05:30",
+        "lastCommit": "2025-06-20T20:10:33+05:30",
+        "mergeDate": null,
+        "mergedTo": null,
+        "scheduledDelete": "never",
+        "deleteDate": null,
+        "deleteReason": null,
+        "isProtected": true,
+        "protectionReason": "user_protected",
+        "type": "user",
+        "upstream": null,
+        "hasRemote": false
+      }
+    }
+  },
+  "decisions": {
+    "canCreateBranch": false,
+    "cannotCreateReasons": [
+      "Working tree has uncommitted changes"
+    ],
+    "suggestedBranchType": "session",
+    "typeSuggestionReason": "No active session exists",
+    "canMergeCurrentBranch": false,
+    "cannotMergeReasons": [],
+    "mergeTarget": null,
+    "mergeStrategy": null,
+    "staleBranches": [],
+    "branchesForCleanup": [],
+    "nextSessionName": "AIPM_{naming.session}}}",
+    "validationMode": "strict",
+    "shouldFetchOnStart": "false",
+    "fetchReason": null,
+    "shouldPushOnStop": "false",
+    "pushReason": null,
+    "prompts": {
+      "mainBranch": "AIPM_MAIN",
+      "branchPatterns": {
+        "bugfix": {
+          "original": "fix/{description}",
+          "full": "AIPM_fix/{description}",
+          "glob": "AIPM_fix/*",
+          "regex": "^AIPM_fix/{description}]+\\}/(.+)}$"
+        },
+        "chore": {
+          "original": "chore/{description}",
+          "full": "AIPM_chore/{description}",
+          "glob": "AIPM_chore/*",
+          "regex": "^AIPM_chore/{description}]+\\}/(.+)}$"
+        },
+        "docs": {
+          "original": "docs/{description}",
+          "full": "AIPM_docs/{description}",
+          "glob": "AIPM_docs/*",
+          "regex": "^AIPM_docs/{description}]+\\}/(.+)}$"
+        },
+        "feature": {
+          "original": "feature/{description}",
+          "full": "AIPM_feature/{description}",
+          "glob": "AIPM_feature/*",
+          "regex": "^AIPM_feature/{description}]+\\}/(.+)}$"
+        },
+        "framework": {
+          "original": "framework/{description}",
+          "full": "AIPM_framework/{description}",
+          "glob": "AIPM_framework/*",
+          "regex": "^AIPM_framework/{description}]+\\}/(.+)}$"
+        },
+        "refactor": {
+          "original": "refactor/{description}",
+          "full": "AIPM_refactor/{description}",
+          "glob": "AIPM_refactor/*",
+          "regex": "^AIPM_refactor/{description}]+\\}/(.+)}$"
+        },
+        "release": {
+          "original": "release/v{version}",
+          "full": "AIPM_release/v{version}",
+          "glob": "AIPM_release/v*",
+          "regex": "^AIPM_release/v{version}]+\\}/(.+)}$"
+        },
+        "session": {
+          "original": "session/{timestamp}",
+          "full": "AIPM_session/{timestamp}",
+          "glob": "AIPM_session/*",
+          "regex": "^AIPM_session/{timestamp}]+\\}/(.+)}$"
+        },
+        "test": {
+          "original": "test/{description}",
+          "full": "AIPM_test/{description}",
+          "glob": "AIPM_test/*",
+          "regex": "^AIPM_test/{description}]+\\}/(.+)}$"
+        }
+      },
+      "protectedBranches": {
+        "userBranches": [
+          "main",
+          "master",
+          "develop",
+          "staging",
+          "production"
+        ],
+        "aipmBranches": [
+          {
+            "suffix": "MAIN",
+            "full": "AIPM_MAIN"
+          }
+        ],
+        "all": [
+          "main",
+          "master",
+          "develop",
+          "staging",
+          "production",
+          "AIPM_MAIN"
+        ]
+      },
+      "lifecycleMatrix": {
+        "bugfix": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 0,
+          "deleteTiming": "immediate",
+          "deleteAfterDays": 0,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete immediately after merge"
+        },
+        "chore": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 0,
+          "deleteTiming": "immediate",
+          "deleteAfterDays": 0,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete immediately after merge"
+        },
+        "docs": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 0,
+          "deleteTiming": "immediate",
+          "deleteAfterDays": 0,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete immediately after merge"
+        },
+        "feature": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 0,
+          "deleteTiming": "immediate",
+          "deleteAfterDays": 0,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete immediately after merge"
+        },
+        "framework": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 7,
+          "deleteTiming": "scheduled",
+          "deleteAfterDays": 7,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete 7 days after merge"
+        },
+        "refactor": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 3,
+          "deleteTiming": "scheduled",
+          "deleteAfterDays": 3,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete 3 days after merge"
+        },
+        "release": {
+          "deleteAfterMerge": false,
+          "daysToKeep": -1,
+          "deleteTiming": "never",
+          "deleteAfterDays": null,
+          "deleteTrigger": "lastCommit",
+          "maxCount": null,
+          "description": "Keep forever"
+        },
+        "session": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 7,
+          "deleteTiming": "scheduled",
+          "deleteAfterDays": 7,
+          "deleteTrigger": "mergeDate",
+          "maxCount": 10,
+          "description": "Delete 7 days after merge"
+        },
+        "test": {
+          "deleteAfterMerge": true,
+          "daysToKeep": 3,
+          "deleteTiming": "scheduled",
+          "deleteAfterDays": 3,
+          "deleteTrigger": "mergeDate",
+          "maxCount": null,
+          "description": "Delete 3 days after merge"
+        },
+        "global": {
+          "handleUncommitted": "stash",
+          "conflictResolution": "prompt",
+          "allowOverride": true,
+          "trackActivity": true
+        }
+      },
+      "workflows": {
+        "branchCreation": {
+          "startBehavior": "check-first",
+          "protectionResponse": "prompt",
+          "typeSelection": "prompt",
+          "prompts": {
+            "protected": {
+              "message": "You're trying to save to main branch. What would you like to do?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Create feature branch",
+                  "action": "create-feature"
+                },
+                {
+                  "key": "2",
+                  "text": "Create session branch",
+                  "action": "create-session"
+                },
+                {
+                  "key": "3",
+                  "text": "Cancel",
+                  "action": "cancel"
+                }
+              ]
+            },
+            "typeSelection": {
+              "message": "What type of work is this?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Feature - New functionality",
+                  "value": "feature"
+                },
+                {
+                  "key": "2",
+                  "text": "Bug Fix - Fixing an issue",
+                  "value": "bugfix"
+                },
+                {
+                  "key": "3",
+                  "text": "Documentation - Docs only",
+                  "value": "docs"
+                },
+                {
+                  "key": "4",
+                  "text": "Experiment - Just trying",
+                  "value": "test"
+                }
+              ]
+            }
+          }
+        },
+        "merging": {
+          "sessionMerge": "on-stop",
+          "featureComplete": "prompt",
+          "conflictHandling": "interactive",
+          "prompts": {
+            "featureComplete": {
+              "message": "Is this feature complete and ready to merge?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Yes, merge now",
+                  "action": "merge"
+                },
+                {
+                  "key": "2",
+                  "text": "No, keep working",
+                  "action": "continue"
+                },
+                {
+                  "key": "3",
+                  "text": "Create PR for review",
+                  "action": "pr"
+                }
+              ]
+            },
+            "mergeConflict": {
+              "message": "Merge conflict detected. How to resolve?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Open editor to resolve",
+                  "action": "editor"
+                },
+                {
+                  "key": "2",
+                  "text": "Keep local version",
+                  "action": "local"
+                },
+                {
+                  "key": "3",
+                  "text": "Keep remote version",
+                  "action": "remote"
+                },
+                {
+                  "key": "4",
+                  "text": "Abort operation",
+                  "action": "abort"
+                }
+              ]
+            }
+          }
+        },
+        "synchronization": {
+          "pullOnStart": "if-clean",
+          "pushOnStop": "if-feature",
+          "autoBackup": "on-save",
+          "prompts": {
+            "pullOnStart": {
+              "message": "Remote has new changes. Update now?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Yes, update",
+                  "action": "pull"
+                },
+                {
+                  "key": "2",
+                  "text": "No, work offline",
+                  "action": "skip"
+                },
+                {
+                  "key": "3",
+                  "text": "View changes first",
+                  "action": "diff"
+                }
+              ]
+            },
+            "pushOnStop": {
+              "message": "You have unpushed changes. Share them?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Yes, push all",
+                  "action": "push-all"
+                },
+                {
+                  "key": "2",
+                  "text": "Push some",
+                  "action": "push-select"
+                },
+                {
+                  "key": "3",
+                  "text": "No, keep local",
+                  "action": "skip"
+                }
+              ]
+            }
+          }
+        },
+        "cleanup": {
+          "afterMerge": "prompt",
+          "staleHandling": "notify",
+          "failedWork": "archive",
+          "prompts": {
+            "afterMerge": {
+              "message": "Branch merged successfully. Delete it?",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Yes, delete now",
+                  "action": "delete"
+                },
+                {
+                  "key": "2",
+                  "text": "Keep for now",
+                  "action": "keep"
+                },
+                {
+                  "key": "3",
+                  "text": "Archive it",
+                  "action": "archive"
+                }
+              ]
+            }
+          }
+        },
+        "branchFlow": {
+          "sources": {
+            "default": "current}",
+            "byType": {
+              "feature/*": "AIPM_MAIN",
+              "fix/*": "AIPM_MAIN",
+              "session/*": "current",
+              "test/*": "current",
+              "release/*": "AIPM_MAIN"
+            }
+          },
+          "targets": {
+            "default": "parent}",
+            "byType": {
+              "feature/*": "AIPM_MAIN",
+              "fix/*": "AIPM_MAIN",
+              "session/*": "parent",
+              "test/*": "parent",
+              "release/*": "none"
+            }
+          },
+          "parentTracking": "init-commit",
+          "prompts": {
+            "selectSource": {
+              "message": "Create new branch from:",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Current branch",
+                  "value": "current"
+                },
+                {
+                  "key": "2",
+                  "text": "Main branch",
+                  "value": "AIPM_MAIN"
+                },
+                {
+                  "key": "3",
+                  "text": "Other branch",
+                  "value": "select"
+                }
+              ]
+            },
+            "selectTarget": {
+              "message": "Merge this branch to:",
+              "options": [
+                {
+                  "key": "1",
+                  "text": "Parent branch",
+                  "value": "parent"
+                },
+                {
+                  "key": "2",
+                  "text": "Main branch",
+                  "value": "AIPM_MAIN"
+                },
+                {
+                  "key": "3",
+                  "text": "Other branch",
+                  "value": "select"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "validation": {
+        "mode": "strict",
+        "rules": {
+          "enforceNaming": true,
+          "blockWrongPrefix": true,
+          "requireCleanTree": true,
+          "validateMemory": true
+        },
+        "blockers": {
+          "wrongWorkspace": true,
+          "invalidPrefix": true,
+          "corruptMemory": true
+        }
+      },
+      "memory": {
+        "entityPrefix": "AIPM_",
+        "categories": [
+          "PROTOCOL",
+          "WORKFLOW",
+          "DESIGN",
+          "SCRIPT",
+          "MODULE",
+          "TEST",
+          "LEARNING"
+        ],
+        "entityRegex": "^AIPM_[A-Z]+_",
+        "maxSize": "10MB",
+        "categoryRules": {
+          "strict": true,
+          "allowDynamic": false,
+          "uncategorized": "block",
+          "caseInsensitive": true
+        },
+        "examples": [
+          "AIPM_PROTOCOL_DESCRIPTION",
+          "AIPM_WORKFLOW_DESCRIPTION",
+          "AIPM_DESIGN_DESCRIPTION",
+          "AIPM_SCRIPT_DESCRIPTION",
+          "AIPM_MODULE_DESCRIPTION",
+          "AIPM_TEST_DESCRIPTION",
+          "AIPM_LEARNING_DESCRIPTION"
+        ]
+      },
+      "team": {
+        "syncMode": "manual",
+        "fetchOnStart": true,
+        "warnOnDivergence": true,
+        "requirePullRequest": true,
+        "sync": {
+          "prompt": {
+            "triggers": [
+              "remote-ahead",
+              "diverged",
+              "merge-conflicts"
+            ],
+            "timeout": 30,
+            "default": "skip",
+            "messages": {
+              "remoteAhead": "Remote has updates. Sync now?",
+              "diverged": "Your branch and remote have diverged. How to proceed?",
+              "mergeConflicts": "Merge conflicts detected during sync."
+            }
+          },
+          "divergence": {
+            "definition": "local and remote have different commits",
+            "resolution": "prompt",
+            "showDiff": true,
+            "prompts": {
+              "resolve": {
+                "message": "Your branch and remote have diverged. How to proceed?",
+                "options": [
+                  {
+                    "key": "1",
+                    "text": "Merge remote changes",
+                    "action": "merge"
+                  },
+                  {
+                    "key": "2",
+                    "text": "Rebase onto remote",
+                    "action": "rebase"
+                  },
+                  {
+                    "key": "3",
+                    "text": "Keep mine only",
+                    "action": "force"
+                  },
+                  {
+                    "key": "4",
+                    "text": "View differences",
+                    "action": "diff"
+                  }
+                ]
+              }
+            }
+          },
+          "conflicts": {
+            "strategy": "prompt",
+            "backup": true,
+            "abortOnFail": true,
+            "prompts": {
+              "resolve": {
+                "message": "Merge conflict detected. How to resolve?",
+                "options": [
+                  {
+                    "key": "1",
+                    "text": "Keep my version",
+                    "action": "ours"
+                  },
+                  {
+                    "key": "2",
+                    "text": "Take their version",
+                    "action": "theirs"
+                  },
+                  {
+                    "key": "3",
+                    "text": "Manual merge",
+                    "action": "manual"
+                  },
+                  {
+                    "key": "4",
+                    "text": "Abort operation",
+                    "action": "abort"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "sessions": {
+        "enabled": true,
+        "autoCreate": true,
+        "autoMerge": false,
+        "allowMultiple": false,
+        "namePattern": "{naming.session}}",
+        "promptOnConflict": true,
+        "cleanupOnMerge": true,
+        "prompts": {
+          "conflict": {
+            "message": "Session has conflicts with parent branch. Continue?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Merge anyway",
+                "action": "merge"
+              },
+              {
+                "key": "2",
+                "text": "Keep session separate",
+                "action": "keep"
+              },
+              {
+                "key": "3",
+                "text": "Discard session",
+                "action": "discard"
+              }
+            ]
+          }
+        },
+        "resolvedNamePattern": "session/{timestamp}}"
+      },
+      "loading": {
+        "discovery": {
+          "path": "./.aipm/opinions.yaml"
+        },
+        "validation": {
+          "required": [
+            "workspace",
+            "branching",
+            "memory",
+            "lifecycle",
+            "workflows"
+          ],
+          "recommended": [],
+          "strictMode": true,
+          "hashCheck": true,
+          "schemaVersion": "1.0",
+          "onError": "fail",
+          "crossValidationRules": [
+            "All naming types must have lifecycle rules",
+            "All lifecycle types must exist in naming",
+            "branching.prefix must match memory.entityPrefix",
+            "All workflow branch patterns must exist in naming",
+            "Protected branches must use valid patterns",
+            "session namePattern must reference valid naming field"
+          ]
+        },
+        "context": {
+          "detectBy": "",
+          "validatePrefix": true,
+          "enforceIsolation": true,
+          "prefixRules": {
+            "mustMatch": [
+              "branching.prefix",
+              "memory.entityPrefix"
+            ],
+            "pattern": "^[A-Z][A-Z0-9_]*_$",
+            "reserved": []
+          }
+        },
+        "inheritance": {
+          "enabled": false
+        }
+      },
+      "initialization": {
+        "marker": {
+          "type": "commit",
+          "message": "AIPM_INIT_HERE: Initialize {workspace.name} workspace from {parent.branch} workspace from {parent.branch}}",
+          "includeMetadata": true,
+          "verifyOnStart": true
+        },
+        "branchCreation": {
+          "requireClean": true,
+          "backupOriginal": true,
+          "showDiff": true
+        },
+        "mappings": {
+          "main": {
+            "suffix": "MAIN",
+            "fromCommit": "HEAD"
+          }
+        }
+      },
+      "defaults": {
+        "timeouts": {
+          "sessionSeconds": 3600,
+          "operationSeconds": 30,
+          "gitSeconds": 60,
+          "promptSeconds": 30
+        },
+        "limits": {
+          "memorySize": "10MB",
+          "memorySizeBytes": 10485760,
+          "backupCount": 10,
+          "sessionHistoryDays": 30,
+          "branchAgeDays": 90
+        },
+        "logging": {
+          "level": "info",
+          "location": ".aipm/logs/",
+          "rotate": "daily",
+          "retain": 7
+        }
+      },
+      "errorHandling": {
+        "onMissingBranchType": "use-default",
+        "onInvalidReference": "fail",
+        "onCircularReference": "fail",
+        "recovery": {
+          "autoRecover": true,
+          "createBackup": true,
+          "notifyUser": "always"
+        },
+        "prompts": {
+          "missingBranchType": {
+            "message": "Unknown branch type. How to handle?",
+            "options": [
+              {
+                "key": "1",
+                "text": "Use default rules",
+                "action": "default"
+              },
+              {
+                "key": "2",
+                "text": "Skip this branch",
+                "action": "skip"
+              },
+              {
+                "key": "3",
+                "text": "Abort operation",
+                "action": "abort"
+              }
+            ]
+          }
+        }
+      },
+      "settings": {
+        "schemaVersion": "1.0",
+        "frameworkPaths": {
+          "modules": ".aipm/scripts/modules/",
+          "tests": ".aipm/scripts/test/",
+          "docs": ".aipm/docs/",
+          "templates": ".aipm/templates/"
+        },
+        "workflow": {
+          "requireTests": true,
+          "requireDocs": true,
+          "requireReview": true
+        }
+      },
+      "afterMerge": {
+        "message": "Branch merged successfully. Delete it?",
+        "options": [
+          {
+            "key": "1",
+            "text": "Yes, delete now",
+            "action": "delete"
+          },
+          {
+            "key": "2",
+            "text": "Keep for now",
+            "action": "keep"
+          },
+          {
+            "key": "3",
+            "text": "Archive it",
+            "action": "archive"
+          }
+        ]
+      }
+    }
+  }
+}

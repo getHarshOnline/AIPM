@@ -155,11 +155,14 @@ cd AIPM
 4. **Tools shape culture**: Give teams git, and they'll think in versions
 5. **AI amplifies**: With memory and context, AI becomes a true team member
 
-## License & Sponsorship
+## License & Ownership
 
-**Copyright © 2025 RawThoughts Enterprises Private Limited**
+**Maintained by**: [RawThoughts Enterprises Private Limited (RTEPL)](https://rawthoughts.in)
+**Project Website**: [https://rawthoughts.in/aipm](https://rawthoughts.in/aipm)
+**GitHub Repository**: [getHarshOnline/aipm](https://github.com/getHarshOnline/aipm)
 
-Created by [Harsh Joshi](https://getharsh.in)
+**Ownership**: This project is owned by its contributors as documented in the git contribution history of this repository. RawThoughts Enterprises Private Limited (RTEPL) maintains the project but does not claim ownership.
+**Created by**: [Harsh Joshi](https://getharsh.in)
 
 **Sponsored by [AION](https://aion.xyz)** through:
 - Providing work flexibility and development time

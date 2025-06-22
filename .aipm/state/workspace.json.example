@@ -1,0 +1,249 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "generated": "2025-06-22T10:00:00Z",
+    "opinionsHash": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "lastRefresh": "2025-06-22T10:00:00Z"
+  },
+  "raw_exports": {
+    "AIPM_WORKSPACE_TYPE": "framework",
+    "AIPM_WORKSPACE_NAME": "AIPM",
+    "AIPM_WORKSPACE_DESCRIPTION": "AI Project Manager Framework Development",
+    "AIPM_BRANCHING_PREFIX": "AIPM_",
+    "AIPM_BRANCHING_MAINBRANCHSUFFIX": "MAIN",
+    "AIPM_BRANCHING_MAINBRANCH": "AIPM_MAIN",
+    "AIPM_NAMING_FEATURE": "feature/{description}",
+    "AIPM_NAMING_BUGFIX": "fix/{description}",
+    "AIPM_NAMING_TEST": "test/{description}",
+    "AIPM_NAMING_SESSION": "session/{timestamp}",
+    "AIPM_NAMING_RELEASE": "release/v{version}",
+    "AIPM_LIFECYCLE_FEATURE_DELETEAFTERMERGE": "true",
+    "AIPM_LIFECYCLE_FEATURE_DAYSTOKEEP": "0",
+    "AIPM_LIFECYCLE_SESSION_DELETEAFTERMERGE": "false",
+    "AIPM_LIFECYCLE_SESSION_DAYSTOKEEP": "7",
+    "AIPM_LIFECYCLE_SESSION_MAXSESSIONS": "10",
+    "AIPM_MEMORY_ENTITYPREFIX": "AIPM_",
+    "AIPM_MEMORY_CATEGORIES": "PROTOCOL WORKFLOW DESIGN SCRIPT MODULE TEST LEARNING",
+    "AIPM_VALIDATION_MODE": "strict",
+    "AIPM_WORKFLOWS_BRANCHCREATION_STARTBEHAVIOR": "check-first",
+    "AIPM_WORKFLOWS_SYNCHRONIZATION_PULLONSTART": "if-clean",
+    "AIPM_WORKFLOWS_SYNCHRONIZATION_PUSHONSTOP": "if-feature"
+  },
+  "computed": {
+    "mainBranch": "AIPM_MAIN",
+    "allBranchPatterns": {
+      "feature": "AIPM_feature/*",
+      "bugfix": "AIPM_fix/*",
+      "test": "AIPM_test/*",
+      "session": "AIPM_session/*",
+      "release": "AIPM_release/*",
+      "framework": "AIPM_framework/*",
+      "refactor": "AIPM_refactor/*",
+      "docs": "AIPM_docs/*",
+      "chore": "AIPM_chore/*"
+    },
+    "protectedBranches": [
+      "main",
+      "master",
+      "develop",
+      "staging",
+      "production",
+      "AIPM_MAIN"
+    ],
+    "branchSourceRules": {
+      "default": "current",
+      "byType": {
+        "feature/*": "AIPM_MAIN",
+        "fix/*": "AIPM_MAIN",
+        "session/*": "current",
+        "test/*": "current",
+        "release/*": "AIPM_MAIN"
+      }
+    },
+    "branchTargetRules": {
+      "default": "parent",
+      "byType": {
+        "feature/*": "AIPM_MAIN",
+        "fix/*": "AIPM_MAIN",
+        "session/*": "parent",
+        "test/*": "parent",
+        "release/*": "none"
+      }
+    },
+    "memoryValidation": {
+      "allowedCategories": [
+        "PROTOCOL",
+        "WORKFLOW",
+        "DESIGN",
+        "SCRIPT",
+        "MODULE",
+        "TEST",
+        "LEARNING"
+      ],
+      "entityRegex": "^AIPM_[A-Z]+_",
+      "maxSize": "10MB",
+      "rules": {
+        "strict": true,
+        "allowDynamic": false,
+        "uncategorized": "block",
+        "caseInsensitive": true
+      }
+    },
+    "timeouts": {
+      "session": 3600,
+      "operation": 30,
+      "git": 60,
+      "prompt": 30
+    },
+    "lifecycleMatrix": {
+      "feature": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteDate": "immediate",
+        "deleteBasedOn": "mergeDate",
+        "maxCount": null
+      },
+      "session": {
+        "deleteAfterMerge": false,
+        "daysToKeep": 7,
+        "deleteDate": "7_days",
+        "deleteBasedOn": "lastCommit",
+        "maxCount": 10
+      },
+      "test": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 3,
+        "deleteDate": "3_days",
+        "deleteBasedOn": "mergeDate",
+        "maxCount": null
+      },
+      "release": {
+        "deleteAfterMerge": false,
+        "daysToKeep": -1,
+        "deleteDate": "never",
+        "deleteBasedOn": "lastCommit",
+        "maxCount": null
+      }
+    }
+  },
+  "runtime": {
+    "branches": {
+      "AIPM_MAIN": {
+        "exists": true,
+        "head": "abc123def456",
+        "parent": "main",
+        "initMarker": "def456ghi789",
+        "created": "2025-06-01T10:00:00Z",
+        "lastCommit": "2025-06-22T09:00:00Z",
+        "mergeDate": null,
+        "scheduledDelete": "never",
+        "isProtected": true,
+        "type": "main"
+      },
+      "AIPM_feature/opinions-loader": {
+        "exists": true,
+        "head": "ghi789jkl012",
+        "parent": "AIPM_MAIN",
+        "initMarker": "jkl012mno345",
+        "created": "2025-06-21T10:00:00Z",
+        "lastCommit": "2025-06-22T08:00:00Z",
+        "mergeDate": null,
+        "scheduledDelete": "immediate",
+        "isProtected": false,
+        "type": "feature"
+      },
+      "AIPM_session/20250621_143022": {
+        "exists": true,
+        "head": "mno345pqr678",
+        "parent": "AIPM_feature/opinions-loader",
+        "initMarker": "pqr678stu901",
+        "created": "2025-06-21T14:30:22Z",
+        "lastCommit": "2025-06-21T16:45:00Z",
+        "mergeDate": null,
+        "scheduledDelete": "7_days",
+        "isProtected": false,
+        "type": "session"
+      },
+      "AIPM_test/version-control": {
+        "exists": true,
+        "head": "stu901vwx234",
+        "parent": "AIPM_MAIN",
+        "initMarker": "vwx234yz567",
+        "created": "2025-06-15T10:00:00Z",
+        "lastCommit": "2025-06-18T14:00:00Z",
+        "mergeDate": "2025-06-19T10:00:00Z",
+        "scheduledDelete": "3_days",
+        "isProtected": false,
+        "type": "test"
+      }
+    },
+    "currentBranch": "AIPM_feature/opinions-loader",
+    "workingTreeClean": true,
+    "remoteStatus": {
+      "ahead": 2,
+      "behind": 0,
+      "diverged": false
+    }
+  },
+  "decisions": {
+    "canCreateBranch": true,
+    "suggestedBranchType": "feature",
+    "canMergeCurrentBranch": true,
+    "mergeTarget": "AIPM_MAIN",
+    "staleBranches": [],
+    "branchesForCleanup": [
+      "AIPM_test/version-control"
+    ],
+    "nextSessionName": "AIPM_session/20250622_100000",
+    "validationMode": "strict",
+    "shouldFetchOnStart": true,
+    "shouldPushOnStop": true,
+    "branchCreationPrompt": {
+      "show": true,
+      "message": "What type of work is this?",
+      "options": [
+        {
+          "key": "1",
+          "text": "Feature - New functionality",
+          "value": "feature"
+        },
+        {
+          "key": "2",
+          "text": "Bug Fix - Fixing an issue",
+          "value": "bugfix"
+        },
+        {
+          "key": "3",
+          "text": "Documentation - Docs only",
+          "value": "docs"
+        },
+        {
+          "key": "4",
+          "text": "Experiment - Just trying",
+          "value": "test"
+        }
+      ]
+    },
+    "mergePrompt": {
+      "show": true,
+      "message": "Is this feature complete and ready to merge?",
+      "options": [
+        {
+          "key": "1",
+          "text": "Yes, merge now",
+          "action": "merge"
+        },
+        {
+          "key": "2",
+          "text": "No, keep working",
+          "action": "continue"
+        },
+        {
+          "key": "3",
+          "text": "Create PR for review",
+          "action": "pr"
+        }
+      ]
+    }
+  }
+}
