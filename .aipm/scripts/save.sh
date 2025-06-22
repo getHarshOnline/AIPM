@@ -55,6 +55,17 @@ source "$SCRIPT_DIR/modules/migrate-memories.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/modules/opinions-state.sh" || {
+    error "Required file opinions-state.sh not found"
+    exit 1
+}
+
+# Initialize state
+ensure_state || {
+    error "Failed to initialize state"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Memory Save"
 
@@ -127,11 +138,57 @@ fi
 
 success "Memory path: $LOCAL_MEMORY"
 
+# Check if we're on a protected branch
+step "Checking branch protection..."
+local current_branch=$(get_current_branch)
+local protected_branches=$(get_value "computed.protectedBranches.all")
+
+# Check if current branch is protected
+local is_protected=false
+if [[ -n "$protected_branches" ]]; then
+    while IFS= read -r pattern; do
+        if [[ "$current_branch" =~ $pattern ]]; then
+            is_protected=true
+            break
+        fi
+    done < <(printf '%s\n' "$protected_branches" | jq -r '.[]')
+fi
+
+if [[ "$is_protected" == "true" ]]; then
+    local protection_response=$(get_value "computed.workflows.branchCreation.protectionResponse")
+    case "$protection_response" in
+        "prompt")
+            warn "You are on protected branch: $current_branch"
+            if ! confirm "Continue saving to protected branch?"; then
+                die "Save cancelled by user"
+            fi
+            ;;
+        "block")
+            error "Cannot save to protected branch: $current_branch"
+            info "Please switch to a feature or session branch"
+            die "Protected branch save blocked"
+            ;;
+        "create-feature")
+            warn "Protected branch detected - creating feature branch"
+            local feature_name="feature/save-$(date +%Y%m%d-%H%M%S)"
+            if ! create_branch "feature" "$feature_name"; then
+                die "Failed to create feature branch"
+            fi
+            success "Created and switched to: $feature_name"
+            current_branch="$feature_name"
+            ;;
+    esac
+fi
+
+# Begin atomic operation for save
+begin_atomic_operation "save:$WORK_CONTEXT:${PROJECT_NAME:-framework}"
+
 # TASK 3: Save Global Memory to Local (Using migrate-memories.sh)
 # CRITICAL: This is where we capture all session learnings
 # LEARNING: Use atomic save_memory function to prevent corruption
 # The global memory contains all entities created during the session
 if ! save_memory ".claude/memory.json" "$LOCAL_MEMORY"; then
+    rollback_atomic_operation
     die "Failed to save memory to $LOCAL_MEMORY"
 fi
 
@@ -160,29 +217,83 @@ if [[ -n "$COMMIT_MSG" ]]; then
     # - commit_with_stats adds memory statistics to commit
     if ! check_git_repo; then
         warn "Not in a git repository - skipping commit"
+        commit_atomic_operation  # Still successful - memory was saved
     else
         # Stage all changes per golden rule
         # CRITICAL: This ensures NO untracked files remain
         if ! stage_all_changes; then
             error "Failed to stage changes"
             warn "Memory saved but not committed"
+            commit_atomic_operation  # Memory save succeeded
         else
             # Use commit_with_stats for memory files
             # LEARNING: Adds entity/relation counts to commit message
             if ! commit_with_stats "$COMMIT_MSG" "$LOCAL_MEMORY"; then
                 error "Commit failed"
                 warn "Memory saved but not committed"
+                commit_atomic_operation  # Memory save succeeded
             else
-                success "Changes committed"
+                # Get commit details for state update
+                local commit_hash=$(get_last_commit_hash)
+                local uncommitted_count=$(count_uncommitted_files)
                 
-                # Show brief log
-                show_log 1
+                # Update state with save information
+                update_state "runtime.git.uncommittedCount" "$uncommitted_count" && \
+                update_state "runtime.git.lastCommit" "$commit_hash" && \
+                update_state "runtime.git.lastCommitTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+                update_state "runtime.git.lastCommitMessage" "$COMMIT_MSG" && \
+                update_state "runtime.memory.lastSave" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+                update_state "runtime.memory.entities" "$ENTITY_COUNT" && \
+                update_state "runtime.memory.relations" "$RELATION_COUNT" && \
+                report_git_operation "save" "success" "{
+                    \"branch\": \"$current_branch\",
+                    \"commit\": \"$commit_hash\",
+                    \"memory\": {
+                        \"entities\": $ENTITY_COUNT,
+                        \"relations\": $RELATION_COUNT,
+                        \"file\": \"$LOCAL_MEMORY\"
+                    }
+                }"
+                
+                if [[ $? -eq 0 ]]; then
+                    commit_atomic_operation
+                    success "Changes committed and state updated"
+                    
+                    # Show brief log
+                    show_log 1
+                    
+                    # Check auto-backup workflow
+                    local auto_backup=$(get_value "computed.workflows.synchronization.autoBackup")
+                    if [[ "$auto_backup" == "on-save" ]]; then
+                        step "Auto-backup enabled - pushing to remote..."
+                        if push_to_remote; then
+                            success "Changes backed up to remote"
+                        else
+                            warn "Auto-backup failed - changes are local only"
+                        fi
+                    fi
+                else
+                    rollback_atomic_operation
+                    error "Failed to update state after commit"
+                    die "State consistency error"
+                fi
             fi
         fi
     fi
 else
-    info "No commit message provided - changes saved locally only"
-    info "To commit later: run save.sh with a commit message"
+    # No commit message - just update memory save state
+    update_state "runtime.memory.lastSave" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    update_state "runtime.memory.entities" "$ENTITY_COUNT" && \
+    update_state "runtime.memory.relations" "$RELATION_COUNT"
+    
+    if [[ $? -eq 0 ]]; then
+        commit_atomic_operation
+        info "No commit message provided - changes saved locally only"
+        info "To commit later: run save.sh with a commit message"
+    else
+        rollback_atomic_operation
+        warn "Failed to update memory save state"
+    fi
 fi
 
 # TASK 6: Suggest Next Steps
