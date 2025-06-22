@@ -80,8 +80,63 @@ else
 fi
 
 # ============================================================================
+# STATE MANAGEMENT INTEGRATION
+# ============================================================================
+# LEARNING: version-control.sh must be bidirectionally integrated with
+# opinions-state.sh to ensure every git operation atomically updates state.
+# This is critical for maintaining consistency between git reality and
+# AIPM's state cache.
+#
+# ARCHITECTURAL REQUIREMENT: All git operations MUST update state atomically
+# to prevent desync. This module is THE ONLY module allowed to call git
+# commands directly.
+#
+# Added: 2025-06-22 for bidirectional state integration
+
+# Source state management (required for atomic operations)
+if [[ -f "$SCRIPT_DIR/opinions-state.sh" ]]; then
+    source "$SCRIPT_DIR/opinions-state.sh" || {
+        printf "ERROR: Failed to source opinions-state.sh\n" >&2
+        printf "State management is required for version control operations\n" >&2
+        return $EXIT_GENERAL_ERROR 2>/dev/null || exit $EXIT_GENERAL_ERROR
+    }
+else
+    printf "ERROR: opinions-state.sh not found at %s\n" "$SCRIPT_DIR" >&2
+    printf "State management is required for version control operations\n" >&2
+    return $EXIT_GENERAL_ERROR 2>/dev/null || exit $EXIT_GENERAL_ERROR
+fi
+
+# Validate state on load
+# LEARNING: Ensure state is initialized and consistent before any operations
+# This prevents operations on stale or corrupted state
+if ! ensure_state; then
+    printf "ERROR: State initialization failed\n" >&2
+    printf "Cannot proceed without valid state\n" >&2
+    return $EXIT_GENERAL_ERROR 2>/dev/null || exit $EXIT_GENERAL_ERROR
+fi
+
+# Validate state consistency with git
+# LEARNING: On module load, verify state matches git reality
+# If drift is detected, attempt automatic repair
+if ! validate_state_consistency; then
+    warn "State inconsistent with git, attempting repair..."
+    if ! repair_state_inconsistency "auto"; then
+        printf "ERROR: State inconsistent with git and repair failed\n" >&2
+        printf "Manual intervention required\n" >&2
+        return $EXIT_GENERAL_ERROR 2>/dev/null || exit $EXIT_GENERAL_ERROR
+    fi
+fi
+
+# ============================================================================
 # CONFIGURATION
 # ============================================================================
+
+# STRICT MODE - NO FALLBACKS ALLOWED
+# LEARNING: This enforces the architectural principle that version-control.sh
+# is THE ONLY module allowed to call git. If a function is missing here,
+# that's a FATAL ERROR - no bypassing, no workarounds.
+# Added: 2025-06-22 for architectural enforcement
+readonly STRICT_MODE=true
 
 # Exit codes (must match documentation)
 readonly EXIT_SUCCESS=0
@@ -105,6 +160,34 @@ DID_STASH=false
 
 # Protected branches pattern
 readonly PROTECTED_BRANCHES="^(main|master|develop|production)$"
+
+# ============================================================================
+# STRICT MODE ENFORCEMENT
+# ============================================================================
+
+# Function to enforce no-fallback rule
+# PURPOSE: Called when a required function is missing from version-control.sh
+# PARAMETERS:
+#   $1 - Name of the missing function (required)
+# RETURNS:
+#   Never returns - always dies
+# SIDE EFFECTS:
+#   - Writes error to stderr
+#   - Exits with EXIT_GENERAL_ERROR
+# EXAMPLE:
+#   # In opinions-state.sh:
+#   if ! type get_git_config &>/dev/null; then
+#       _missing_function_fatal "get_git_config"
+#   fi
+# LEARNING:
+#   - This enforces the architectural principle that ALL git operations
+#     must go through version-control.sh
+#   - NO FALLBACKS means we die immediately if a function is missing
+#   - This prevents architectural drift and maintains single source of truth
+_missing_function_fatal() {
+    local func="${1:-unknown}"
+    die "FATAL: Required function '$func' missing from version-control.sh. NO FALLBACKS ALLOWED."
+}
 
 # ============================================================================
 # SECURITY & CONTEXT MANAGEMENT

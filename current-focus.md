@@ -126,6 +126,40 @@ During state management implementation, discovered **CRITICAL** architectural vi
 2. **opinions-state-refactoring-plan.md** - Complete improvement plan
 3. **state-management-audit.md** - Critical findings
 
+## 🔧 ACTIVE IMPLEMENTATION: State Management Fix Plan
+
+### Implementation Directive (2025-06-22)
+**SURGICAL EXECUTION** of state-management-fix-plan.md:
+- Implement the entire plan step-by-step WITHOUT creating any new files
+- Track all progress directly in state-management-fix-plan.md
+- Follow the exact implementation order specified
+- Commit frequently to prevent file reversion issues
+
+### CRITICAL ARCHITECTURAL PRINCIPLES:
+1. **Single Responsibility Enforcement**:
+   - **version-control.sh**: THE ONLY module that calls git commands
+   - **shell-formatting.sh**: THE ONLY module that calls echo/printf
+   - **opinions-loader.sh**: THE ONLY module that parses opinions.yaml
+   - **opinions-state.sh**: Manages all state and pre-computation
+   - **migrate-memories.sh**: THE ONLY module that touches memory files
+
+2. **Bidirectional Integration**:
+   - version-control.sh MUST call opinions-state.sh for state updates
+   - opinions-state.sh MUST call version-control.sh for git operations
+   - All operations MUST be atomic (git + state succeed or fail together)
+   - NO FALLBACKS - missing functions are FATAL ERRORS
+
+3. **Implementation Rules**:
+   - PRESERVE all existing learning in version-control.sh (already hardened)
+   - Make surgical in-place modifications with inline documentation
+   - version-control.sh will expose final functions that call opinions-state.sh
+   - Wrapper scripts NOT touched in this phase (refer to wrapper-fix-plan only if needed)
+
+### Current Implementation Focus: Phase 0 - Foundation Infrastructure
+1. **Lock Management System** (In Progress)
+2. **Atomic Operation Framework** (Pending)
+3. **State Refresh Architecture** (Pending)
+
 ## 🔄 Next Session Plan
 
 ### 1. Clean Up Documentation

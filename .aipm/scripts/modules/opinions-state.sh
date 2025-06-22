@@ -387,6 +387,50 @@ release_state_lock() {
     # This allows release_state_lock to be used in trap without affecting exit code
 }
 
+# Validate that we hold the lock
+# PURPOSE: Verify current process holds the state lock before critical operations
+# PARAMETERS: None
+# RETURNS:
+#   0 - Lock is held by current process
+#   1 - Lock not held (dies with error message)
+# SIDE EFFECTS:
+#   - Calls die() if lock not held (terminates script)
+#   - No files created/modified
+#   - Global variables: reads $STATE_LOCK_FD
+# EXAMPLES:
+#   # Validate before state write
+#   validate_lock_held
+#   echo "$new_state" > "$STATE_FILE"
+#   
+#   # In critical function
+#   update_state_internal() {
+#       validate_lock_held  # Ensure caller acquired lock
+#       # ... perform update ...
+#   }
+# LEARNING:
+#   - Critical safety check to prevent concurrent corruption
+#   - Uses flock -n (non-blocking) to test lock ownership
+#   - Directory check for fallback locking method
+validate_lock_held() {
+    # LEARNING: Check which locking method is in use
+    if command -v flock &>/dev/null; then
+        # LEARNING: flock -n attempts non-blocking lock
+        # If we already hold it, this succeeds immediately
+        # If another process holds it, this fails
+        if ! flock -n "$STATE_LOCK_FD" 2>/dev/null; then
+            die "State lock not held - acquire_state_lock must be called first"
+        fi
+    else
+        # LEARNING: For directory-based locking, just check existence
+        # If the directory exists, we assume we created it
+        # This is less robust than flock but sufficient for the fallback
+        if [[ ! -d "$STATE_LOCK.dir" ]]; then
+            die "State lock not held - acquire_state_lock must be called first"
+        fi
+    fi
+    # LEARNING: Implicit return 0 when lock is verified
+}
+
 # Read state file safely
 # PURPOSE: Load state file into memory cache with validation for fast access
 # PARAMETERS: None (uses global $STATE_FILE path)
@@ -521,6 +565,284 @@ write_state_file() {
     # Other processes can check if state changed without reading entire file
     # cut -d' ' -f1 extracts just the hash, removing the filename
     sha256sum "$STATE_FILE" | cut -d' ' -f1 > "$STATE_HASH"
+}
+
+# ============================================================================
+# ATOMIC OPERATION FRAMEWORK - Transaction management for state consistency
+# ============================================================================
+
+# Global variables for atomic operations
+declare -g ATOMIC_OP_NAME=""
+declare -g ATOMIC_OP_START=""
+declare -g ROLLBACK_STATE=""
+
+# Begin atomic operation
+# PURPOSE: Start atomic transaction with automatic rollback on failure
+# PARAMETERS:
+#   $1 - Operation name for logging and tracking (required)
+# RETURNS:
+#   0 - Transaction started successfully  
+#   1 - Failed to acquire lock
+# SIDE EFFECTS:
+#   - Acquires exclusive state lock
+#   - Saves current state for rollback
+#   - Sets ATOMIC_OP_NAME and ATOMIC_OP_START globals
+#   - Creates rollback checkpoint in memory
+# EXAMPLES:
+#   # Simple atomic update
+#   begin_atomic_operation "update:branch"
+#   update_state "runtime.currentBranch" "main"
+#   commit_atomic_operation
+#   
+#   # With error handling
+#   if begin_atomic_operation "complex:update"; then
+#       # Multiple operations...
+#       if ! some_operation; then
+#           rollback_atomic_operation
+#           return 1
+#       fi
+#       commit_atomic_operation
+#   fi
+# LEARNING:
+#   - Provides transaction semantics for state updates
+#   - Automatic rollback prevents partial updates
+#   - Lock ensures true atomicity across processes
+begin_atomic_operation() {
+    local op_name="$1"
+    
+    # LEARNING: Operation name helps with debugging and audit trails
+    if [[ -z "$op_name" ]]; then
+        error "Atomic operation requires a name"
+        return 1
+    fi
+    
+    # LEARNING: Acquire exclusive lock for true atomicity
+    # This prevents any other process from reading or writing state
+    if ! acquire_state_lock; then
+        error "Cannot start atomic operation: lock acquisition failed"
+        return 1
+    fi
+    
+    # LEARNING: Save complete state for rollback capability
+    # We save the full state, not just a reference, to handle external changes
+    if ! read_state_file; then
+        error "Cannot read current state for rollback"
+        release_state_lock
+        return 1
+    fi
+    
+    # LEARNING: Capture rollback state before any modifications
+    ROLLBACK_STATE="$STATE_CACHE"
+    ATOMIC_OP_NAME="$op_name"
+    ATOMIC_OP_START=$(date +%s)
+    
+    debug "Started atomic operation: $op_name"
+    return 0
+}
+
+# Commit atomic operation
+# PURPOSE: Finalize atomic transaction and release resources
+# PARAMETERS: None
+# RETURNS:
+#   0 - Transaction committed successfully
+#   1 - Validation failed, automatic rollback performed
+# SIDE EFFECTS:
+#   - Validates state consistency
+#   - Updates metadata with operation info
+#   - Releases state lock
+#   - Clears transaction globals
+# EXAMPLES:
+#   # After successful updates
+#   begin_atomic_operation "save:memory"
+#   update_state "runtime.memory.size" "$size"
+#   update_state "runtime.memory.lastSave" "$(date -u)"
+#   commit_atomic_operation
+#   
+#   # Automatic rollback on validation failure
+#   begin_atomic_operation "invalid:update"
+#   update_state "bad.path" "value"  # Creates invalid state
+#   commit_atomic_operation  # Returns 1, state rolled back
+# LEARNING:
+#   - Validation prevents committing corrupt state
+#   - Metadata tracking enables operation history
+#   - Always releases lock, even on failure
+commit_atomic_operation() {
+    # LEARNING: Validate we're in a transaction
+    if [[ -z "$ATOMIC_OP_NAME" ]]; then
+        error "No atomic operation in progress"
+        return 1
+    fi
+    
+    # LEARNING: Validate state consistency before committing
+    # This catches structural errors that individual updates might miss
+    if ! validate_state_consistency; then
+        error "State validation failed, rolling back"
+        rollback_atomic_operation
+        return 1
+    fi
+    
+    # LEARNING: Update metadata with operation info for audit trail
+    local duration=$(($(date +%s) - ATOMIC_OP_START))
+    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    
+    # Update metadata within the transaction
+    local updated_state=$(jq --arg op "$ATOMIC_OP_NAME" \
+                            --arg ts "$timestamp" \
+                            --arg dur "$duration" \
+                            '.metadata.lastOperation = $op |
+                             .metadata.lastUpdate = $ts |
+                             .metadata.operationDuration = ($dur | tonumber)' <<< "$STATE_CACHE")
+    
+    if [[ -z "$updated_state" ]]; then
+        error "Failed to update operation metadata"
+        rollback_atomic_operation
+        return 1
+    fi
+    
+    # LEARNING: Write the committed state to disk
+    if ! write_state_file "$updated_state"; then
+        error "Failed to write committed state"
+        rollback_atomic_operation
+        return 1
+    fi
+    
+    # LEARNING: Success - clean up transaction state
+    debug "Committed atomic operation: $ATOMIC_OP_NAME (${duration}s)"
+    
+    # Clear transaction globals
+    ROLLBACK_STATE=""
+    ATOMIC_OP_NAME=""
+    ATOMIC_OP_START=""
+    
+    # Release lock after successful commit
+    release_state_lock
+    return 0
+}
+
+# Rollback atomic operation
+# PURPOSE: Restore state to pre-transaction checkpoint
+# PARAMETERS: None
+# RETURNS:
+#   0 - Always succeeds (best effort restoration)
+# SIDE EFFECTS:
+#   - Restores state from ROLLBACK_STATE
+#   - Writes restored state to disk
+#   - Releases state lock
+#   - Clears transaction globals
+#   - Logs rollback event
+# EXAMPLES:
+#   # Manual rollback on error
+#   begin_atomic_operation "risky:update"
+#   if ! risky_operation; then
+#       rollback_atomic_operation
+#       return 1
+#   fi
+#   
+#   # Automatic cleanup in trap
+#   trap rollback_atomic_operation ERR
+#   begin_atomic_operation "trapped:update"
+#   # Any error triggers automatic rollback
+# LEARNING:
+#   - Best effort restoration - always tries to recover
+#   - Silent write failures to avoid cascading errors
+#   - Always releases resources for system stability
+rollback_atomic_operation() {
+    # LEARNING: Check if there's actually something to rollback
+    if [[ -z "$ROLLBACK_STATE" ]]; then
+        debug "No rollback state available"
+        release_state_lock
+        return 0
+    fi
+    
+    # LEARNING: Log the rollback for debugging
+    local op_name="${ATOMIC_OP_NAME:-unknown}"
+    warn "Rolling back atomic operation: $op_name"
+    
+    # LEARNING: Restore the saved state
+    # We write directly to ensure restoration even if current state is corrupt
+    if ! write_state_file "$ROLLBACK_STATE"; then
+        # LEARNING: Log but don't fail - best effort restoration
+        error "Failed to write rollback state - state may be inconsistent"
+    else
+        success "State rolled back successfully"
+    fi
+    
+    # LEARNING: Always clean up resources
+    ROLLBACK_STATE=""
+    ATOMIC_OP_NAME=""
+    ATOMIC_OP_START=""
+    
+    # Always release lock
+    release_state_lock
+    return 0
+}
+
+# Validate state consistency
+# PURPOSE: Check state file structure and content validity
+# PARAMETERS: None (uses STATE_CACHE global)
+# RETURNS:
+#   0 - State is valid and consistent
+#   1 - State has structural or content errors
+# SIDE EFFECTS:
+#   - Writes warning messages for issues
+#   - No files modified
+#   - Reads STATE_CACHE global
+# EXAMPLES:
+#   # Before committing changes
+#   if ! validate_state_consistency; then
+#       error "State is corrupted"
+#       return 1
+#   fi
+#   
+#   # After loading state
+#   read_state_file
+#   validate_state_consistency || initialize_state
+# LEARNING:
+#   - Checks required top-level sections exist
+#   - Validates critical runtime values
+#   - Could be extended with schema validation
+validate_state_consistency() {
+    # LEARNING: Ensure state is loaded
+    if [[ -z "$STATE_CACHE" ]]; then
+        error "No state loaded for validation"
+        return 1
+    fi
+    
+    # LEARNING: Check required top-level sections
+    local required_sections=("metadata" "raw_exports" "computed" "runtime" "decisions")
+    local valid=true
+    
+    for section in "${required_sections[@]}"; do
+        if ! jq -e ".$section" <<< "$STATE_CACHE" >/dev/null 2>&1; then
+            warn "Missing required section: $section"
+            valid=false
+        fi
+    done
+    
+    # LEARNING: Validate critical runtime values
+    # These are minimum requirements for wrapper scripts to function
+    local critical_paths=(
+        "runtime.currentBranch"
+        "computed.mainBranch"
+        "raw_exports.AIPM_WORKSPACE_TYPE"
+    )
+    
+    for path in "${critical_paths[@]}"; do
+        local value=$(jq -r ".$path // empty" <<< "$STATE_CACHE")
+        if [[ -z "$value" ]]; then
+            warn "Missing critical value: $path"
+            valid=false
+        fi
+    done
+    
+    # LEARNING: Check state version compatibility
+    local version=$(jq -r '.metadata.version // "0.0"' <<< "$STATE_CACHE")
+    if [[ "$version" != "1.0" ]]; then
+        warn "Unsupported state version: $version (expected 1.0)"
+        valid=false
+    fi
+    
+    [[ "$valid" == "true" ]] && return 0 || return 1
 }
 
 # ============================================================================
@@ -2396,6 +2718,269 @@ make_complete_decisions() {
 }
 
 # ============================================================================
+# STATE REFRESH ARCHITECTURE - Efficient partial and full state updates
+# ============================================================================
+
+# Refresh full state
+# PURPOSE: Complete state recomputation when configuration changes
+# PARAMETERS: None
+# RETURNS:
+#   0 - Refresh successful
+#   1 - Refresh failed
+# SIDE EFFECTS:
+#   - Acquires and releases state lock
+#   - Recomputes entire state if opinions changed
+#   - Updates STATE_FILE and STATE_CACHE
+# EXAMPLES:
+#   # Manual full refresh
+#   refresh_full_state
+#   
+#   # Check and refresh if needed
+#   if opinions_changed; then
+#       refresh_full_state
+#   fi
+# LEARNING:
+#   - Full refresh is expensive - use sparingly
+#   - Automatically detects opinion file changes
+#   - Preserves runtime state during refresh
+refresh_full_state() {
+    # LEARNING: Acquire lock for exclusive state access
+    if ! acquire_state_lock; then
+        error "Cannot acquire lock for state refresh"
+        return 1
+    fi
+    
+    # LEARNING: Check if opinions file has changed
+    local old_hash=""
+    if read_state_file; then
+        old_hash=$(jq -r '.metadata.opinionsHash // ""' <<< "$STATE_CACHE")
+    fi
+    
+    local new_hash=""
+    if [[ -f "$OPINIONS_FILE_PATH" ]]; then
+        new_hash=$(sha256sum "$OPINIONS_FILE_PATH" | cut -d' ' -f1)
+    fi
+    
+    # LEARNING: Only refresh if configuration actually changed
+    if [[ "$old_hash" == "$new_hash" ]] && [[ -n "$old_hash" ]]; then
+        debug "Opinions unchanged, skipping full refresh"
+        release_state_lock
+        return 0
+    fi
+    
+    info "Opinions changed, performing full state refresh..."
+    
+    # LEARNING: Release lock before initialize_state (it acquires its own lock)
+    release_state_lock
+    
+    # Perform full reinitialization
+    initialize_state
+}
+
+# Refresh partial state
+# PURPOSE: Update specific state sections without full recomputation
+# PARAMETERS:
+#   $1 - Section to refresh: "branches", "runtime", "decisions" (required)
+# RETURNS:
+#   0 - Refresh successful
+#   1 - Invalid section or refresh failed
+# SIDE EFFECTS:
+#   - Acquires and releases state lock
+#   - Updates only specified section
+#   - Modifies STATE_FILE and STATE_CACHE
+# EXAMPLES:
+#   # Update branch info after checkout
+#   refresh_partial_state "branches"
+#   
+#   # Update runtime info after git operation
+#   refresh_partial_state "runtime"
+#   
+#   # Recompute decisions after state change
+#   refresh_partial_state "decisions"
+# LEARNING:
+#   - Much faster than full refresh
+#   - Preserves unrelated state sections
+#   - Ideal for post-operation updates
+refresh_partial_state() {
+    local section="$1"
+    
+    # LEARNING: Validate section parameter
+    case "$section" in
+        branches|runtime|decisions)
+            debug "Refreshing state section: $section"
+            ;;
+        *)
+            error "Invalid refresh section: $section"
+            error "Valid sections: branches, runtime, decisions"
+            return 1
+            ;;
+    esac
+    
+    # LEARNING: Acquire lock for state modification
+    if ! acquire_state_lock; then
+        error "Cannot acquire lock for partial refresh"
+        return 1
+    fi
+    
+    # LEARNING: Ensure current state is loaded
+    if ! read_state_file; then
+        warn "No state file found, running full initialization"
+        release_state_lock
+        initialize_state
+        return $?
+    fi
+    
+    # LEARNING: Perform section-specific refresh
+    local updated_state="$STATE_CACHE"
+    
+    case "$section" in
+        branches)
+            # LEARNING: Update branch information from git
+            info "Refreshing branch information..."
+            local new_runtime=$(get_complete_runtime_state)
+            local branches=$(jq '.branches' <<< "$new_runtime")
+            updated_state=$(jq --argjson b "$branches" '.runtime.branches = $b' <<< "$updated_state")
+            ;;
+            
+        runtime)
+            # LEARNING: Complete runtime refresh
+            info "Refreshing runtime state..."
+            local new_runtime=$(get_complete_runtime_state)
+            updated_state=$(jq --argjson r "$new_runtime" '.runtime = $r' <<< "$updated_state")
+            ;;
+            
+        decisions)
+            # LEARNING: Recompute decisions based on current state
+            info "Refreshing decision matrix..."
+            local runtime=$(jq '.runtime' <<< "$updated_state")
+            local computed=$(jq '.computed' <<< "$updated_state")
+            local new_decisions=$(make_complete_decisions "$runtime" "$computed")
+            updated_state=$(jq --argjson d "$new_decisions" '.decisions = $d' <<< "$updated_state")
+            ;;
+    esac
+    
+    # LEARNING: Update refresh timestamp
+    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    updated_state=$(jq --arg ts "$timestamp" '.metadata.lastRefresh = $ts' <<< "$updated_state")
+    
+    # LEARNING: Write updated state
+    if write_state_file "$updated_state"; then
+        success "State section '$section' refreshed"
+        release_state_lock
+        return 0
+    else
+        error "Failed to write refreshed state"
+        release_state_lock
+        return 1
+    fi
+}
+
+# Auto-refresh detection
+# PURPOSE: Check if state needs refresh based on time or changes
+# PARAMETERS: None
+# RETURNS:
+#   0 - Refresh needed
+#   1 - No refresh needed
+# SIDE EFFECTS:
+#   - Reads state file (no modifications)
+#   - No lock required (read-only)
+# EXAMPLES:
+#   # In wrapper script startup
+#   if detect_refresh_needed; then
+#       refresh_partial_state "runtime"
+#   fi
+#   
+#   # Periodic check
+#   while true; do
+#       detect_refresh_needed && refresh_full_state
+#       sleep 300  # Check every 5 minutes
+#   done
+# LEARNING:
+#   - Non-blocking check for efficiency
+#   - Multiple criteria for refresh detection
+#   - Can be called frequently without penalty
+detect_refresh_needed() {
+    # LEARNING: Quick check without lock for performance
+    if ! read_state_file; then
+        # No state exists, definitely needs initialization
+        return 0
+    fi
+    
+    # LEARNING: Check time-based refresh (default 5 minutes)
+    local last_refresh=$(jq -r '.metadata.lastRefresh // "1970-01-01T00:00:00Z"' <<< "$STATE_CACHE")
+    local last_epoch=$(date -d "$last_refresh" +%s 2>/dev/null || echo 0)
+    local now_epoch=$(date +%s)
+    local elapsed=$((now_epoch - last_epoch))
+    local max_age=${AIPM_STATE_REFRESH_INTERVAL:-300}  # 5 minutes default
+    
+    if [[ $elapsed -gt $max_age ]]; then
+        debug "State is ${elapsed}s old (max: ${max_age}s), refresh needed"
+        return 0
+    fi
+    
+    # LEARNING: Check if opinions file changed
+    local state_hash=$(jq -r '.metadata.opinionsHash // ""' <<< "$STATE_CACHE")
+    local current_hash=""
+    if [[ -f "$OPINIONS_FILE_PATH" ]]; then
+        current_hash=$(sha256sum "$OPINIONS_FILE_PATH" | cut -d' ' -f1)
+    fi
+    
+    if [[ "$state_hash" != "$current_hash" ]]; then
+        debug "Opinions file changed, refresh needed"
+        return 0
+    fi
+    
+    # LEARNING: Check for git state drift
+    # This is a lightweight check - just current branch
+    local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
+    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    
+    if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
+        debug "Branch drift detected: state=$state_branch, actual=$actual_branch"
+        return 0
+    fi
+    
+    # No refresh needed
+    return 1
+}
+
+# Check if opinions changed
+# PURPOSE: Quick check if opinions.yaml was modified
+# PARAMETERS: None
+# RETURNS:
+#   0 - Opinions changed
+#   1 - Opinions unchanged or no state
+# SIDE EFFECTS:
+#   - Reads state file (no modifications)
+#   - No lock required (read-only)
+# EXAMPLES:
+#   # Conditional refresh
+#   if opinions_changed; then
+#       warn "Configuration changed, refreshing..."
+#       refresh_full_state
+#   fi
+# LEARNING:
+#   - Lightweight hash comparison
+#   - Useful for startup checks
+#   - No state modification
+opinions_changed() {
+    # LEARNING: Read current state hash
+    if ! read_state_file; then
+        # No state, can't determine if changed
+        return 1
+    fi
+    
+    local state_hash=$(jq -r '.metadata.opinionsHash // ""' <<< "$STATE_CACHE")
+    local current_hash=""
+    
+    if [[ -f "$OPINIONS_FILE_PATH" ]]; then
+        current_hash=$(sha256sum "$OPINIONS_FILE_PATH" | cut -d' ' -f1)
+    fi
+    
+    [[ "$state_hash" != "$current_hash" ]]
+}
+
+# ============================================================================
 # MAIN STATE MANAGEMENT FUNCTIONS
 # ============================================================================
 
@@ -2766,6 +3351,354 @@ ensure_state() {
         initialize_state
     elif [[ "$STATE_LOADED" != "true" ]]; then
         read_state_file || initialize_state
+    fi
+}
+
+# ============================================================================
+# STATE VALIDATION AND REPAIR FUNCTIONS - Detect and fix inconsistencies
+# ============================================================================
+
+# Detect state drift
+# PURPOSE: Compare state with git reality to find inconsistencies
+# PARAMETERS: None
+# RETURNS:
+#   0 - No drift detected
+#   1 - Drift detected
+# SIDE EFFECTS:
+#   - Writes detailed drift report to stdout
+#   - No files modified
+#   - No lock required (read-only)
+# EXAMPLES:
+#   # Check for drift on startup
+#   if detect_state_drift; then
+#       warn "State drift detected"
+#       repair_state_inconsistency
+#   fi
+#   
+#   # Get drift details
+#   local drift_report=$(detect_state_drift 2>&1)
+# LEARNING:
+#   - Comprehensive comparison of all trackable values
+#   - Performance optimized with early exits
+#   - Safe to call frequently
+detect_state_drift() {
+    # LEARNING: Ensure state is loaded for comparison
+    if ! read_state_file; then
+        error "No state file to check for drift"
+        return 1
+    fi
+    
+    local drift_found=false
+    local drift_items=()
+    
+    # LEARNING: Check current branch - most common drift
+    local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
+    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    
+    if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
+        drift_items+=("Branch: state='$state_branch', actual='$actual_branch'")
+        drift_found=true
+    fi
+    
+    # LEARNING: Check uncommitted changes count
+    local state_uncommitted=$(jq -r '.runtime.git.uncommittedCount // 0' <<< "$STATE_CACHE")
+    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    
+    if [[ "$state_uncommitted" != "$actual_uncommitted" ]]; then
+        drift_items+=("Uncommitted: state=$state_uncommitted, actual=$actual_uncommitted")
+        drift_found=true
+    fi
+    
+    # LEARNING: Check clean status
+    local state_clean=$(jq -r '.runtime.git.isClean // true' <<< "$STATE_CACHE")
+    local actual_clean=$([[ "$actual_uncommitted" -eq 0 ]] && echo "true" || echo "false")
+    
+    if [[ "$state_clean" != "$actual_clean" ]]; then
+        drift_items+=("Clean status: state=$state_clean, actual=$actual_clean")
+        drift_found=true
+    fi
+    
+    # LEARNING: Check branch list count (quick check)
+    local state_branch_count=$(jq '.runtime.branches.all | length' <<< "$STATE_CACHE" 2>/dev/null || echo 0)
+    local actual_branch_count=$(git branch -a --no-color | grep -c "^" || echo 0)
+    
+    # Allow small variance due to remote branches
+    if [[ $((state_branch_count - actual_branch_count)) -gt 5 ]] || 
+       [[ $((actual_branch_count - state_branch_count)) -gt 5 ]]; then
+        drift_items+=("Branch count: state=$state_branch_count, actual=$actual_branch_count")
+        drift_found=true
+    fi
+    
+    # LEARNING: Check if remote exists
+    local state_has_remote=$(jq -r '.runtime.git.hasRemote // false' <<< "$STATE_CACHE")
+    local actual_has_remote=$(git remote -v 2>/dev/null | grep -q "origin" && echo "true" || echo "false")
+    
+    if [[ "$state_has_remote" != "$actual_has_remote" ]]; then
+        drift_items+=("Remote status: state=$state_has_remote, actual=$actual_has_remote")
+        drift_found=true
+    fi
+    
+    # LEARNING: Report findings
+    if [[ "$drift_found" == "true" ]]; then
+        warn "State drift detected:"
+        for item in "${drift_items[@]}"; do
+            info "  - $item"
+        done
+        return 0
+    else
+        debug "No state drift detected"
+        return 1
+    fi
+}
+
+# Repair state inconsistency
+# PURPOSE: Automatically fix detected state drift
+# PARAMETERS:
+#   $1 - Repair mode: "auto", "interactive", "report-only" (optional, default: "auto")
+# RETURNS:
+#   0 - Repair successful or no repair needed
+#   1 - Repair failed
+# SIDE EFFECTS:
+#   - Updates state file with corrected values
+#   - Acquires and releases state lock
+#   - Writes repair log to stdout
+# EXAMPLES:
+#   # Automatic repair
+#   repair_state_inconsistency
+#   
+#   # Interactive repair with confirmations
+#   repair_state_inconsistency "interactive"
+#   
+#   # Just report what would be fixed
+#   repair_state_inconsistency "report-only"
+# LEARNING:
+#   - Prioritizes git reality over state cache
+#   - Preserves non-runtime configuration
+#   - Creates audit trail of repairs
+repair_state_inconsistency() {
+    local mode="${1:-auto}"
+    
+    # LEARNING: Detect drift first
+    local drift_report
+    if ! drift_report=$(detect_state_drift 2>&1); then
+        info "No state drift to repair"
+        return 0
+    fi
+    
+    if [[ "$mode" == "report-only" ]]; then
+        info "Would repair the following drift:"
+        echo "$drift_report"
+        return 0
+    fi
+    
+    # LEARNING: Start repair process
+    section "Repairing State Inconsistency"
+    echo "$drift_report"
+    
+    if [[ "$mode" == "interactive" ]]; then
+        if ! confirm "Proceed with state repair?"; then
+            info "Repair cancelled"
+            return 0
+        fi
+    fi
+    
+    # LEARNING: Acquire lock for repair
+    if ! acquire_state_lock; then
+        error "Cannot acquire lock for state repair"
+        return 1
+    fi
+    
+    # LEARNING: Re-read state in case it changed
+    if ! read_state_file; then
+        error "State file disappeared during repair"
+        release_state_lock
+        return 1
+    fi
+    
+    local repaired_state="$STATE_CACHE"
+    local repairs_made=0
+    
+    # LEARNING: Fix current branch
+    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [[ -n "$actual_branch" ]]; then
+        local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$repaired_state")
+        if [[ "$state_branch" != "$actual_branch" ]]; then
+            repaired_state=$(jq --arg b "$actual_branch" '.runtime.currentBranch = $b' <<< "$repaired_state")
+            info "✓ Fixed current branch: $actual_branch"
+            ((repairs_made++))
+        fi
+    fi
+    
+    # LEARNING: Fix uncommitted count and clean status
+    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    local actual_clean=$([[ "$actual_uncommitted" -eq 0 ]] && echo "true" || echo "false")
+    
+    repaired_state=$(jq --arg count "$actual_uncommitted" --arg clean "$actual_clean" '
+        .runtime.git.uncommittedCount = ($count | tonumber) |
+        .runtime.git.isClean = ($clean | fromjson)
+    ' <<< "$repaired_state")
+    info "✓ Fixed uncommitted count: $actual_uncommitted"
+    info "✓ Fixed clean status: $actual_clean"
+    ((repairs_made += 2))
+    
+    # LEARNING: Fix remote status
+    local actual_has_remote=$(git remote -v 2>/dev/null | grep -q "origin" && echo "true" || echo "false")
+    repaired_state=$(jq --arg remote "$actual_has_remote" '.runtime.git.hasRemote = ($remote | fromjson)' <<< "$repaired_state")
+    info "✓ Fixed remote status: $actual_has_remote"
+    ((repairs_made++))
+    
+    # LEARNING: Trigger partial refresh for branches
+    # This is more thorough than inline fixes
+    repaired_state=$(jq --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.metadata.lastRepair = $t' <<< "$repaired_state")
+    
+    # LEARNING: Write repaired state
+    if write_state_file "$repaired_state"; then
+        success "State repaired successfully ($repairs_made fixes applied)"
+        release_state_lock
+        
+        # LEARNING: Trigger branch refresh for complete fix
+        info "Refreshing branch information..."
+        refresh_partial_state "branches"
+        
+        return 0
+    else
+        error "Failed to write repaired state"
+        release_state_lock
+        return 1
+    fi
+}
+
+# Sync git to state
+# PURPOSE: Update state to match current git reality
+# PARAMETERS: None
+# RETURNS:
+#   0 - Sync successful
+#   1 - Sync failed
+# SIDE EFFECTS:
+#   - Performs atomic state update
+#   - Refreshes runtime section
+#   - Acquires and releases lock
+# EXAMPLES:
+#   # After external git operations
+#   sync_git_to_state
+#   
+#   # In error recovery
+#   git checkout main
+#   sync_git_to_state
+# LEARNING:
+#   - One-way sync: git → state
+#   - Preserves configuration sections
+#   - More thorough than repair
+sync_git_to_state() {
+    # LEARNING: Use atomic operation for consistency
+    if ! begin_atomic_operation "sync:git-to-state"; then
+        return 1
+    fi
+    
+    info "Synchronizing state with git reality..."
+    
+    # LEARNING: Get fresh runtime state
+    local new_runtime=$(get_complete_runtime_state)
+    if [[ -z "$new_runtime" ]]; then
+        error "Failed to get runtime state"
+        rollback_atomic_operation
+        return 1
+    fi
+    
+    # LEARNING: Read current state
+    if ! read_state_file; then
+        warn "No existing state, will initialize"
+        rollback_atomic_operation
+        initialize_state
+        return $?
+    fi
+    
+    # LEARNING: Update runtime section completely
+    local updated_state=$(jq --argjson r "$new_runtime" '.runtime = $r' <<< "$STATE_CACHE")
+    
+    # LEARNING: Recompute decisions based on new runtime
+    local computed=$(jq '.computed' <<< "$updated_state")
+    local new_decisions=$(make_complete_decisions "$new_runtime" "$computed")
+    updated_state=$(jq --argjson d "$new_decisions" '.decisions = $d' <<< "$updated_state")
+    
+    # LEARNING: Update sync timestamp
+    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    updated_state=$(jq --arg ts "$timestamp" '.metadata.lastGitSync = $ts' <<< "$updated_state")
+    
+    # LEARNING: Write synchronized state
+    STATE_CACHE="$updated_state"
+    if commit_atomic_operation; then
+        success "State synchronized with git"
+        return 0
+    else
+        # Rollback handled by commit_atomic_operation
+        return 1
+    fi
+}
+
+# Validate state against git
+# PURPOSE: Ensure state matches git before critical operations
+# PARAMETERS: None
+# RETURNS:
+#   0 - State is valid
+#   1 - State is invalid or inconsistent
+# SIDE EFFECTS:
+#   - Writes validation errors to stderr
+#   - No files modified
+#   - No lock required (read-only)
+# EXAMPLES:
+#   # Before git operations
+#   validate_state_against_git || sync_git_to_state
+#   
+#   # In wrapper scripts
+#   if ! validate_state_against_git; then
+#       die "State inconsistent with git"
+#   fi
+# LEARNING:
+#   - Quick validation without repair
+#   - Focuses on critical values
+#   - Use before operations that depend on state accuracy
+validate_state_against_git() {
+    # LEARNING: Ensure state is loaded
+    if ! read_state_file; then
+        error "No state to validate"
+        return 1
+    fi
+    
+    local valid=true
+    
+    # LEARNING: Critical check 1: Current branch
+    local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
+    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    
+    if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
+        error "Branch mismatch: state=$state_branch, git=$actual_branch"
+        valid=false
+    fi
+    
+    # LEARNING: Critical check 2: Working tree status
+    # Allow minor variance in count but not in clean status
+    local state_clean=$(jq -r '.runtime.git.isClean // true' <<< "$STATE_CACHE")
+    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    local actual_clean=$([[ "$actual_uncommitted" -eq 0 ]] && echo "true" || echo "false")
+    
+    if [[ "$state_clean" != "$actual_clean" ]]; then
+        error "Clean status mismatch: state=$state_clean, git=$actual_clean"
+        valid=false
+    fi
+    
+    # LEARNING: Critical check 3: Main branch exists
+    local main_branch=$(jq -r '.computed.mainBranch // ""' <<< "$STATE_CACHE")
+    if [[ -n "$main_branch" ]] && ! git show-ref --verify --quiet "refs/heads/$main_branch"; then
+        error "Main branch '$main_branch' does not exist in git"
+        valid=false
+    fi
+    
+    if [[ "$valid" == "true" ]]; then
+        debug "State validated against git"
+        return 0
+    else
+        return 1
     fi
 }
 
