@@ -160,12 +160,38 @@ During state management implementation, discovered **CRITICAL** architectural vi
 2. **Atomic Operation Framework** (Pending)
 3. **State Refresh Architecture** (Pending)
 
+## ✅ COMPLETED: Wrapper Scripts Surgical Fix Plan (2025-06-22)
+
+### Achievements:
+1. **Complete Function Inventory** (_functions.md in docs/)
+   - Documented ALL 256 functions across 6 modules
+   - Serves as authoritative reference for AI/LLM
+   - Complete with purpose, parameters, returns, examples
+
+2. **Wrapper Scripts Fix Plan** (wrapper-scripts-fix-plan.md)
+   - Identified ~900 lines of business logic violations
+   - Showed how to reduce 1,649 lines to 330 lines (80% reduction)
+   - Only 7 new functions needed (not hundreds!)
+   - Preserved wrapper relationships (init→start, stop→save)
+   - Focus on user experience with rich shell output
+
+3. **Architectural Understanding**:
+   - Wrappers = User Interface (guide, educate, feedback)
+   - Modules = Business Logic (all decisions)
+   - stop.sh calls save.sh internally (stop = save + cleanup)
+   - init.sh prepares then optionally calls start.sh
+
+### Note: Memory Management Integration
+- Memory path resolution needs review for nuanced cases
+- Will be addressed after state management implementation
+
 ## 🔄 Next Session Plan
 
-### 1. Clean Up Documentation
-- Consolidate multiple analysis documents
-- Create single ground truth specification
-- Organize findings into actionable items
+### 1. Continue State Management Implementation
+- Complete Phase 0: Foundation Infrastructure
+- Implement lock management system
+- Add atomic operation framework
+- Create state refresh architecture
 
 ### 2. Fix Architecture Violations
 - Add 16 missing functions to version-control.sh
@@ -179,10 +205,11 @@ During state management implementation, discovered **CRITICAL** architectural vi
 - Complete test coverage
 - Verify bidirectional updates work
 
-### 4. Rewrite Wrapper Scripts Hardening Plan
-- Based on clean architecture
-- With state management integration
-- Following all principles discovered
+### 4. Implement Wrapper Scripts Refactoring
+- Add 7 missing orchestration functions to modules
+- Refactor wrapper scripts per fix plan
+- Test end-to-end workflows
+- Review memory management integration
 
 ## 📋 Original Implementation Tasks (PAUSED)
 

@@ -4,6 +4,48 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Wrapper Scripts Surgical Fix Plan & Complete Function Inventory
+
+### Added
+- **Complete Function Inventory (_functions.md)**
+  - Moved from modules/ to docs/ for better organization
+  - Documents ALL 256 functions across 6 modules
+  - Complete with purpose, parameters, returns, examples, learning notes
+  - Serves as authoritative reference for AI/LLM to understand available functions
+
+- **Wrapper Scripts Surgical Fix Plan**
+  - Created ultimate surgical refactoring plan in wrapper-scripts-fix-plan.md
+  - Identified ~900 lines of business logic violations in wrapper scripts
+  - Shows how to reduce 1,649 lines to 330 lines (80% reduction)
+  - Only 7 new orchestration functions needed (not hundreds!)
+  - Preserves wrapper relationships (init→start, stop→save)
+  - Rich user experience focus with shell-formatting.sh
+
+### Discovered
+- **Wrapper Script Violations**
+  - save.sh: 150 lines of business logic that should use existing functions
+  - start.sh: 250 lines of business logic violations
+  - stop.sh: 200 lines that should delegate to modules
+  - revert.sh: 300 lines of reimplemented functionality
+  - Many functions already exist but aren't being used!
+
+- **Architectural Relationships**
+  - stop.sh should call save.sh internally (stop = save + cleanup)
+  - init.sh should prepare then optionally call start.sh
+  - save.sh enables project-wide undo via revert.sh
+  - Each wrapper can be called independently
+
+### Changed
+- **Wrapper Scripts Understanding**
+  - Wrappers = User Interface (guide, educate, provide feedback)
+  - Modules = Business Logic (all decisions and operations)
+  - Focus on meaningful shell output to help users learn AIPM
+  - Consistent visual experience through shell-formatting.sh
+
+### Note
+- Memory management integration with state needs review for nuanced path cases
+- Will be addressed after state management implementation
+
 ## 2025-06-22 - Critical Architecture Discovery & Complete Documentation Overhaul
 
 ### Discovered
