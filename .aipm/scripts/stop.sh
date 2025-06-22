@@ -55,6 +55,17 @@ source "$SCRIPT_DIR/modules/migrate-memories.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/modules/opinions-state.sh" || {
+    error "Required file opinions-state.sh not found"
+    exit 1
+}
+
+# Initialize state
+ensure_state || {
+    error "Failed to initialize state"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Session Cleanup"
 
@@ -170,27 +181,167 @@ if ! release_from_mcp; then
     info "Proceeding anyway..."
 fi
 
-# TASK 4: Call save.sh for Memory Persistence
-step "Saving memory changes..."
+# TASK 3.5: Check workflow rules for session end
+step "Checking workflow rules..."
 
-# Build save command with context
-local save_message="Session end: $(date +%Y-%m-%d_%H:%M:%S)"
+# Begin atomic operation for session stop
+begin_atomic_operation "stop:session:$SESSION_ID"
 
-if [[ "$WORK_CONTEXT" == "framework" ]]; then
-    if "$SCRIPT_DIR/save.sh" --framework "$save_message"; then
-        success "Memory changes saved"
-    else
-        error "Failed to save memory changes"
-        warn "Memory may be lost - backup available at .memory/backup.json"
-        # Continue anyway to clean up session
-    fi
+# Get current branch and check if it's a session branch
+local current_branch=$(get_current_branch)
+local branch_type=""
+local branches=$(get_value "runtime.branches")
+
+# Determine branch type
+if [[ -n "$branches" ]] && [[ -n "$current_branch" ]]; then
+    branch_type=$(printf "%s\n" "$branches" | jq -r --arg b "$current_branch" '.[$b].type // ""')
+fi
+
+# Check if we should merge session branch
+local should_merge=false
+local merge_target=""
+
+if [[ "$branch_type" == "session" ]]; then
+    local session_merge=$(get_value "computed.workflows.merging.sessionMerge")
+    
+    case "$session_merge" in
+        "on-stop")
+            should_merge=true
+            info "Workflow rule: Merge session branch on stop"
+            # Get merge target from state
+            local parent_branch=$(printf "%s\n" "$branches" | jq -r --arg b "$current_branch" '.[$b].parent // ""')
+            merge_target="${parent_branch:-main}"
+            ;;
+        "prompt")
+            local prompt_text=$(get_value "computed.workflows.merging.prompts.sessionComplete")
+            if confirm "${prompt_text:-Merge session branch to parent?}"; then
+                should_merge=true
+                local parent_branch=$(printf "%s\n" "$branches" | jq -r --arg b "$current_branch" '.[$b].parent // ""')
+                merge_target="${parent_branch:-main}"
+            fi
+            ;;
+        "never")
+            info "Session branches are not merged automatically"
+            ;;
+    esac
+fi
+
+# Check if we have uncommitted changes that need saving
+local uncommitted_count=$(count_uncommitted_files)
+local should_save=true
+
+if [[ $uncommitted_count -eq 0 ]]; then
+    info "No uncommitted changes to save"
+    should_save=false
 else
-    if "$SCRIPT_DIR/save.sh" --project "$PROJECT_NAME" "$save_message"; then
-        success "Memory changes saved"
+    info "Found $uncommitted_count uncommitted files"
+fi
+
+# TASK 4: Call save.sh for Memory Persistence
+if [[ "$should_save" == "true" ]]; then
+    step "Saving memory changes..."
+    
+    # Build save command with context
+    local save_message="Session end: $(date +%Y-%m-%d_%H:%M:%S)"
+
+    if [[ "$WORK_CONTEXT" == "framework" ]]; then
+        if "$SCRIPT_DIR/save.sh" --framework "$save_message"; then
+            success "Memory changes saved"
+        else
+            error "Failed to save memory changes"
+            warn "Memory may be lost - backup available at .memory/backup.json"
+            # Continue anyway to clean up session
+        fi
     else
-        error "Failed to save memory changes"
-        warn "Memory may be lost - backup available at .memory/backup.json"
-        # Continue anyway to clean up session
+        if "$SCRIPT_DIR/save.sh" --project "$PROJECT_NAME" "$save_message"; then
+            success "Memory changes saved"
+        else
+            error "Failed to save memory changes"
+            warn "Memory may be lost - backup available at .memory/backup.json"
+            # Continue anyway to clean up session
+        fi
+    fi
+fi
+
+# Handle session merge if configured
+if [[ "$should_merge" == "true" ]] && [[ -n "$merge_target" ]]; then
+    step "Merging session branch to $merge_target..."
+    
+    # First checkout the target branch
+    if checkout_branch "$merge_target"; then
+        # Now merge the session branch
+        if merge_branch "$current_branch"; then
+            success "Session branch merged successfully"
+            
+            # Update state with merge info
+            update_state "runtime.branches.merged[]" "$current_branch" && \
+            update_state "runtime.lastMerge" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            
+            # Check cleanup workflow
+            local cleanup_after_merge=$(get_value "computed.workflows.cleanup.afterMerge")
+            
+            case "$cleanup_after_merge" in
+                "immediate")
+                    step "Cleaning up merged session branch..."
+                    if delete_branch "$current_branch"; then
+                        success "Session branch deleted"
+                        update_state "runtime.branches.deleted[]" "$current_branch"
+                    else
+                        warn "Failed to delete session branch"
+                    fi
+                    ;;
+                "prompt")
+                    local prompt_text=$(get_value "computed.workflows.cleanup.prompts.afterMerge")
+                    if confirm "${prompt_text:-Delete merged session branch?}"; then
+                        if delete_branch "$current_branch"; then
+                            success "Session branch deleted"
+                            update_state "runtime.branches.deleted[]" "$current_branch"
+                        fi
+                    fi
+                    ;;
+                "never")
+                    info "Keeping merged session branch"
+                    ;;
+            esac
+        else
+            error "Failed to merge session branch"
+            warn "Session work remains on branch: $current_branch"
+            # Switch back to session branch
+            checkout_branch "$current_branch"
+        fi
+    else
+        error "Failed to checkout merge target: $merge_target"
+    fi
+fi
+
+# Check push on stop workflow
+local push_on_stop=$(get_value "computed.workflows.synchronization.pushOnStop")
+local should_push=false
+
+case "$push_on_stop" in
+    "always")
+        should_push=true
+        ;;
+    "if-feature")
+        if [[ "$branch_type" == "feature" ]] || [[ "$branch_type" == "bugfix" ]]; then
+            should_push=true
+        fi
+        ;;
+    "prompt")
+        local prompt_text=$(get_value "computed.workflows.synchronization.prompts.pushOnStop")
+        if confirm "${prompt_text:-Push changes to remote?}"; then
+            should_push=true
+        fi
+        ;;
+esac
+
+if [[ "$should_push" == "true" ]]; then
+    step "Pushing changes to remote..."
+    if push_to_remote; then
+        success "Changes pushed to remote"
+        update_state "runtime.lastPush" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    else
+        warn "Failed to push changes - they remain local only"
     fi
 fi
 
@@ -232,6 +383,20 @@ fi
 
 # Clean up temporary files created by memory operations
 cleanup_temp_files
+
+# Update final session state
+update_state "runtime.session.active" "false" && \
+update_state "runtime.session.endTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+update_state "runtime.session.duration" "$duration_str" && \
+update_state "runtime.lastSync" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+if [[ $? -eq 0 ]]; then
+    commit_atomic_operation
+    success "Session state updated"
+else
+    rollback_atomic_operation
+    warn "Failed to update session end state"
+fi
 
 # TASK 7: Exit Claude Code
 section "Cleanup Complete"
