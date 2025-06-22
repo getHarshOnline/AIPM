@@ -185,6 +185,67 @@ During state management implementation, discovered **CRITICAL** architectural vi
 - Memory path resolution needs review for nuanced cases
 - Will be addressed after state management implementation
 
+## 🎯 CRITICAL TASK: Final Wrapper Scripts Fix Plan Enrichment (2025-06-22)
+
+### The Big Picture
+**PURPOSE**: Create the FINAL, COMPLETE, PRECISE wrapper-scripts-fix-plan.md that accounts for ALL architectural dimensions.
+
+**CORE CONCERNS**:
+1. **Path-Agnostic Architecture**: Projects can be symlinked or standalone
+2. **Memory Path Hardcoding**: Current fix plan has hardcoded paths that break symlink architecture
+3. **Init.sh Behavior**: Must align with opinions.yaml init design
+4. **State Management Alignment**: Cannot break state-management-fix-plan.md work
+
+### Critical Discoveries from Deep Analysis
+- Only 3 new functions truly needed (not 7):
+  - `create_session()` - Session lifecycle management
+  - `cleanup_session()` - Complete the lifecycle  
+  - `revert_memory_partial()` - New filtering capability
+- Wrapper scripts don't use existing functions (reimplementing logic)
+- Memory paths are hardcoded everywhere (breaks path-agnostic design)
+
+### The Task
+**DELIVERABLE**: Surgically improved wrapper-scripts-fix-plan.md that:
+1. Incorporates findings from new-functions-deep-analysis.md
+2. Solves hardcoded memory path problem with proper workspace detection
+3. Aligns with init.sh behavior and opinions.yaml design
+4. Doesn't break state management integration
+5. Shows EXACTLY how to use existing functions properly
+6. Is COMPLETE, PRECISE, CAREFUL, and DILIGENT
+
+### Required Reading Before Task
+1. **opinions.yaml** - Especially init section comments
+2. **init.sh** - Understand symlink and workspace behavior
+3. **state-management-fix-plan.md** - Ensure no conflicts
+4. **new-functions-deep-analysis.md** - The 3 needed functions
+5. **Module patterns** - For proper implementation style
+
+### Why This Is Critical
+If done wrong, it could break:
+- The symlink architecture (projects linked into AIPM)
+- Memory isolation between projects
+- State management integration
+- The entire path-agnostic framework design
+
+### Success Criteria
+- No hardcoded paths anywhere
+- Proper workspace detection based on context
+- Only 3 new functions with exact module patterns
+- Complete alignment with all architectural principles
+- Ready for implementation without ambiguity
+
+### EXACT USER DIRECTIVE (Verbatim)
+"Got it - so I agree with your analysis and the fact that we really actually need little less number of function (what is for convenience can be skipped) - but yeah - the memory path being hardcoded is a problem because of many reasons but most importantly it breaks the whole path system since the way this will be used is project you are working on will be symlinked in this directory and then - the project itself will have same .aipm all thanks to init. See init is designed from this whole point of view that you can run init from here and then give it the list of directories that are your projects you want to use aipm on - and then it will do the whole symlinking thing here in this AIPM repository if it is cloned - or else you can also go to a directory and run init there (but that going to a repository and then doin npm based aipm command is out of scope for now from current-focus perview) - so practically its the symlinking option. but then the inint will actually install all aipm related stuff in that repository as well (or a list of it) - that installation or exact init bit is also out of scope. Right now we are working from the point of view that we will manually copy paste this init will literally copy pase everything in directory's .aipm inside that (ar all the symlinked directories which this automatically detects as project while making sure over there the local_memory.json and state files are clean. The exact init behaviour is clearly defined in comments inside of opinions.yaml which you should read in detail and totality. Now once this happens the point is that this framework is defined to be path agnostic - in a way that - once everything is installed (and btw the init is mart enough to understand if things are already setup and its just opinions.yaml that has changed or is it a new thing) - the memory it uses depends on the arguments passed on these scripts - and if we are working on the project then it uses that as workpsace and then by virute uses that workspace's memory! - so we have to see things from that perspective. So from this point of view now i want a realy deep investigation of the wrapper-scripts-fix-plan.md and init.sh as well as the alignement you and I have ad now on your new-functions-deep-analysis.md (and by the way the needed new functions and suggested bti for memory should definitely be created but they also should be created by using the exact same patterns in the existing module scripts files which means reading those very clearly for things like in place documentation style using shell-formatting.sh and the ways - etc - and levarging the internal helper functions in those specific scripts any way) - to do a final very specific and surgical improvement of wrapper-scripts-fix-plan.md and while you do that you have to read the state-management-fix-plan.md and see if we are not breaking what we have done over there while making these fixes. - So this final enrichment pass of wrapper-scripts-fix-plan.md will concretize exactly what needs to be done but has to be deeply and systematically analyzed from all these perspectives and be done COMPLETELY and PRECISELY and CAREFULLY and DILLIGENTLY!!! - before you start i want you to read this final directive from me and make sure - you understand it celarly and tell me so I can confirma your understanding of all the dimensions, nature, details, task and their sequence and what the subtaks inthose task are is very clear. because this is VERY CRTIICAL TASK and if done wrong can break everything. - so tell me what have you understood."
+
+### CRITICAL CONSTRAINTS
+- DO NOT create new files
+- PRESERVE all existing good content in wrapper-scripts-fix-plan.md
+- ONLY surgically fix the parts impacted by:
+  - Path-agnostic architecture
+  - Memory path resolution
+  - Reducing from 7 to 3 functions
+  - Using existing functions properly
+
 ## 🔄 Next Session Plan
 
 ### 1. Continue State Management Implementation
@@ -206,10 +267,11 @@ During state management implementation, discovered **CRITICAL** architectural vi
 - Verify bidirectional updates work
 
 ### 4. Implement Wrapper Scripts Refactoring
-- Add 7 missing orchestration functions to modules
-- Refactor wrapper scripts per fix plan
-- Test end-to-end workflows
-- Review memory management integration
+- Add only 3 truly needed functions to modules
+- Solve memory path resolution for path-agnostic design
+- Refactor wrapper scripts to use existing functions
+- Test end-to-end workflows with symlinked projects
+- Ensure init.sh alignment
 
 ## 📋 Original Implementation Tasks (PAUSED)
 

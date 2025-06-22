@@ -18,6 +18,18 @@ This document provides THE definitive surgical fixes to transform wrapper script
 3. **Shell Formatting = Consistency**: Unified visual experience
 4. **State Management = Single Source of Truth**: All configuration from opinions.yaml
 
+### 🚨 PATH-AGNOSTIC ARCHITECTURE (CRITICAL)
+The AIPM framework is designed to be path-agnostic:
+- **Framework mode**: Uses `.aipm/memory/` in AIPM root
+- **Project mode**: Uses `PROJECT/.aipm/memory/` in symlinked project
+- **Memory path resolution**: Determined by `--framework` or `--project NAME` arguments
+- **NO HARDCODED PATHS**: All paths must be resolved dynamically based on context
+
+**Key Functions for Path Resolution**:
+- `initialize_memory_context()` - Sets up correct memory paths based on arguments
+- `get_memory_path()` - Returns correct memory path for current context
+- `get_project_context()` - Detects framework vs project context
+
 ## 📋 Function Inventory Reference
 
 See `FUNCTION_INVENTORY.md` for complete documentation of ALL 256 available functions:
@@ -37,7 +49,7 @@ See `FUNCTION_INVENTORY.md` for complete documentation of ALL 256 available func
 | save.sh | 316 | ~150 lines | 50 | 84% |
 | start.sh | 455 | ~250 lines | 60 | 87% |
 | stop.sh | 411 | ~200 lines | 40 | 90% |
-| **TOTAL** | **1,649** | **~900 lines** | **230** | **86%** |
+| **TOTAL** | **1,649** | **~900 lines** | **330** | **80%** |
 
 ### revert.sh - Detailed Violations (467 → 80 lines)
 
@@ -69,7 +81,7 @@ if [[ "$WORK_CONTEXT" == "framework" ]]; then
 else
     MEMORY_FILE="$PROJECT_NAME/.memory/local_memory.json"
 ```
-**EXISTS**: Path is set by `initialize_memory_context()`!
+**EXISTS**: Path is set by `initialize_memory_context()` and retrieved by `get_memory_path()`!
 
 #### 4. List Mode Implementation (lines 228-256)
 **VIOLATION**: Complex history display logic
@@ -79,8 +91,8 @@ else
 **VIOLATION**: 70 lines of entity filtering
 ```bash
 while IFS= read -r line; do
-    local type=$(echo "$line" | jq -r '.type // empty')
-    local name=$(echo "$line" | jq -r '.name // empty')
+    local type=$(printf "%s" "$line" | jq -r '.type // empty')
+    local name=$(printf "%s" "$line" | jq -r '.name // empty')
     # ... complex filtering
 ```
 **NEEDS**: Add `revert_memory_partial()` to migrate-memories.sh
@@ -135,7 +147,7 @@ update_state "runtime.git.lastCommit" "$commit_hash" && \
 #### 1. Memory Symlink Check (lines 94-103)
 **VIOLATION**: Manual symlink verification
 ```bash
-if [[ ! -L ".claude/memory.json" ]]; then
+if [[ ! -L ".aipm/memory.json" ]]; then
     warn "Memory symlink missing, creating..."
 ```
 **EXISTS**: `ensure_memory_symlink()` in sync-memory.sh!
@@ -238,11 +250,31 @@ if [[ $uncommitted_count -eq 0 ]]; then
 **From sync-memory.sh:**
 - `ensure_memory_symlink()` - Replace manual symlink checks
 
-### Phase 1: Add ONLY Missing High-Level Functions
+### Phase 1: Add ONLY 3 Missing Functions (NOT 7!)
 
-#### To opinions-state.sh (4 functions):
+Based on deep analysis, we only need 3 new functions:
+
+#### To opinions-state.sh (2 functions):
 ```bash
-# Session management functions that don't exist
+# Create a new session with state tracking
+# PURPOSE: Initialize a new AIPM session with atomic state updates
+# PARAMETERS:
+#   $1 - Context type ("framework" or "project") (required)
+#   $2 - Project name (optional, required if context is "project")
+# RETURNS:
+#   0 - Success
+#   1 - Failed to create session
+# OUTPUTS:
+#   Session ID on stdout
+# SIDE EFFECTS:
+#   - Updates multiple state values atomically
+#   - Creates session tracking file
+# EXAMPLES:
+#   local sid=$(create_session "framework")
+#   local sid=$(create_session "project" "MyProject")
+# LEARNING:
+#   - Session files use workspace-relative paths for symlink support
+#   - All state updates are atomic to prevent corruption
 create_session() {
     local context="$1"
     local project="$2"
@@ -258,23 +290,45 @@ create_session() {
     commit_atomic_operation || { rollback_atomic_operation; return 1; }
     
     # Create session file
-    local session_file=".memory/session_active"
-    mkdir -p .memory
+    # CRITICAL: Use workspace-relative memory path
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
+    mkdir -p "$memory_dir"
     cat > "$session_file" <<EOF
 Session: $session_id
 Context: $context
 Project: ${project:-N/A}
 Started: $(date)
-Branch: $(get_current_branch 2>/dev/null || echo "unknown")
+Branch: $(get_current_branch 2>/dev/null || printf "%s" "unknown")
 Memory: $(get_memory_path "$context" "$project")
 PID: $$
 EOF
     
-    echo "$session_id"
+    printf "%s\n" "$session_id"
 }
 
+# Get current session information from state
+# PURPOSE: Retrieve active session details from state
+# PARAMETERS: None
+# RETURNS:
+#   0 - Session found
+#   1 - No active session
+# OUTPUTS:
+#   Session info as "id:context:project" or empty
+# SIDE EFFECTS:
+#   None - read-only operation
+# EXAMPLES:
+#   local info=$(get_session_info)
+#   IFS=':' read -r sid ctx proj <<< "$info"
+# LEARNING:
+#   - Session file existence check uses workspace-relative path
+#   - All data comes from state, not file parsing
 get_session_info() {
-    if [[ ! -f ".memory/session_active" ]]; then
+    # CRITICAL: Use workspace-relative memory path
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
+    
+    if [[ ! -f "$session_file" ]]; then
         return 1
     fi
     
@@ -284,9 +338,27 @@ get_session_info() {
     local project=$(get_value "runtime.session.project")
     [[ "$project" == "none" ]] && project=""
     
-    echo "${session_id}:${context}:${project}"
+    printf "%s\n" "${session_id}:${context}:${project}"
 }
 
+# Clean up session and archive session file
+# PURPOSE: Mark session as inactive and archive session file
+# PARAMETERS:
+#   $1 - Session ID to clean up (required)
+# RETURNS:
+#   0 - Success
+#   1 - Failed to update state
+# OUTPUTS:
+#   None
+# SIDE EFFECTS:
+#   - Updates session state to inactive
+#   - Archives session file to sessions directory
+# EXAMPLES:
+#   cleanup_session "$SESSION_ID"
+#   cleanup_session "$(get_value 'runtime.session.id')"
+# LEARNING:
+#   - Session archival preserves history for debugging
+#   - Uses workspace-relative paths for symlink support
 cleanup_session() {
     local session_id="$1"
     
@@ -297,62 +369,40 @@ cleanup_session() {
     commit_atomic_operation || { rollback_atomic_operation; return 1; }
     
     # Archive session file
-    if [[ -f ".memory/session_active" ]]; then
-        mkdir -p .memory/sessions
-        mv ".memory/session_active" ".memory/sessions/${session_id}.session" 2>/dev/null || true
-    fi
-}
-
-# Helper for workflow decisions
-should_create_session_branch() {
-    local current_branch="$1"
-    local behavior=$(get_workflow_rule "branchCreation.startBehavior")
+    # CRITICAL: Use workspace-relative memory path
+    local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"
+    local session_file="${memory_dir}/session_active"
     
-    case "$behavior" in
-        "always") return 0 ;;
-        "check-first")
-            # Check if on protected branch
-            local protected=$(get_value "computed.protectedBranches.all")
-            if [[ -n "$protected" ]]; then
-                while IFS= read -r pattern; do
-                    [[ "$current_branch" =~ $pattern ]] && return 0
-                done < <(printf '%s\n' "$protected" | jq -r '.[]' 2>/dev/null)
-            fi
-            return 1
-            ;;
-        "prompt")
-            confirm "Create session branch?"
-            ;;
-        *) return 1 ;;
-    esac
+    if [[ -f "$session_file" ]]; then
+        mkdir -p "${memory_dir}/sessions"
+        mv "$session_file" "${memory_dir}/sessions/${session_id}.session" 2>/dev/null || true
+    fi
 }
 ```
 
-#### To migrate-memories.sh (2 functions):
+#### To migrate-memories.sh (1 function):
 ```bash
-# High-level orchestration
-perform_memory_save() {
-    local context="$1"
-    local project="$2"
-    
-    step "Saving memory files"
-    
-    # Get paths
-    local memory_file=$(get_memory_path "$context" "$project")
-    local local_memory=".memory/local_memory.json"
-    
-    # Save and get stats
-    if save_memory ".claude/memory.json" "$local_memory"; then
-        local stats=$(get_memory_stats "$local_memory")
-        success "Memory saved: $stats"
-        echo "$stats"
-    else
-        error "Failed to save memory"
-        return 1
-    fi
-}
-
-# Partial revert for filtered entities
+# Extract and apply filtered memory entities from a git commit
+# PURPOSE: Revert only specific entities/relations matching a pattern
+# PARAMETERS:
+#   $1 - Git commit reference (required)
+#   $2 - Memory file path in commit (required)
+#   $3 - Filter pattern (regex) (required)
+#   $4 - Output file path (required)
+# RETURNS:
+#   0 - Success
+#   1 - Failed to extract or no matches
+# OUTPUTS:
+#   Filtered memory content written to output file
+# SIDE EFFECTS:
+#   - Creates temporary files (cleaned up)
+#   - Overwrites output file
+# EXAMPLES:
+#   revert_memory_partial "HEAD~3" ".aipm/memory/local_memory.json" "USER_.*" "$MEMORY_FILE"
+#   revert_memory_partial "$COMMIT" "$MEM_PATH" "PROJECT_FEATURE_.*" "filtered.json"
+# LEARNING:
+#   - This is a NEW capability not provided by existing functions
+#   - Enables surgical memory restoration
 revert_memory_partial() {
     local commit="$1"
     local memory_file="$2"
@@ -393,46 +443,11 @@ revert_memory_partial() {
 }
 ```
 
-#### To version-control.sh (1 helper function):
-```bash
-# Check active session and handle conflicts
-handle_active_session_conflict() {
-    if [[ ! -f ".memory/session_active" ]]; then
-        return 0
-    fi
-    
-    error "Active session detected!"
-    info "You have an active session that may have unsaved changes."
-    echo
-    
-    local options=(
-        "Abort this operation"
-        "Save and stop the session first"
-        "Force continue (may lose changes)"
-    )
-    
-    local choice=$(select_with_default "Choose action" "${options[@]}")
-    
-    case "$choice" in
-        "Abort this operation")
-            return 1
-            ;;
-        "Save and stop the session first")
-            info "Saving current session..."
-            if create_commit "Auto-save before revert" true; then
-                success "Changes saved"
-            fi
-            info "Stopping session..."
-            cleanup_session "$(get_value "runtime.session.id")"
-            return 0
-            ;;
-        "Force continue (may lose changes)")
-            warn "Proceeding without saving..."
-            return 0
-            ;;
-    esac
-}
-```
+#### REMOVED: handle_active_session_conflict - NOT NEEDED
+This function was going to be added to version-control.sh, but it can be implemented directly in wrapper scripts using existing functions:
+- Use `get_value "runtime.session.active"` to check for active session
+- Use `select_with_default()` for user prompts
+- Use `create_commit()` and `cleanup_session()` for actions
 
 ### Phase 2: Refactored Wrapper Scripts with User Experience Focus
 
@@ -449,7 +464,7 @@ source "$SCRIPT_DIR/modules/migrate-memories.sh" || exit 1
 # Header with visual impact
 clear_screen
 draw_header "AIPM Framework Initialization" "="
-echo
+printf "\n"
 
 # Parse arguments
 REINIT=false
@@ -497,7 +512,7 @@ info "Main branch: $(get_value 'computed.mainBranch')"
 info "Branch prefix: $(get_value 'raw.branching.prefix')"
 info "Protected patterns: $(get_value 'computed.protectedBranches.all' | jq -r '.[]' 2>/dev/null | head -3 | tr '\n' ' ')"
 info "Workflow mode: $(get_value 'raw.automation.level')"
-echo
+printf "\n"
 
 # Detect projects
 section "Detecting Projects"
@@ -505,25 +520,25 @@ local projects=($(find_all_memory_files | grep -E '^[^/]+/.memory/' | cut -d'/' 
 if [[ ${#projects[@]} -gt 0 ]]; then
     success "Found ${#projects[@]} project(s):"
     for proj in "${projects[@]}"; do
-        echo "  $(format_path "$proj")"
+        info "  $(format_path "$proj")"
     done
 else
     info "No projects found yet"
 fi
-echo
+printf "\n"
 
 # Success message with next steps
 success_box "AIPM Framework Initialized Successfully!"
-echo
+printf "\n"
 info "Next steps:"
-echo "  1. Start a framework session: $(format_command "./start.sh --framework")"
-echo "  2. Start a project session: $(format_command "./start.sh --project PROJECT_NAME")"
-echo "  3. View configuration: $(format_command "cat .aipm/config/opinions.yaml")"
-echo
+info "  1. Start a framework session: $(format_command "./start.sh --framework")"
+info "  2. Start a project session: $(format_command "./start.sh --project PROJECT_NAME")"
+info "  3. View configuration: $(format_command "cat .aipm/opinions.yaml")"
+printf "\n"
 
 # Auto-start if requested
 if [[ "$AUTO_START" == "true" ]]; then
-    echo
+    printf "\n"
     info "Auto-starting session..."
     sleep 1
     exec "$SCRIPT_DIR/start.sh"
@@ -569,8 +584,32 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check for active session
-handle_active_session_conflict || exit 1
+# Check for active session using existing functions
+if [[ "$(get_value 'runtime.session.active')" == "true" ]]; then
+    error "Active session detected!"
+    info "You have an active session that may have unsaved changes."
+    printf "\n"
+    
+    local choice=$(select_with_default "Choose action" \
+        "Abort this operation" \
+        "Save and stop the session first" \
+        "Force continue (may lose changes)")
+    
+    case "$choice" in
+        "Abort this operation")
+            die "Operation aborted"
+            ;;
+        "Save and stop the session first")
+            info "Saving current session..."
+            create_commit "Auto-save before revert" true && success "Changes saved"
+            info "Stopping session..."
+            cleanup_session "$(get_value 'runtime.session.id')"
+            ;;
+        "Force continue (may lose changes)")
+            warn "Proceeding without saving..."
+            ;;
+    esac
+fi
 
 # Auto-detect context if not specified
 if [[ -z "$WORK_CONTEXT" ]]; then
@@ -586,7 +625,7 @@ MEMORY_FILE=$(get_memory_path "$WORK_CONTEXT" "$PROJECT_NAME")
 if [[ "$LIST_MODE" == "true" ]]; then
     subsection "Memory History"
     show_file_history "$MEMORY_FILE" "--oneline --no-merges" | head -20
-    echo
+    printf "\n"
     info "Use commit hash with revert to restore: $(format_command "./revert.sh HASH")"
     exit 0
 fi
@@ -662,7 +701,7 @@ done
 section "Creating Memory Checkpoint" "💾"
 info "Context: $(format_context "$WORK_CONTEXT" "$PROJECT_NAME")"
 info "Message: $COMMIT_MSG"
-echo
+printf "\n"
 
 # Initialize and check permissions
 initialize_memory_context "$WORK_CONTEXT" "$PROJECT_NAME"
@@ -692,11 +731,11 @@ local stats=$(execute_with_spinner "Saving memory" \
 if create_commit "$COMMIT_MSG" true; then
     report_git_operation "save-completed" "$(get_branch_commit HEAD)" "$stats"
     success "✓ Checkpoint created successfully!"
-    echo "  $stats"
+    printf "\n" "  $stats"
     
     # Auto-backup if configured
     if [[ "$(get_workflow_rule "synchronization.autoBackup")" == "on-save" ]]; then
-        echo
+        printf "\n"
         execute_with_spinner "Backing up to remote" push_to_remote
     fi
 else
@@ -739,7 +778,7 @@ done
 # Welcome message
 clear_screen
 draw_header "Welcome to AIPM" "✨"
-echo
+printf "\n"
 
 # Setup memory system
 execute_with_spinner "Preparing memory system" ensure_memory_symlink
@@ -773,16 +812,19 @@ if [[ "$(get_workflow_rule 'synchronization.pullOnStart')" != "never" ]]; then
 fi
 
 # Prepare memory
+# NOTE: .aipm/memory.json is the MCP symlink (always at workspace root)
+# But backup goes to workspace-relative memory directory
+local backup_path="$(get_memory_path "$WORK_CONTEXT" "$PROJECT_NAME" | sed 's/local_memory.json/backup.json/')"
 execute_with_spinner "Loading memory context" \
-    "backup_memory '.claude/memory.json' '.memory/backup.json'"
+    "backup_memory '.aipm/memory.json' '$backup_path'"
 
 # Launch Claude with style
-echo
+printf "\n"
 success_box "Launching Claude Code!"
 info "Session: $SESSION_ID"
 info "Context: $(format_context "$WORK_CONTEXT" "$PROJECT_NAME")"
-info "Memory: $(get_memory_stats '.claude/memory.json')"
-echo
+info "Memory: $(get_memory_stats '.aipm/memory.json')"
+printf "\n"
 
 # Add default model and launch
 [[ ! " ${claude_args[@]} " =~ " --model " ]] && claude_args+=("--model" "opus")
@@ -816,7 +858,7 @@ info "Context: $(format_context "$CONTEXT" "$PROJECT")"
 local start_time=$(get_value "runtime.session.startTime")
 local duration=$(format_duration "$start_time" "now")
 info "Duration: $duration"
-echo
+printf "\n"
 
 # Save any uncommitted changes (stop = save + cleanup)
 if ! is_working_directory_clean; then
@@ -844,14 +886,16 @@ fi
 
 # Cleanup
 execute_with_spinner "Cleaning up session" "cleanup_session '$SESSION_ID'"
+# Restore from workspace-relative backup path
+local backup_path="$(get_memory_path "$CONTEXT" "$PROJECT" | sed 's/local_memory.json/backup.json/')"
 execute_with_spinner "Restoring memory" \
-    "restore_memory '.memory/backup.json' '.claude/memory.json'"
+    "restore_memory '$backup_path' '.aipm/memory.json'"
 
 # Farewell message
-echo
+printf "\n"
 success_box "Session Ended Successfully!"
 info "Thanks for using AIPM!"
-echo
+printf "\n"
 warn "Please exit Claude Code manually (Ctrl+C)"
 ```
 
@@ -860,11 +904,12 @@ warn "Please exit Claude Code manually (Ctrl+C)"
 1. **Wrapper scripts < 100 lines each** ✓
 2. **Zero business logic in wrappers** ✓
 3. **Maximum reuse of existing functions** ✓
-4. **Minimal new functions added (only 7)** ✓
+4. **Minimal new functions added (only 3!)** ✓
 5. **Clear separation of concerns** ✓
 6. **Rich user experience with guidance** ✓
 7. **Consistent visual formatting** ✓
 8. **Wrapper relationships preserved** ✓
+9. **Path-agnostic architecture** ✓
 
 ## 📊 Final Impact Summary
 
@@ -881,10 +926,10 @@ warn "Please exit Claude Code manually (Ctrl+C)"
 
 ### Week 1: Foundation
 1. **Verify FUNCTION_INVENTORY.md** is complete (256 functions)
-2. **Add 7 missing functions** to modules:
-   - 4 to opinions-state.sh (session management)
-   - 2 to migrate-memories.sh (orchestration)
-   - 1 to version-control.sh (conflict handling)
+2. **Add ONLY 3 missing functions** to modules:
+   - 2 to opinions-state.sh (`create_session`, `cleanup_session`)
+   - 1 to migrate-memories.sh (`revert_memory_partial`)
+   - 0 to version-control.sh (use existing functions instead)
 
 ### Week 2: Refactor Wrappers
 1. **Implement init.sh** from scratch with rich UX
@@ -908,5 +953,29 @@ warn "Please exit Claude Code manually (Ctrl+C)"
 5. **Contextual Help**: --help on every script
 6. **Celebration**: Success messages that feel good
 7. **Consistency**: Same patterns across all scripts
+
+## 🚨 CRITICAL: Memory Path Resolution
+
+**The Path-Agnostic Pattern**:
+```bash
+# WRONG - Hardcoded paths break symlink architecture
+MEMORY_FILE=".memory/local_memory.json"  # ❌
+SESSION_FILE=".memory/session_active"     # ❌
+
+# RIGHT - Dynamic path resolution based on context
+initialize_memory_context "$WORK_CONTEXT" "$PROJECT_NAME"  # ✓
+MEMORY_FILE=$(get_memory_path "$WORK_CONTEXT" "$PROJECT_NAME")  # ✓
+
+# For session files in new functions:
+local memory_dir="$(get_value "computed.memoryPath" || printf "%s" ".aipm/memory")"  # ✓
+local session_file="${memory_dir}/session_active"  # ✓
+```
+
+**Key Points**:
+- `.aipm/memory.json` is ALWAYS at workspace root (MCP symlink)
+- Memory directories vary: `.aipm/memory/` (framework) vs `PROJECT/.aipm/memory/` (project)
+- ALL paths except `.aipm/memory.json` must be resolved dynamically
+- Use `initialize_memory_context()` at wrapper start
+- Use `get_memory_path()` to get correct paths
 
 This surgical refactoring achieves the architectural vision where wrapper scripts are thin orchestration layers that provide exceptional user experience while leveraging the full power of our module system.
