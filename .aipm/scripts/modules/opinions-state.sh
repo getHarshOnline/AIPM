@@ -870,9 +870,15 @@ resolve_pattern_variables() {
     local pattern="$1"
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local date=$(date +%Y%m%d)
-    # Note: git config is acceptable here as it's a read-only operation
-    # and version-control.sh doesn't provide a wrapper for reading git config
-    local user=$(git config user.name 2>/dev/null | tr ' ' '_' | tr -cd '[:alnum:]_-' || printf "%s\n" "user")
+    # LEARNING: Use version-control.sh function for git config access
+    # This maintains architectural purity - NO direct git calls
+    local user
+    if command -v get_git_config &>/dev/null; then
+        user=$(get_git_config "user.name" "user" | tr ' ' '_' | tr -cd '[:alnum:]_-')
+    else
+        # This should never happen if version-control.sh is properly sourced
+        _missing_function_fatal "get_git_config"
+    fi
     
     # Replace all variables
     pattern="${pattern//\{timestamp\}/$timestamp}"
@@ -1961,15 +1967,14 @@ get_complete_runtime_branches() {
     local prefix="${AIPM_BRANCHING_PREFIX}"
     
     # Get all branches (local and remote)
-    # Learning: We check for version-control.sh functions first for consistency
-    # git branch -a lists both local and remote branches
-    # sed removes leading spaces and asterisk (current branch marker)
-    # grep -v " -> " excludes symbolic refs like origin/HEAD -> origin/main
+    # LEARNING: Use version-control.sh function - NO FALLBACKS ALLOWED
+    # list_branches handles all branch listing with proper formatting
     local all_branches
-    if declare -F list_branches >/dev/null 2>&1; then
+    if command -v list_branches &>/dev/null; then
         all_branches=$(list_branches all)
     else
-        all_branches=$(git branch -a --no-color | sed 's/^[* ]*//' | grep -v " -> " | sort -u)
+        # ARCHITECTURAL VIOLATION: Missing required function
+        _missing_function_fatal "list_branches"
     fi
     
     while IFS= read -r branch; do
@@ -1996,7 +2001,12 @@ get_complete_runtime_branches() {
         
         # Get branch existence and head
         local exists="true"
-        local head=$(git rev-parse "$branch" 2>/dev/null || printf "%s\n" "")
+        local head
+        if command -v get_branch_commit &>/dev/null; then
+            head=$(get_branch_commit "$branch" 2>/dev/null || printf "%s\n" "")
+        else
+            _missing_function_fatal "get_branch_commit"
+        fi
         if [[ -z "$head" ]]; then
             exists="false"
             continue
@@ -2010,36 +2020,41 @@ get_complete_runtime_branches() {
         local parent=""
         if [[ "$branch" =~ ^${prefix} ]]; then
             # Find AIPM_INIT_HERE marker
-            if declare -F show_log >/dev/null 2>&1; then
-                init_marker=$(show_log 100 "$branch" 2>/dev/null | grep "AIPM_INIT_HERE" | head -1 | awk '{print $1}')
+            # LEARNING: Use version-control.sh function - NO FALLBACKS
+            local init_marker
+            if command -v get_branch_log &>/dev/null; then
+                init_marker=$(get_branch_log "$branch" "%H %s" 2>/dev/null | grep "AIPM_INIT_HERE" | head -1 | awk '{print $1}')
             else
-                init_marker=$(git log --format="%H %s" "$branch" 2>/dev/null | grep "AIPM_INIT_HERE" | head -1 | awk '{print $1}')
+                _missing_function_fatal "get_branch_log"
             fi
             
             # Extract parent from init message
             if [[ -n "$init_marker" ]]; then
                 # Extract parent from init message
-                if declare -F show_log >/dev/null 2>&1; then
-                    parent=$(show_log 1 "$init_marker" 2>/dev/null | sed -n 's/.*from \([^ ]*\).*/\1/p')
+                # LEARNING: Use version-control.sh function - NO FALLBACKS
+                if command -v get_branch_log &>/dev/null; then
+                    parent=$(get_branch_log "$init_marker" "%s" "-n 1" 2>/dev/null | sed -n 's/.*from \([^ ]*\).*/\1/p')
                 else
-                    parent=$(git log -1 --format="%s" "$init_marker" 2>/dev/null | sed -n 's/.*from \([^ ]*\).*/\1/p')
+                    _missing_function_fatal "get_branch_log"
                 fi
             fi
         fi
         
         # Get dates
-        # Learning: Created date is the first commit on the branch (oldest)
+        # LEARNING: Use version-control.sh functions - NO FALLBACKS
+        # Created date is the first commit on the branch (oldest)
         # Last commit date helps determine branch staleness
-        # We use ISO format (%aI) for consistent date parsing
-        # --reverse shows commits oldest-first for finding creation date
         local created
         local last_commit
-        if declare -F show_log >/dev/null 2>&1; then
-            created=$(show_log 9999 "$branch" 2>/dev/null | tail -1 | awk '{print $1}')
-            last_commit=$(show_log 1 "$branch" 2>/dev/null | awk '{print $1}')
+        if command -v get_branch_creation_date &>/dev/null; then
+            created=$(get_branch_creation_date "$branch" 2>/dev/null || echo "")
         else
-            created=$(git log --format="%aI" --reverse "$branch" 2>/dev/null | head -1)
-            last_commit=$(git log -1 --format="%aI" "$branch" 2>/dev/null || printf "%s\n" "")
+            _missing_function_fatal "get_branch_creation_date"
+        fi
+        if command -v get_branch_last_commit_date &>/dev/null; then
+            last_commit=$(get_branch_last_commit_date "$branch" 2>/dev/null || echo "")
+        else
+            _missing_function_fatal "get_branch_last_commit_date"
         fi
         
         # Check if merged to any branch
@@ -2121,12 +2136,12 @@ get_complete_runtime_branches() {
         fi
         
         # Get remote tracking info
-        # Get remote tracking info
+        # LEARNING: Use version-control.sh function - NO FALLBACKS
         local upstream
-        if declare -F get_upstream_branch >/dev/null 2>&1; then
+        if command -v get_upstream_branch &>/dev/null; then
             upstream=$(get_upstream_branch "$branch" 2>/dev/null || printf "%s\n" "")
         else
-            upstream=$(git rev-parse --abbrev-ref "$branch@{upstream}" 2>/dev/null || printf "%s\n" "")
+            _missing_function_fatal "get_upstream_branch"
         fi
         local has_remote="false"
         if [[ -n "$upstream" ]]; then
@@ -2236,30 +2251,24 @@ get_complete_runtime_branches() {
 #   local state=$(get_complete_runtime_state)
 #   local is_clean=$(jq -r '.workingTreeClean' <<< "$state")
 get_complete_runtime_state() {
-    # Get current branch using version-control.sh function if available
+    # LEARNING: Use version-control.sh function - NO FALLBACKS
     local current_branch
-    if declare -F get_current_branch >/dev/null 2>&1; then
+    if command -v get_current_branch &>/dev/null; then
         current_branch=$(get_current_branch)
     else
-        current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf "%s\n" "")
+        _missing_function_fatal "get_current_branch"
     fi
     local working_tree_clean="true"
     local uncommitted_changes='[]'
     
     # Check working tree status
-    # Learning: git status --porcelain gives machine-readable output
-    # Empty output means clean working tree
-    # Format: XY filename where X=index status, Y=worktree status
+    # LEARNING: Use version-control.sh function - NO FALLBACKS
+    # get_status_porcelain handles machine-readable status output
     local status_output
-    if declare -F is_working_directory_clean >/dev/null 2>&1; then
-        # Use version-control.sh function to check if clean
-        if is_working_directory_clean >/dev/null 2>&1; then
-            status_output=""
-        else
-            status_output=$(git status --porcelain 2>/dev/null)
-        fi
+    if command -v get_status_porcelain &>/dev/null; then
+        status_output=$(get_status_porcelain 2>/dev/null || echo "")
     else
-        status_output=$(git status --porcelain 2>/dev/null)
+        _missing_function_fatal "get_status_porcelain"
     fi
     if [[ -n "$status_output" ]]; then
         working_tree_clean="false"
@@ -3420,7 +3429,12 @@ detect_state_drift() {
     
     # LEARNING: Check branch list count (quick check)
     local state_branch_count=$(jq '.runtime.branches.all | length' <<< "$STATE_CACHE" 2>/dev/null || echo 0)
-    local actual_branch_count=$(git branch -a --no-color | grep -c "^" || echo 0)
+    local actual_branch_count
+    if command -v list_branches &>/dev/null; then
+        actual_branch_count=$(list_branches all | grep -c "^" || echo 0)
+    else
+        _missing_function_fatal "list_branches"
+    fi
     
     # Allow small variance due to remote branches
     if [[ $((state_branch_count - actual_branch_count)) -gt 5 ]] || 
