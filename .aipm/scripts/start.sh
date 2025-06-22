@@ -61,6 +61,17 @@ source "$SCRIPT_DIR/modules/migrate-memories.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/modules/opinions-state.sh" || {
+    error "Required file opinions-state.sh not found"
+    exit 1
+}
+
+# Initialize state
+ensure_state || {
+    error "Failed to initialize state"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Session Initialization"
 
@@ -193,12 +204,115 @@ else
     fi
 fi
 
+# TASK 3.5: Check workflow rules for branch creation
+step "Checking workflow rules..."
+
+# Get current branch info
+local current_branch=$(get_current_branch)
+local decisions=$(get_value "decisions")
+local start_behavior=$(get_value "computed.workflows.branchCreation.startBehavior")
+
+# Check if we should create a session branch
+local should_create_branch=false
+local branch_name=""
+
+if [[ "$start_behavior" == "always" ]]; then
+    should_create_branch=true
+    info "Workflow rule: Always create session branch on start"
+elif [[ "$start_behavior" == "check-first" ]]; then
+    # Check if we're on main/protected branch
+    local is_protected=false
+    local protected_branches=$(get_value "computed.protectedBranches.all")
+    
+    if [[ -n "$protected_branches" ]]; then
+        while IFS= read -r pattern; do
+            if [[ "$current_branch" =~ $pattern ]]; then
+                is_protected=true
+                break
+            fi
+        done < <(printf '%s\n' "$protected_branches" | jq -r '.[]')
+    fi
+    
+    if [[ "$is_protected" == "true" ]]; then
+        should_create_branch=true
+        info "On protected branch - will create session branch"
+    fi
+elif [[ "$start_behavior" == "prompt" ]]; then
+    local prompt_text=$(get_value "computed.workflows.branchCreation.prompts.sessionStart")
+    if confirm "${prompt_text:-Create a new session branch?}"; then
+        should_create_branch=true
+    fi
+fi
+
+# Create session branch if needed
+if [[ "$should_create_branch" == "true" ]]; then
+    # Get next session name from decisions
+    branch_name=$(jq -r '.nextSessionName // ""' <<< "$decisions")
+    if [[ -z "$branch_name" ]]; then
+        # Fallback to generating name
+        local timestamp=$(date +%Y%m%d_%H%M%S)
+        local prefix=$(get_value "raw_exports.AIPM_BRANCHING_PREFIX")
+        branch_name="${prefix}session/${timestamp}"
+    fi
+    
+    step "Creating session branch: $branch_name"
+    if ! create_branch "session" "$branch_name"; then
+        error "Failed to create session branch"
+        # Check if we should continue anyway
+        local creation_failure=$(get_value "computed.workflows.branchCreation.creationFailure")
+        if [[ "$creation_failure" == "continue" ]]; then
+            warn "Continuing on current branch: $current_branch"
+        else
+            die "Cannot proceed without session branch"
+        fi
+    else
+        success "Session branch created and checked out"
+        current_branch="$branch_name"
+    fi
+fi
+
+# Check if we should pull/fetch
+local pull_on_start=$(get_value "computed.workflows.synchronization.pullOnStart")
+local working_tree_clean=$(is_working_tree_clean && echo "true" || echo "false")
+
+if [[ "$pull_on_start" == "always" ]] || 
+   ([[ "$pull_on_start" == "if-clean" ]] && [[ "$working_tree_clean" == "true" ]]); then
+    step "Fetching remote changes..."
+    if fetch_remote; then
+        success "Remote changes fetched"
+        
+        # Check if we should pull
+        local behind_count=$(get_commits_behind)
+        if [[ $behind_count -gt 0 ]]; then
+            if [[ "$pull_on_start" == "always" ]] || 
+               ([[ "$pull_on_start" == "if-clean" ]] && [[ "$working_tree_clean" == "true" ]]); then
+                step "Pulling remote changes..."
+                if pull_changes; then
+                    success "Pulled $behind_count commits from remote"
+                else
+                    warn "Pull failed - continuing with local state"
+                fi
+            fi
+        fi
+    fi
+elif [[ "$pull_on_start" == "prompt" ]]; then
+    local prompt_text=$(get_value "computed.workflows.synchronization.prompts.pullOnStart")
+    if confirm "${prompt_text:-Check for remote updates?}"; then
+        step "Fetching remote changes..."
+        fetch_remote
+    fi
+fi
+
+# Begin atomic operation for session start
+begin_atomic_operation "start:session:$SESSION_ID"
+
 # TASK 4: Memory Backup (Using migrate-memories.sh)
 # CRITICAL: This is the cornerstone of memory isolation
 # - Preserves current global state before loading context memory
 # - Enables restoration at session end
 # LEARNING: backup_memory uses atomic operations
 if ! backup_memory; then
+    rollback_atomic_operation
     die "Failed to backup global memory"
 fi
 
@@ -298,7 +412,24 @@ cat > "$SESSION_LOG" <<EOF
 [$(date +%H:%M:%S)] Memory loaded from: $MEMORY_FILE
 EOF
 
-success "Session tracking initialized"
+# Update state with session information
+update_state "runtime.session.active" "true" && \
+update_state "runtime.session.id" "$SESSION_ID" && \
+update_state "runtime.session.context" "$WORK_CONTEXT" && \
+update_state "runtime.session.startTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+update_state "runtime.currentBranch" "$(get_current_branch)" && \
+update_state "runtime.session.project" "${PROJECT_NAME:-none}" && \
+update_state "runtime.session.pid" "$$"
+
+if [[ $? -eq 0 ]]; then
+    commit_atomic_operation
+    success "Session tracking initialized and state updated"
+else
+    rollback_atomic_operation
+    # Clean up session files on failure
+    rm -f "$SESSION_FILE" "$SESSION_LOG"
+    die "Failed to update session state"
+fi
 
 # TASK 7: Launch Claude Code
 section_end
