@@ -32,11 +32,11 @@ The AIPM framework is designed to be path-agnostic:
 
 ## 📋 Function Inventory Reference
 
-See `FUNCTION_INVENTORY.md` for complete documentation of ALL 256 available functions:
+See `_functions.md` in docs/ for complete documentation of ALL 259 available functions:
 - shell-formatting.sh (74 functions) - UI consistency
 - version-control.sh (89 functions) - Git operations
-- migrate-memories.sh (17 functions) - Memory operations
-- opinions-state.sh (26 functions) - State management
+- migrate-memories.sh (18 functions) - Memory operations (added revert_memory_partial)
+- opinions-state.sh (28 functions) - State management (added create_session, cleanup_session)
 - opinions-loader.sh (46 functions) - Configuration loading
 - sync-memory.sh (4 functions) - Memory sync
 
@@ -250,7 +250,7 @@ if [[ $uncommitted_count -eq 0 ]]; then
 **From sync-memory.sh:**
 - `ensure_memory_symlink()` - Replace manual symlink checks
 
-### Phase 1: Add ONLY 3 Missing Functions (NOT 7!)
+### Phase 1: Add ONLY 3 Missing Functions (NOT 7!) ✅ COMPLETE
 
 Based on deep analysis, we only need 3 new functions:
 
@@ -449,7 +449,7 @@ This function was going to be added to version-control.sh, but it can be impleme
 - Use `select_with_default()` for user prompts
 - Use `create_commit()` and `cleanup_session()` for actions
 
-### Phase 2: Refactored Wrapper Scripts with User Experience Focus
+### Phase 2: Refactored Wrapper Scripts with User Experience Focus ✅ COMPLETE
 
 #### init.sh (NEW: ~100 lines with rich output)
 ```bash

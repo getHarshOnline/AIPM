@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Phase 2 Complete: Wrapper Scripts Refactored to Thin Orchestration Layers
+
+### Changed
+- **Refactored ALL wrapper scripts to remove business logic**:
+  - revert.sh: 466 → 114 lines (75% reduction)
+  - save.sh: 315 → 81 lines (74% reduction)
+  - start.sh: 454 → 88 lines (81% reduction)
+  - stop.sh: 410 → 62 lines (85% reduction)
+  - **Total**: 1,645 → 345 lines (79% reduction!)
+
+- **Architectural improvements**:
+  - All business logic now in modules only
+  - Wrappers are pure user interface layers
+  - Rich user experience with shell-formatting
+  - Consistent visual feedback and guidance
+  - Path-agnostic memory resolution
+  - Proper use of existing functions (no reimplementation)
+
+### Technical Details
+- Used existing functions instead of reimplementing
+- Removed all hardcoded paths and business logic
+- stop.sh now properly calls save.sh (stop = save + cleanup)
+- All scripts use dynamic memory path resolution
+- Proper session lifecycle management
+
 ## 2025-06-22 - Phase 1 Implementation: Added Missing Functions & Enhanced Documentation
 
 ### Added
