@@ -150,7 +150,7 @@ printf "\n"
 info "🙏 Thank you for contributing to your team's collective intelligence!"
 printf "\n"
 draw_line "=" 60
-info "💙 Made with love by Harsh Joshi (getharsh.in)"
+info "💙 Made with love by Harsh Joshi (https://getharsh.in)"
 info "🌟 Consider supporting the project if you found it helpful!"
 info "🌐 https://github.com/getHarshOnline/aipm"
 draw_line "=" 60

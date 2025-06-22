@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## 2025-06-23 - Agent Rules and Focus Cleanup
+
+### Changed
+- **Completely rewrote .agentrules for agent-friendly initialization**:
+  - Structured for the critical initialization prompt from start.sh
+  - MANDATORY directives clearly stated upfront
+  - MCP server usage instructions (sequential-thinking, memory-server, Linear)
+  - Memory protocol from opinions.yaml clearly explained
+  - Preserved critical warnings (file reversion, git isolation)
+  - Quick reference table for common tasks
+  - Removed outdated directory structures and old information
+
+- **Cleaned up current-focus.md**:
+  - Removed completed tasks and old directives
+  - Highlighted critical architecture violations as top priority
+  - Organized into clear sections: Active Priority, Key Docs, Recent Achievements
+  - Added specific next implementation phases
+  - Preserved important analysis document references
+
+### Technical Details
+- .agentrules now perfectly aligns with the initialization prompt in start.sh
+- Emphasizes systematic thinking and MCP server usage throughout
+- current-focus.md provides clear roadmap for fixing architecture violations
+- Both documents are now concise and action-oriented
+
 ## 2025-06-22 - Documentation Alignment & UX Enhancement
 
 ### Added
