@@ -2404,47 +2404,35 @@ get_complete_runtime_state() {
 # DECISION ENGINE - Pre-made decisions for all possible scenarios
 # ============================================================================
 
-# Make all possible decisions based on current state
-# PURPOSE: Pre-compute decisions for every possible operation scenario
+# ============================================================================
+# DECISION HELPER FUNCTIONS - Support make_complete_decisions
+# ============================================================================
+
+# Compute branch creation decisions
+# PURPOSE: Determine if branches can be created and suggest appropriate type
 # PARAMETERS:
 #   $1 - Runtime state JSON (required)
-#   $2 - Computed state JSON (required)
+#   $2 - Branches JSON from runtime (required)
 # RETURNS:
 #   0 - Always succeeds
 # OUTPUTS:
-#   JSON object with complete decision tree
-# DECISIONS INCLUDE:
-#   - Branch creation scenarios (protected branch, type selection, etc.)
-#   - Merge scenarios (fast-forward, conflicts, protected target, etc.)
-#   - Cleanup scenarios (age-based, merge-based, manual, etc.)
-#   - Sync scenarios (conflicts, uncommitted changes, etc.)
-# COMPLEXITY: Very High - analyzes all branches and computes multiple decision paths
-# PERFORMANCE: O(n²) where n=number of branches (nested analysis loops)
-# EXAMPLE:
-#   local runtime=$(get_value "runtime")
-#   local computed=$(get_value "computed")
-#   local decisions=$(make_complete_decisions "$runtime" "$computed")
-#   local can_create=$(jq -r '.canCreateBranch' <<< "$decisions")
-make_complete_decisions() {
+#   JSON object with creation decisions
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local creation=$(compute_branch_creation_decisions "$runtime" "$branches")
+#   local can_create=$(jq -r '.canCreate' <<< "$creation")
+compute_branch_creation_decisions() {
     local runtime="$1"
-    local computed="$2"
+    local branches="$2"
     
-    # ========== SECTION 1: Extract Runtime State ==========
-    # Extract key values from runtime state for decision making
-    local current_branch=$(printf "%s\n" "$runtime" | jq -r '.currentBranch')
     local working_tree_clean=$(printf "%s\n" "$runtime" | jq -r '.workingTreeClean')
-    local branches=$(printf "%s\n" "$runtime" | jq '.branches')
     local operation_in_progress=$(printf "%s\n" "$runtime" | jq -r '.operationInProgress')
     
-    # Initialize decisions object
-    local decisions='{}'
-    
-    # ========== SECTION 2: Branch Creation Decisions ==========
-    # Determine if a new branch can be created based on current state
-    # Learning: Branch creation is blocked by in-progress operations and validation rules
     local can_create="true"
     local cannot_create_reasons='[]'
     
+    # Check for blocking conditions
     if [[ "$operation_in_progress" != "null" ]] && [[ -n "$operation_in_progress" ]]; then
         can_create="false"
         cannot_create_reasons=$(printf "%s\n" "$cannot_create_reasons" | jq --arg r "Operation in progress: $operation_in_progress" '. += [$r]')
@@ -2455,14 +2443,11 @@ make_complete_decisions() {
         cannot_create_reasons=$(printf "%s\n" "$cannot_create_reasons" | jq '. += ["Working tree has uncommitted changes"]')
     fi
     
-    # Suggested branch type
-    # Learning: Sessions take precedence when enabled and none exist
-    # Feature is the default fallback for general development work
+    # Determine suggested branch type
     local suggested_type="feature"
     local type_suggestion_reason="Default type for new work"
     
     if [[ "$AIPM_SESSIONS_ENABLED" == "true" ]]; then
-        # Check if session already exists
         local session_count=$(printf "%s\n" "$branches" | jq '[to_entries[] | select(.value.type == "session")] | length')
         if [[ "$AIPM_SESSIONS_ALLOWMULTIPLE" == "false" ]] && [[ $session_count -eq 0 ]]; then
             suggested_type="session"
@@ -2473,9 +2458,40 @@ make_complete_decisions() {
         fi
     fi
     
-    # ========== SECTION 3: Merge Decisions ==========
-    # Determine if current branch can be merged and where
-    # Learning: Merge decisions depend on branch type, protection status, and workflow rules
+    # Build result
+    jq -n \
+        --arg cc "$can_create" \
+        --argjson ccr "$cannot_create_reasons" \
+        --arg st "$suggested_type" \
+        --arg str "$type_suggestion_reason" \
+        '{
+            canCreate: ($cc | test("true")),
+            cannotCreateReasons: $ccr,
+            suggestedType: $st,
+            typeSuggestionReason: $str
+        }'
+}
+
+# Compute merge decisions for current branch
+# PURPOSE: Analyze if and how the current branch can be merged
+# PARAMETERS:
+#   $1 - Current branch name (required)
+#   $2 - Branches JSON from runtime (required)
+#   $3 - Computed workflows JSON (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON object with merge decisions
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local merge=$(compute_merge_decisions "$current" "$branches" "$workflows")
+#   local can_merge=$(jq -r '.canMerge' <<< "$merge")
+compute_merge_decisions() {
+    local current_branch="$1"
+    local branches="$2"
+    local workflows="$3"
+    
     local can_merge="false"
     local cannot_merge_reasons='[]'
     local merge_target=""
@@ -2492,7 +2508,7 @@ make_complete_decisions() {
                 can_merge="true"
                 
                 # Determine merge target from workflow rules
-                local workflow_targets=$(printf "%s\n" "$computed" | jq '.workflows.branchFlow.targets')
+                local workflow_targets=$(printf "%s\n" "$workflows" | jq '.branchFlow.targets')
                 local type_pattern="${branch_type}/*"
                 local target_rule=$(printf "%s\n" "$workflow_targets" | jq -r --arg p "$type_pattern" '.byType[$p] // .default')
                 
@@ -2526,10 +2542,35 @@ make_complete_decisions() {
         cannot_merge_reasons=$(printf "%s\n" "$cannot_merge_reasons" | jq '. += ["No current branch"]')
     fi
     
-    # ========== SECTION 4: Stale Branch Detection ==========
-    # Identify branches that haven't been updated recently
-    # Learning: Staleness is based on last commit date, not creation date
-    # Default threshold is 90 days but configurable per workspace
+    # Build result
+    jq -n \
+        --arg cm "$can_merge" \
+        --argjson cmr "$cannot_merge_reasons" \
+        --arg mt "$merge_target" \
+        --arg ms "$merge_strategy" \
+        '{
+            canMerge: ($cm | test("true")),
+            cannotMergeReasons: $cmr,
+            mergeTarget: $mt,
+            mergeStrategy: $ms
+        }'
+}
+
+# Detect stale branches based on age
+# PURPOSE: Identify branches that haven't been updated recently
+# PARAMETERS:
+#   $1 - Branches JSON from runtime (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON array of stale branch information
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local stale=$(detect_stale_branches "$branches")
+#   local count=$(jq 'length' <<< "$stale")
+detect_stale_branches() {
+    local branches="$1"
     local stale_branches='[]'
     local current_epoch=$(date +%s)
     local stale_days="${AIPM_DEFAULTS_LIMITS_BRANCHAGEDAYS:-90}"
@@ -2556,10 +2597,26 @@ make_complete_decisions() {
         fi
     done
     
-    # ========== SECTION 5: Cleanup Candidate Detection ==========
-    # Identify branches that should be deleted based on lifecycle rules
-    # Learning: Cleanup can be immediate or scheduled based on deletion rules
+    printf "%s\n" "$stale_branches"
+}
+
+# Detect cleanup candidates based on lifecycle rules
+# PURPOSE: Identify branches that should be deleted based on deletion rules
+# PARAMETERS:
+#   $1 - Branches JSON from runtime (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON array of cleanup candidate information
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local cleanup=$(detect_cleanup_candidates "$branches")
+#   local count=$(jq 'length' <<< "$cleanup")
+detect_cleanup_candidates() {
+    local branches="$1"
     local cleanup_branches='[]'
+    local current_epoch=$(date +%s)
     
     printf "%s\n" "$branches" | jq -r 'to_entries[] | @json' | while IFS= read -r entry; do
         local branch_name=$(printf "%s\n" "$entry" | jq -r '.key')
@@ -2580,9 +2637,28 @@ make_complete_decisions() {
         fi
     done
     
-    # ========== SECTION 6: Session Limit Enforcement ==========
-    # Check if we've exceeded max allowed sessions
-    # Learning: Oldest sessions are cleaned up first when limit is exceeded
+    printf "%s\n" "$cleanup_branches"
+}
+
+# Enforce session limit by identifying excess sessions
+# PURPOSE: Find oldest sessions that exceed the maximum allowed count
+# PARAMETERS:
+#   $1 - Branches JSON from runtime (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON array of sessions to clean up
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local excess=$(enforce_session_limit "$branches")
+#   if [[ $(jq 'length' <<< "$excess") -gt 0 ]]; then
+#       # Clean up excess sessions
+#   fi
+enforce_session_limit() {
+    local branches="$1"
+    local excess_sessions='[]'
+    
     if [[ -n "$AIPM_LIFECYCLE_SESSION_MAXSESSIONS" ]]; then
         local session_branches=$(printf "%s\n" "$branches" | jq '[to_entries[] | select(.value.type == "session") | {branch: .key, lastCommit: .value.lastCommit}] | sort_by(.lastCommit)')
         local session_count=$(printf "%s\n" "$session_branches" | jq 'length')
@@ -2593,23 +2669,56 @@ make_complete_decisions() {
             local old_sessions=$(printf "%s\n" "$session_branches" | jq --arg e "$excess" '.[:($e | tonumber)]')
             
             printf "%s\n" "$old_sessions" | jq -r '.[] | .branch' | while read -r old_session; do
-                cleanup_branches=$(printf "%s\n" "$cleanup_branches" | jq --arg b "$old_session" \
+                excess_sessions=$(printf "%s\n" "$excess_sessions" | jq --arg b "$old_session" \
                     '. += [{branch: $b, reason: "Exceeds max session count"}]')
             done
         fi
     fi
     
-    # ========== SECTION 7: Next Session Name Generation ==========
-    # Generate the name for the next session branch
-    # Learning: Session names use timestamp for uniqueness and sorting
+    printf "%s\n" "$excess_sessions"
+}
+
+# Generate next session name
+# PURPOSE: Create a unique session branch name based on pattern
+# PARAMETERS: None (uses global AIPM variables)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Full session branch name with prefix
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local session_name=$(generate_next_session_name)
+#   create_branch "$session_name"
+generate_next_session_name() {
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local session_pattern="${AIPM_SESSIONS_NAMEPATTERN:-session/{timestamp}}"
     session_pattern="${session_pattern//\{timestamp\}/$timestamp}"
     local next_session="${AIPM_BRANCHING_PREFIX}${session_pattern}"
     
-    # ========== SECTION 8: Synchronization Decisions ==========
-    # Determine fetch/pull behavior based on workflow rules
-    # Learning: Sync behavior varies by cleanliness and user preferences
+    printf "%s\n" "$next_session"
+}
+
+# Compute synchronization decisions
+# PURPOSE: Determine fetch/pull/push behavior based on workflow rules
+# PARAMETERS:
+#   $1 - Working tree clean status (true/false) (required)
+#   $2 - Current branch name (required)
+#   $3 - Branches JSON from runtime (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON object with sync decisions
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local sync=$(compute_sync_decisions "$clean" "$branch" "$branches")
+#   local should_fetch=$(jq -r '.shouldFetch' <<< "$sync")
+compute_sync_decisions() {
+    local working_tree_clean="$1"
+    local current_branch="$2"
+    local branches="$3"
+    
     local should_fetch="false"
     local fetch_reason=""
     
@@ -2645,47 +2754,40 @@ make_complete_decisions() {
         push_reason="User will be prompted"
     fi
     
-    # ========== SECTION 9: Build Final Decision Object ==========
-    # Combine all decisions into a single JSON structure
-    decisions=$(jq -n \
-        --arg cc "$can_create" \
-        --argjson ccr "$cannot_create_reasons" \
-        --arg st "$suggested_type" \
-        --arg str "$type_suggestion_reason" \
-        --arg cm "$can_merge" \
-        --argjson cmr "$cannot_merge_reasons" \
-        --arg mt "$merge_target" \
-        --arg ms "$merge_strategy" \
-        --argjson sb "$stale_branches" \
-        --argjson cb "$cleanup_branches" \
-        --arg ns "$next_session" \
-        --arg vm "$AIPM_VALIDATION_MODE" \
+    # Build result
+    jq -n \
         --arg sf "$should_fetch" \
         --arg sfr "$fetch_reason" \
         --arg sp "$should_push" \
         --arg spr "$push_reason" \
         '{
-            canCreateBranch: ($cc == "true"),
-            cannotCreateReasons: $ccr,
-            suggestedBranchType: $st,
-            typeSuggestionReason: $str,
-            canMergeCurrentBranch: ($cm == "true"),
-            cannotMergeReasons: $cmr,
-            mergeTarget: (if $mt != "" then $mt else null end),
-            mergeStrategy: (if $ms != "" then $ms else null end),
-            staleBranches: $sb,
-            branchesForCleanup: $cb,
-            nextSessionName: $ns,
-            validationMode: $vm,
-            shouldFetchOnStart: $sf,
+            shouldFetch: $sf,
             fetchReason: (if $sfr != "" then $sfr else null end),
-            shouldPushOnStop: $sp,
+            shouldPush: $sp,
             pushReason: (if $spr != "" then $spr else null end)
-        }')
+        }'
+}
+
+# Build prompt configuration based on workflow settings
+# PURPOSE: Construct prompts object based on workflow configuration
+# PARAMETERS:
+#   $1 - Computed state JSON (required)
+#   $2 - Should fetch value ("true", "false", "prompt") (required)
+#   $3 - Should push value ("true", "false", "prompt") (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON object with configured prompts
+# SIDE EFFECTS:
+#   None - pure computation
+# EXAMPLES:
+#   local prompts=$(build_prompt_configuration "$computed" "$should_fetch" "$should_push")
+#   local merge_prompt=$(jq -r '.featureComplete' <<< "$prompts")
+build_prompt_configuration() {
+    local computed="$1"
+    local should_fetch="$2"
+    local should_push="$3"
     
-    # ========== SECTION 10: Prompt Configuration ==========
-    # Add interactive prompts based on workflow settings
-    # Learning: Prompts are conditional based on workflow configuration
     local prompts='{}'
     
     # Add branch creation prompts
@@ -2719,6 +2821,122 @@ make_complete_decisions() {
     if [[ "$AIPM_WORKFLOWS_CLEANUP_AFTERMERGE" == "prompt" ]]; then
         prompts=$(printf "%s\n" "$prompts" | printf "%s\n" "$computed" | jq '.workflows.cleanup.prompts.afterMerge as $p | . + {afterMerge: $p}')
     fi
+    
+    printf "%s\n" "$prompts"
+}
+
+# Make all possible decisions based on current state
+# PURPOSE: Pre-compute decisions for every possible operation scenario
+# PARAMETERS:
+#   $1 - Runtime state JSON (required)
+#   $2 - Computed state JSON (required)
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   JSON object with complete decision tree
+# DECISIONS INCLUDE:
+#   - Branch creation scenarios (protected branch, type selection, etc.)
+#   - Merge scenarios (fast-forward, conflicts, protected target, etc.)
+#   - Cleanup scenarios (age-based, merge-based, manual, etc.)
+#   - Sync scenarios (conflicts, uncommitted changes, etc.)
+# COMPLEXITY: High - delegates to multiple helper functions for better modularity
+# PERFORMANCE: O(n) where n=number of branches (linear analysis)
+# EXAMPLE:
+#   local runtime=$(get_value "runtime")
+#   local computed=$(get_value "computed")
+#   local decisions=$(make_complete_decisions "$runtime" "$computed")
+#   local can_create=$(jq -r '.canCreateBranch' <<< "$decisions")
+# LEARNING:
+#   - Refactored from 300-line monolith to use focused helper functions
+#   - Each helper handles one specific decision domain
+#   - Improves testability and maintainability
+make_complete_decisions() {
+    local runtime="$1"
+    local computed="$2"
+    
+    # Extract runtime state for decision making
+    local current_branch=$(printf "%s\n" "$runtime" | jq -r '.currentBranch')
+    local working_tree_clean=$(printf "%s\n" "$runtime" | jq -r '.workingTreeClean')
+    local branches=$(printf "%s\n" "$runtime" | jq '.branches')
+    local operation_in_progress=$(printf "%s\n" "$runtime" | jq -r '.operationInProgress')
+    
+    # Compute branch creation decisions
+    local creation_decisions=$(compute_branch_creation_decisions "$runtime" "$branches")
+    local can_create=$(jq -r '.canCreate' <<< "$creation_decisions")
+    local cannot_create_reasons=$(jq '.cannotCreateReasons' <<< "$creation_decisions")
+    local suggested_type=$(jq -r '.suggestedType' <<< "$creation_decisions")
+    local type_suggestion_reason=$(jq -r '.typeSuggestionReason' <<< "$creation_decisions")
+    
+    # Compute merge decisions
+    local workflows=$(printf "%s\n" "$computed" | jq '.workflows')
+    local merge_decisions=$(compute_merge_decisions "$current_branch" "$branches" "$workflows")
+    local can_merge=$(jq -r '.canMerge' <<< "$merge_decisions")
+    local cannot_merge_reasons=$(jq '.cannotMergeReasons' <<< "$merge_decisions")
+    local merge_target=$(jq -r '.mergeTarget' <<< "$merge_decisions")
+    local merge_strategy=$(jq -r '.mergeStrategy' <<< "$merge_decisions")
+    
+    # Detect stale branches
+    local stale_branches=$(detect_stale_branches "$branches")
+    
+    # Detect cleanup candidates
+    local cleanup_branches=$(detect_cleanup_candidates "$branches")
+    
+    # Enforce session limits
+    local excess_sessions=$(enforce_session_limit "$branches")
+    # Merge excess sessions into cleanup candidates
+    if [[ $(jq 'length' <<< "$excess_sessions") -gt 0 ]]; then
+        cleanup_branches=$(printf "%s\n" "$cleanup_branches" | jq --argjson excess "$excess_sessions" '. + $excess')
+    fi
+    
+    # Generate next session name
+    local next_session=$(generate_next_session_name)
+    
+    # Compute synchronization decisions
+    local sync_decisions=$(compute_sync_decisions "$working_tree_clean" "$current_branch" "$branches")
+    local should_fetch=$(jq -r '.shouldFetch' <<< "$sync_decisions")
+    local fetch_reason=$(jq -r '.fetchReason' <<< "$sync_decisions")
+    local should_push=$(jq -r '.shouldPush' <<< "$sync_decisions")
+    local push_reason=$(jq -r '.pushReason' <<< "$sync_decisions")
+    
+    # Build final decision object
+    local decisions=$(jq -n \
+        --argjson cc "$can_create" \
+        --argjson ccr "$cannot_create_reasons" \
+        --arg st "$suggested_type" \
+        --arg str "$type_suggestion_reason" \
+        --argjson cm "$can_merge" \
+        --argjson cmr "$cannot_merge_reasons" \
+        --arg mt "$merge_target" \
+        --arg ms "$merge_strategy" \
+        --argjson sb "$stale_branches" \
+        --argjson cb "$cleanup_branches" \
+        --arg ns "$next_session" \
+        --arg vm "$AIPM_VALIDATION_MODE" \
+        --arg sf "$should_fetch" \
+        --arg sfr "$fetch_reason" \
+        --arg sp "$should_push" \
+        --arg spr "$push_reason" \
+        '{
+            canCreateBranch: $cc,
+            cannotCreateReasons: $ccr,
+            suggestedBranchType: $st,
+            typeSuggestionReason: $str,
+            canMergeCurrentBranch: $cm,
+            cannotMergeReasons: $cmr,
+            mergeTarget: (if $mt != "" and $mt != "null" then $mt else null end),
+            mergeStrategy: (if $ms != "" and $ms != "null" then $ms else null end),
+            staleBranches: $sb,
+            branchesForCleanup: $cb,
+            nextSessionName: $ns,
+            validationMode: $vm,
+            shouldFetchOnStart: $sf,
+            fetchReason: (if $sfr != "" and $sfr != "null" then $sfr else null end),
+            shouldPushOnStop: $sp,
+            pushReason: (if $spr != "" and $spr != "null" then $spr else null end)
+        }')
+    
+    # Build prompt configuration
+    local prompts=$(build_prompt_configuration "$computed" "$should_fetch" "$should_push")
     
     # Add prompts to final decision object
     decisions=$(printf "%s\n" "$decisions" | jq --argjson p "$prompts" '.prompts = $p')
