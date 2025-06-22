@@ -186,9 +186,22 @@
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright 2025 AION (AION.xyz)
+   Copyright 2025 The AIPM Contributors
+   
+   This project is owned by its contributors as documented in the git 
+   contribution history at: https://github.com/getHarshOnline/aipm
+   
+   Maintained by RawThoughts Enterprises Private Limited (RTEPL)
+   Project Website: https://rawthoughts.in/aipm
+   GitHub Repository: https://github.com/getHarshOnline/aipm
    
    Created by Harsh Joshi (getharsh.in)
+   
+   Sponsored by AION (aion.xyz) through:
+   - Providing work flexibility and development time
+   - Funding Claude AI credits for development and testing
+   - Internal dogfooding and production testing within AION's infrastructure
+   - Ongoing feedback and architectural guidance
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

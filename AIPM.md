@@ -1,408 +1,390 @@
 # AIPM - AI Project Manager Framework
 
-> **Context**: This is the comprehensive framework documentation. For quick start, see README.md. For product usage, see `./Product/`
+**A gentle introduction to the architecture that transforms how teams track decisions**
 
-## 🤖 Protocol-Driven AI Project Management Framework
+> **Quick Start**: [README.md](./README.md) | **AI Rules**: [.agentrules](./.agentrules) | **Technical Docs**: [.aipm/docs/](./.aipm/docs/)
 
-### Executive Summary
+## What AIPM Is
 
-AIPM (AI Project Manager) is a **protocol-driven framework** for AI-assisted project management using Claude Code. It provides a reusable architecture that enables structured, repeatable project execution with mandatory protocol compliance, memory isolation, and clean separation between framework code and project data.
-
-**Key Value:** Transform any project management system into an AI-orchestrated workflow with full version control, protocol enforcement, and persistent memory across sessions.
-
----
-
-## 🏗️ System Architecture
+AIPM brings git's superpowers to every team - not just developers. It creates isolated workspaces where AI assistants maintain persistent memory, teams work without conflicts, and every decision is tracked with full context.
 
 ```mermaid
-graph TB
-    subgraph "Claude Code Environment"
-        CC[Claude Code AI]
-        MCP[MCP Servers]
-        
-        subgraph "Core MCP Tools"
-            Memory[Memory MCP<br/>Protocol Storage]
-            Sequential[Sequential Thinking<br/>Task Planning]
-        end
-        
-        subgraph "Project MCP Tools"
-            ProjectMCP[Project-Specific MCP<br/>e.g., Linear, Jira, etc.]
-        end
-    end
-    
-    subgraph "AIPM Framework"
-        Git[Git Version Control]
-        CLAUDE[CLAUDE.md<br/>Framework Protocols]
-        Scripts[Session Scripts<br/>start.sh, stop.sh, etc.]
-        MemoryMgmt[Memory Management<br/>Backup-Restore Isolation]
-    end
-    
-    subgraph "Project Data"
-        ProjectSymlink[Product/<br/>Symlink to Project]
-        ProjectData[Project-Specific Data<br/>Isolated from Framework]
-    end
-    
-    CC --> MCP
-    MCP --> Memory
-    MCP --> Sequential
-    MCP --> ProjectMCP
-    
-    Memory -.-> MemoryMgmt
-    Scripts --> MemoryMgmt
-    CC --> Git
-    
-    ProjectSymlink --> ProjectData
-    
-    style CC fill:#3B82F6,color:#fff
-    style Memory fill:#10B981,color:#fff
-    style MemoryMgmt fill:#F59E0B,color:#fff
-    style ProjectSymlink fill:#EF4444,color:#fff
+graph LR
+    A[Team Member] --> B[AIPM Session]
+    B --> C[AI Assistant]
+    B --> D[Git Repository]
+    C --> E[Persistent Memory]
+    D --> F[Decision History]
+    E --> G[Knowledge Transfer]
+    F --> G
+    G --> H[Institutional Memory]
 ```
 
----
+## The Core Innovation: Opinions Drive Everything
 
-## 🔄 Session Management Workflow
+Every workspace has an `.aipm/opinions.yaml` file that defines how that specific team works:
+
+```mermaid
+graph TD
+    A[opinions.yaml] --> B[Workspace Identity]
+    A --> C[Branching Rules]
+    A --> D[Memory Categories]
+    A --> E[Lifecycle Policies]
+    B --> F[Unique Prefix]
+    C --> G[Branch Patterns]
+    D --> H[Knowledge Types]
+    E --> I[Automation Rules]
+```
+
+This simple file enables complete workspace isolation and customization. Marketing teams use marketing terminology. Engineers use engineering patterns. Each team works naturally while AIPM handles the complexity.
+
+## How Sessions Work
+
+When you start an AIPM session, a carefully orchestrated process ensures perfect isolation:
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Scripts as Session Scripts
-    participant Claude as Claude Code
-    participant Memory as Memory System
+    participant AIPM
+    participant AI
     participant Git
-    participant Project as Project Integration
+    participant Memory
+
+    User->>AIPM: ./start.sh
+    AIPM->>AIPM: Load workspace opinions
+    AIPM->>Memory: Backup global memory
+    AIPM->>Memory: Load workspace memory
+    AIPM->>Git: Check branch status
+    AIPM->>AI: Launch with context
     
-    User->>Scripts: ./scripts/start.sh --project Product
-    Scripts->>Memory: Backup global memory
-    Scripts->>Memory: Load Product/.memory/local_memory.json
-    Scripts-->>User: Session initialized with project context
+    Note over AI: AI has workspace-specific memory
     
-    User->>Claude: Request task
-    Claude->>Memory: Load protocols (SESSION_PROTOCOL_INIT)
-    Memory-->>Claude: Return protocols & context
-    Claude->>Claude: Sequential thinking breakdown
-    Claude->>Project: Execute project-specific tasks
-    Project-->>Claude: Return results
-    Claude->>Memory: Store new patterns
+    User->>AI: Work naturally
+    AI->>Memory: Update knowledge
     
-    User->>Scripts: ./stop.sh
-    Scripts->>Memory: Extract project memories
-    Scripts->>Memory: Clean global memory
-    Scripts->>Git: Save to branch memory
-    Scripts-->>User: Session ended
+    User->>AIPM: ./stop.sh
+    AIPM->>Memory: Save workspace memory
+    AIPM->>Memory: Restore global backup
+    AIPM->>Git: Ready to commit
 ```
 
----
+## The Branching Architecture
 
-## 🎯 Purpose & Benefits
+AIPM creates a parallel universe of branches for each workspace:
 
-### For Executives
-- **Framework Reusability**: One framework supports unlimited project types
-- **Version Control**: Complete audit trail of AI decisions and knowledge
-- **Protocol Compliance**: Guaranteed consistent AI behavior
-- **Time Savings**: Structured approach reduces setup time by 90%
-
-### For Developers
-- **Protocol-Driven**: Self-enforcing development standards
-- **Memory Isolation**: Clean separation between projects
-- **Extensible**: Add new protocols and integrations easily
-- **Self-Documenting**: Framework explains its own operations
-
----
-
-## 🚦 How It Works
-
-### 1. **Protocol Enforcement**
-Every Claude Code session begins by loading protocols from memory:
-```
-SESSION_PROTOCOL_INIT → Load all protocols
-SESSION_PROTOCOL_SEQUENTIAL → Plan with sequential thinking
-SESSION_PROTOCOL_MEMORY → Store discoveries
-GUARDRAIL_PROTOCOL_COMPLIANCE → Enforce standards
+```mermaid
+gitGraph
+    commit id: "Your main"
+    branch AIPM_MAIN
+    commit id: "AIPM_INIT_HERE"
+    
+    branch AIPM_feature/opinions
+    commit id: "Add opinions.yaml"
+    commit id: "Implement loader"
+    
+    checkout AIPM_MAIN
+    merge AIPM_feature/opinions
+    
+    branch AIPM_session/20240621
+    commit id: "Morning work"
+    
+    checkout AIPM_MAIN
+    branch AIPM_test/integration
+    commit id: "Test harness"
 ```
 
-### 2. **Memory Management**
+Your original branches remain untouched. AIPM branches are clearly namespaced and managed according to lifecycle rules.
+
+## Memory Isolation
+
+The memory system ensures complete isolation between workspaces:
+
+```mermaid
+graph TB
+    subgraph "Global MCP Memory"
+        GM[memory.json]
+    end
+    
+    subgraph "AIPM Framework"
+        FM[.aipm/memory/local_memory.json]
+        FB[.aipm/memory/backup.json]
+    end
+    
+    subgraph "Project A"
+        PA[ProjectA/.aipm/memory/local_memory.json]
+    end
+    
+    subgraph "Project B"
+        PB[ProjectB/.aipm/memory/local_memory.json]
+    end
+    
+    FB -.->|Session Start| GM
+    FM -->|Load| GM
+    GM -->|Session End| FM
+    GM -->|Restore| FB
+    
+    PA -->|When Selected| GM
+    PB -->|When Selected| GM
 ```
-Branch-Specific Memory ←→ Global Memory (Session Only)
-         ↓                        ↓
-    Git Version Control      Runtime State
+
+Each workspace maintains its own memory file, versioned in git. The global memory is just a runtime container.
+
+## The Module Architecture
+
+AIPM is built on six core modules that work together:
+
+```mermaid
+graph TD
+    subgraph "User Interface"
+        S[start.sh]
+        ST[stop.sh]
+        SA[save.sh]
+        R[revert.sh]
+        I[init.sh]
+    end
+    
+    subgraph "Core Modules"
+        OL[opinions-loader.sh]
+        OS[opinions-state.sh]
+        SF[shell-formatting.sh]
+        VC[version-control.sh]
+        MM[migrate-memories.sh]
+        SY[sync-memory.sh]
+    end
+    
+    S --> OL
+    S --> SF
+    S --> VC
+    S --> MM
+    S --> CM
+    S --> SM
+    
+    OL --> |Loads| O[opinions.yaml]
+    VC --> |Manages| G[Git]
+    MM --> |Controls| M[Memory Files]
+    SM --> |Tracks| SE[Sessions]
 ```
 
-### 3. **Multi-Project Architecture**
+### opinions-loader.sh - The Cornerstone
 
-```
-AIPM/                          # Framework root
-├── scripts/                   # All operations from here
-│   └── [start|stop|save].sh --project [NAME]
-│
-├── Product/                   # Project 1 (symlinked)
-│   ├── .memory/              # Project's AI memory
-│   ├── data/                 # Project data
-│   └── [standard structure]  # CLAUDE.md, README.md, etc.
-│
-└── [ProjectName]/            # Future projects
-    └── [identical structure] # Same organization
-```
+This module makes AIPM truly workspace-aware:
 
-**Key Features:**
-- Each project is a separate git repository
-- Projects maintain their own `.memory/local_memory.json`
-- All scripts run from AIPM root with `--project NAME`
-- Framework remains project-agnostic
-- Scales to unlimited projects
-
----
-
-## 🔐 Security & Memory Isolation
-
-### ⚠️ **CRITICAL: Memory Isolation Challenge**
-
-The memory.json system has a fundamental limitation:
 ```bash
-# All projects share this global location:
-~/.npm/_npx/*/node_modules/@modelcontextprotocol/server-memory/dist/memory.json
+# Detects current workspace context
+load_workspace_opinions "framework" ""
+load_workspace_opinions "project" "Marketing"
+
+# Provides workspace-specific values
+get_workspace_prefix()      # Returns "AIPM_" or "MKT_"
+get_main_branch()          # Returns "AIPM_MAIN" or "MKT_CAMPAIGNS"
+enforce_branch_operation() # Ensures compliance with rules
 ```
 
-**Security Implications:**
-1. **Cross-Project Contamination**: Different projects share memory
-2. **No Branch Isolation**: Memory persists across git branches
-3. **Multi-User Conflicts**: Shared environments have shared memory
+### shell-formatting.sh - Consistent Experience
 
-**Solution: Backup-Restore Memory Isolation**
+Handles all output and platform differences:
+
 ```bash
-./scripts/start.sh --project Product  # Backup global, load project memory
-# ... work in Claude Code ...
-./scripts/stop.sh --project Product   # Save changes, restore backup
-./scripts/save.sh --project Product "commit message"  # Version control
+# Beautiful, consistent output
+info "Starting session..."
+success "✓ Memory loaded"
+warn "⚠ Uncommitted changes"
+error "✗ Operation failed"
+
+# Platform detection
+detect_platform()          # macOS, Linux, WSL
+detect_execution_context() # Terminal, CI, Claude
 ```
 
-See `AIPM_Design_Docs/memory-management.md` for complete details.
+### version-control.sh - Git Operations
 
----
+**⚠️ Critical Architecture Rule**: Only version-control.sh may call git commands directly. All other modules MUST use its functions. This ensures consistent state management and prevents desynchronization.
 
-## 🚀 Getting Started
+All git operations flow through this module:
 
-### Prerequisites
-- Claude Code installed
-- Git repository initialized
-- Project-specific MCP servers configured
-
-### Framework Setup
-1. **Clone the AIPM framework**
-   ```bash
-   git clone [repository-url]
-   cd AIPM
-   ```
-
-2. **Configure MCP servers**
-   ```bash
-   # Required for all projects
-   claude mcp add sequential-thinking npx -- -y @modelcontextprotocol/server-sequential-thinking
-   claude mcp add memory npx -- -y @modelcontextprotocol/server-memory
-   
-   # Add project-specific servers
-   claude mcp add [project-server] [command]
-   ```
-
-3. **Create project symlink**
-   ```bash
-   ln -s /path/to/your/project Product
-   ```
-
-4. **Start a session**
-   ```bash
-   ./scripts/start.sh
-   ```
-
-5. **Initialize Claude Code**
-   ```
-   Read and follow CLAUDE.md and tell me where we are
-   ```
-
-6. **End session properly**
-   ```bash
-   ./scripts/stop.sh
-   ./scripts/save.sh "Description of session work"
-   ```
-
----
-
-## 📚 Version Control Benefits
-
-### Memory Evolution Tracking
 ```bash
-# View framework memory changes
-git log --oneline -- .memory/local_memory.json
+# Branch operations respect workspace opinions
+create_branch "feature/new-thing"  # Creates "PREFIX_feature/new-thing"
+switch_branch "AIPM_MAIN"         # Safe switching with stash
 
-# View project memory changes
-git log --oneline -- Product/.memory/local_memory.json
-
-# Compare memory between branches
-git diff main feature-branch -- .memory/local_memory.json
-
-# Revert to previous memory state
-./scripts/revert.sh --framework [commit-hash]
-./scripts/revert.sh --project Product [commit-hash]
+# The Golden Rule - always stage everything
+stage_all_changes()
+commit_with_stats "Implement new feature"
 ```
 
-### Why This Matters
-1. **Knowledge History**: AI learning is versioned
-2. **Rollback Capability**: Undo problematic patterns
-3. **Branch Isolation**: Different features have different memories
-4. **Team Collaboration**: Share AI knowledge through git
+### migrate-memories.sh - Memory Operations
 
----
+Handles all memory file operations atomically:
 
-## 🎯 Core Components
-
-| Component | Purpose | Location |
-|-----------|---------|----------|
-| CLAUDE.md | Framework protocols and usage | `/CLAUDE.md` |
-| Memory System | Project-isolated AI state | `.memory/local_memory.json` |
-| Session Scripts | Memory management | `./scripts/start.sh`, `./scripts/stop.sh`, etc. |
-| Current Focus | Active framework tasks | `/current-focus.md` |
-| Design Docs | Architecture documentation | `/AIPM_Design_Docs/` |
-| Project Data | Symlinked project files | `/Product/` (excluded from git) |
-
----
-
-## ⚡ Session Management Scripts
-
-### start.sh - Begin Work Session
 ```bash
-# Framework work
-./scripts/start.sh --framework
-
-# Project work
-./scripts/start.sh --project Product
-
-# What it does:
-# - Backs up global memory to .memory/backup.json
-# - Loads context-specific memory (framework or project)
-# - Creates session metadata
-# - Ensures complete isolation between contexts
+# Atomic operations prevent corruption
+backup_memory "$GLOBAL" "$BACKUP"
+merge_memories "$LOCAL" "$REMOTE" "$OUTPUT"
+validate_memory_stream "$FILE"     # Ensures proper prefixes
 ```
 
-### stop.sh - End Work Session
+### config-manager.sh - Central Configuration
+
+All paths and defaults in one place:
+
 ```bash
-# Must match start.sh context
-./scripts/stop.sh --framework
-./scripts/stop.sh --project Product
-
-# What it does:
-# - Saves changes to context-specific local_memory.json
-# - Restores original global memory from backup
-# - Cleans up temporary files
-# - Shows session statistics
+get_memory_path "framework"        # Returns correct path
+get_session_timeout()             # Configurable timeout
+get_merge_strategy()              # User preference
 ```
 
-### save.sh - Commit Memory Changes
+### session-manager.sh - Session Lifecycle
+
+Tracks active sessions and metadata:
+
 ```bash
-./scripts/save.sh --framework "Update memory architecture"
-./scripts/save.sh --project Product "Fixed deployment workflow"
-
-# What it does:
-# - Commits context-specific local_memory.json to git
-# - Includes memory statistics in commit message
-# - Maintains audit trail of AI knowledge evolution
+create_session "project" "Marketing"
+detect_active_session()
+cleanup_stale_sessions()
+calculate_session_duration()
 ```
 
-### revert.sh - Time Travel Memory
-```bash
-./scripts/revert.sh
-# - Interactive selection of previous state
-# - Backs up current memory
-# - Restores selected version
+## Real-World Workspace Examples
+
+### Marketing Team
+
+```yaml
+# Marketing/.aipm/opinions.yaml
+workspace:
+  type: project
+  name: MARKETING_Q1_2025
+  
+branching:
+  prefix: MKT25Q1_
+  mainBranchSuffix: CAMPAIGNS
+  
+naming:
+  campaign: "campaign/{name}"
+  creative: "creative/{campaign}/{version}"
+  analysis: "analysis/{metric}/{date}"
+  
+memory:
+  entityPrefix: MKT25Q1_
+  categories:
+    - CAMPAIGN_BRIEF
+    - TARGET_AUDIENCE  
+    - CREATIVE_ASSETS
+    - PERFORMANCE_METRICS
+    - LESSONS_LEARNED
 ```
+
+### Product Design Team
+
+```yaml
+# Design/.aipm/opinions.yaml
+workspace:
+  type: project
+  name: MOBILE_APP_REDESIGN
+  
+branching:
+  prefix: DESIGN_APP_
+  mainBranchSuffix: MAIN
+  
+naming:
+  exploration: "explore/{concept}"
+  iteration: "iteration/{version}"
+  usability: "test/{user-group}"
+  handoff: "handoff/{sprint}"
+  
+memory:
+  entityPrefix: DESIGN_APP_
+  categories:
+    - USER_RESEARCH
+    - DESIGN_PRINCIPLES
+    - COMPONENT_SPECS
+    - ACCESSIBILITY
+    - DEVELOPER_HANDOFF
+```
+
+## The Power of Git for Non-Code
+
+When design decisions are tracked in git:
+
+```mermaid
+gitGraph
+    commit id: "Initial design"
+    branch DESIGN_APP_explore/navigation
+    commit id: "Tab navigation"
+    commit id: "User feedback"
+    
+    branch DESIGN_APP_explore/sidebar  
+    commit id: "Sidebar navigation"
+    commit id: "A/B test results"
+    
+    checkout main
+    merge DESIGN_APP_explore/sidebar
+    commit id: "Chose sidebar - better engagement"
+```
+
+The team can always answer "Why did we choose sidebar over tabs?" - the complete decision history is preserved.
+
+## Team Collaboration
+
+Multiple team members work safely in parallel:
+
+```mermaid
+graph TD
+    subgraph "Alice's Session"
+        A1[MKT_feature/email-campaign]
+        A2[Memory: Email strategies]
+    end
+    
+    subgraph "Bob's Session"  
+        B1[MKT_feature/social-campaign]
+        B2[Memory: Social strategies]
+    end
+    
+    subgraph "Shared Repository"
+        M[MKT_CAMPAIGNS - Main Branch]
+        SM[Shared Memory Pool]
+    end
+    
+    A1 -->|Merge| M
+    B1 -->|Merge| M
+    A2 -->|Sync| SM
+    B2 -->|Sync| SM
+    SM -->|Next Session| C[Carol gets combined knowledge]
+```
+
+## Why This Architecture Works
+
+### 1. Separation of Concerns
+Each module has a single, clear responsibility. This makes the system maintainable and extensible.
+
+### 2. Configuration Over Code
+The opinions.yaml file drives behavior. Teams customize their workflow without touching code.
+
+### 3. Atomic Operations
+Every operation that could fail uses atomic patterns. The system is resilient to interruptions.
+
+### 4. Progressive Disclosure
+Simple tasks are simple. Complex workflows are possible but not required.
+
+### 5. Platform Agnostic
+Works identically on macOS, Linux, and WSL. No platform-specific dependencies.
+
+## Getting Started
+
+1. **Install AIPM**: Clone the framework repository
+2. **Link Your Project**: Create a symlink to your project
+3. **Start a Session**: Run `./start.sh` and select your project
+4. **Work Naturally**: Your AI assistant has project context
+5. **Save Progress**: Run `./save.sh` with a description
+
+The system handles all the complexity. You focus on your work.
+
+## Learn More
+
+- **Detailed Scripts**: See `.aipm/scripts/` for implementation
+- **Architecture Documentation**: See `.aipm/docs/` for design documents
+- **Module Reference**: See `.aipm/docs/_functions.md` for all available functions
+- **Current Development**: See [current-focus.md](./current-focus.md)
 
 ---
 
-## 🚧 Known Limitations & Solutions
-
-1. **Memory Package Bug**: The npm package ignores MEMORY_FILE_PATH
-   - **Solution**: Backup-restore mechanism provides complete isolation
-2. **Manual Session Management**: Must run scripts explicitly
-   - **By Design**: Ensures conscious context switching
-3. **Naming Discipline**: All entities need project prefixes
-   - **Enforced**: AIPM_ for framework, PROJECT_ for projects
-4. ~~**Global Memory Visibility**: Other projects' data is readable~~
-   - **Solved**: Backup-restore ensures complete isolation
-5. **Concurrent Sessions**: Multiple users need coordination
-   - **Managed**: Single backup location prevents conflicts
-
----
-
-## 📊 Success Metrics
-
-- ✅ Protocols loaded at every session start
-- ✅ Sequential thinking for all tasks
-- ✅ Memory isolated per branch
-- ✅ Clean framework/project separation
-- ✅ Version-controlled AI knowledge
-
----
-
-## 🔧 Troubleshooting
-
-### Memory Not Persisting?
-```bash
-# Check if session was properly ended
-./scripts/stop.sh
-
-# Verify branch memory exists
-ls -la .claude/memory/[branch-name].json
-```
-
-### MCP Tools Not Available?
-```bash
-# Check MCP configuration
-cat .claude/settings.local.json
-
-# Restart Claude Code after config changes
-```
-
-### Session Scripts Not Found?
-```bash
-# Make scripts executable
-chmod +x scripts/*.sh
-
-# Always run from AIPM root directory
-./scripts/start.sh --framework
-# NOT: cd scripts && ./start.sh
-```
-
----
-
-## 🔮 Future Enhancements
-
-### In Development
-- Session management scripts implementation
-- Memory visualization tools
-- Protocol validation utilities
-- Project scaffolding templates
-
-### Planned
-- Git hooks for automatic session management
-- VS Code extension integration
-- Custom MCP server with native project isolation
-- Auto-detection of available projects
-- Cross-project memory insights (with permission)
-
----
-
-## 📝 License & Support
-
-Copyright 2025 AION ([AION.xyz](https://AION.xyz))
-
-Created by Harsh Joshi ([getharsh.in](https://getharsh.in))
-
-Licensed under the Apache License, Version 2.0
-
-For support and documentation, see:
-- CLAUDE.md - Usage protocols
-- AIPM_Design_Docs/ - Architecture details
-- current-focus.md - Development status
-
----
-
-*Built with Claude Code + MCP + Protocol-Driven Development*
+*AIPM: Where every decision has a home*

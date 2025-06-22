@@ -1,0 +1,1 @@
+.aipm/scripts/stop.sh

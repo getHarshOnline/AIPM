@@ -1,186 +1,191 @@
 # AIPM - AI Project Manager Framework
 
-A protocol-driven framework for AI-assisted project management using Claude Code.
+**Bringing git-powered decision tracking to every team, not just developers**
 
-> **Note**: This README describes the AIPM framework itself. For product-specific documentation, see `./Product/README.md`
+## The Problem: Organizational Amnesia
 
-## Overview
+Every organization suffers from the same disease:
+- **"Why did we decide this?"** - Hours lost searching through old emails and Slack
+- **"What was the context?"** - Critical decisions made without documentation
+- **"Who changed what?"** - No audit trail for evolving strategies
+- **"Which version is final?"** - Design_v3_final_FINAL_revised.pdf chaos
+- **"What did the AI suggest?"** - AI recommendations lost after the chat ends
 
-AIPM (AI Project Manager) is a reusable framework that enables structured, repeatable, and scalable project execution with Claude Code. It provides a protocol-driven development methodology, memory management system, and clean separation between framework code and project data.
+Whether you're developing software, planning marketing campaigns, designing products, or managing operations - teams waste countless hours reconstructing past decisions and context.
 
-## Credits
+## The Solution: Git for Everything
 
-- **Created by**: Harsh Joshi ([getharsh.in](https://getharsh.in))
-- **Copyright Owner**: AION ([AION.xyz](https://AION.xyz))
-- **License**: Apache License 2.0
+### The Magic Formula
+**Git + AI Memory + Smart Guardrails = Project-wide undo/merge for everyone**
 
-This is an open-source framework created by Harsh Joshi and owned by AION.
+Just like developers can revert code changes, now every team can:
+- Revert to last week's marketing strategy
+- Merge different design explorations
+- Track why decisions changed over time
+- Maintain parallel experiments safely
 
-## License Scope
+AIPM applies software engineering's most powerful tool - git version control - to ALL types of work:
 
-This repository is licensed under the Apache License 2.0. This license applies to:
-- The AIPM framework code and architecture
-- All documentation in this repository
-- Session management scripts and utilities
-- Memory management solutions
+- **Marketing**: Track campaign evolution, A/B test decisions, brand guideline changes
+- **Product Design**: Version control for design decisions, user research insights, feature prioritization
+- **Strategy**: Document pivot decisions, market analysis evolution, competitive responses
+- **Operations**: Process changes, policy updates, compliance decisions
+- **Cross-functional**: Maintain context across teams with isolated workspaces
 
-This license does NOT apply to:
-- Any content in the `Product/` directory (excluded via .gitignore)
-- Project-specific data stored via symlinks
-- Third-party MCP server implementations
+## How It Works
 
-## Key Features
+AIPM creates **isolated workspaces** where:
+1. Every decision is tracked in git branches
+2. AI assistants maintain persistent memory per workspace
+3. Teams can work in parallel without conflicts
+4. Context travels with the work, not in someone's head
 
-### Protocol-Driven Development
-- Mandatory protocol system for all AI interactions
-- Memory-based protocol storage and evolution
-- Guardrail enforcement for protocol compliance
+```bash
+# Start working on marketing campaign
+./start.sh
+> Select workspace: MARKETING_Q1_CAMPAIGN
 
-### Memory Management
-- Backup-restore memory isolation system
-- Complete separation between framework and project memories
-- Git-versioned local memory files
-- Team collaboration through memory sharing
+# AI assistant now has full context of this campaign
+# Work naturally - everything is tracked
 
-### Multi-Project Support
-- Standardized project structure for all projects
-- Each project maintains its own `.memory/` directory
-- Centralized script management from AIPM root
-- Scales to unlimited projects with identical architecture
+# Save your progress with context
+./save.sh "Finalized influencer strategy based on meeting notes"
 
-## Working with AIPM
+# Need to check why we chose Instagram over TikTok?
+./revert.sh  # Browse complete decision history
+```
 
-### First Time Setup
-1. **Read CLAUDE.md** - Understand the two-track structure
-2. **Choose your track**:
-   - Framework development → Stay in AIPM root
-   - Product management → Navigate to `./Product/`
-3. **Follow track-specific onboarding** in CLAUDE.md
+## Real-World Use Cases
 
-### Documentation Coordination
-This repository uses decentralized documentation with clear boundaries:
+### Marketing Team
+```yaml
+workspace: MARKETING_CAMPAIGN_2025
+branches:
+  - MARKETING_feature/influencer-strategy
+  - MARKETING_test/ab-email-subject
+  - MARKETING_fix/brand-guidelines
+memory: Campaign goals, target demographics, past learnings
+```
 
-| Document | Framework Version | Product Version | Purpose |
-|----------|------------------|-----------------|---------|
-| CLAUDE.md | AIPM root | Product/ | Entry point & routing |
-| README.md | AIPM root | Product/ | Overview & quick start |
-| current-focus.md | AIPM root | Product/ | Active tasks |
-| broad-focus.md | AIPM root | Product/ | Vision & strategy |
-| changelog.md | AIPM root | Product/ | Change history |
+### Product Design
+```yaml
+workspace: MOBILE_APP_REDESIGN
+branches:
+  - DESIGN_feature/onboarding-flow
+  - DESIGN_research/user-interviews
+  - DESIGN_spike/competitor-analysis
+memory: Design principles, user personas, technical constraints
+```
 
-**Critical**: ALWAYS update documentation in the correct location based on your current work context.
+### Operations
+```yaml
+workspace: COMPLIANCE_SOC2
+branches:
+  - OPS_policy/data-retention
+  - OPS_process/incident-response
+  - OPS_audit/q4-findings
+memory: Compliance requirements, audit history, remediation plans
+```
 
-## Getting Started
+## Key Innovation: Opinion-Driven Workspaces
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd AIPM
-   ```
+Each team/project has its own `.aipm/opinions.yaml` that defines:
+- **Naming conventions**: How branches are named for that domain
+- **Lifecycle rules**: When to archive old decisions
+- **Memory categories**: What types of knowledge to track
+- **Team workflows**: Review requirements, approval processes
 
-2. **Configure MCP servers**
-   ```bash
-   # Required servers
-   claude mcp add sequential-thinking npx -- -y @modelcontextprotocol/server-sequential-thinking
-   claude mcp add memory npx -- -y @modelcontextprotocol/server-memory
-   
-   # Optional: Add project-specific servers
-   claude mcp add linear npx mcp-remote https://mcp.linear.app/sse
-   ```
+This means marketing can work their way, engineering theirs, and operations differently - all with the same framework.
 
-3. **Start a session**
-   ```bash
-   # For framework development
-   ./scripts/start.sh --framework
-   
-   # For project work
-   ./scripts/start.sh --project Product
-   ```
+## Core Benefits
 
-4. **Work with Claude Code**
-   - Follow protocols in CLAUDE.md
-   - Use sequential thinking for all tasks
-   - Store new patterns in memory
+### 🧠 Institutional Memory
+- Decisions are preserved with full context
+- AI assistants remember project history
+- Knowledge transfers seamlessly between team members
 
-5. **End session and save**
-   ```bash
-   # Must match start.sh context
-   ./scripts/stop.sh --framework
-   # or
-   ./scripts/stop.sh --project Product
-   
-   # Commit changes
-   ./scripts/save.sh --framework "Updated framework docs"
-   # or
-   ./scripts/save.sh --project Product "Fixed deployment"
-   ```
+### 📝 Decision Auditability
+- Every change has a who, what, when, and **why**
+- Browse decision history like a time machine
+- Compliance-ready audit trails
+
+### 👥 Parallel Collaboration
+- Multiple team members work without conflicts
+- Merge different perspectives systematically
+- No more "who has the latest version?"
+
+### 🔄 Living Documentation
+- Documentation evolves with decisions
+- Context travels with the work
+- No separate "documentation sprint" needed
+
+## Quick Start
+
+### Prerequisites
+- Git installed
+- Claude Desktop with MCP server support
+- MCP servers installed: memory-server, sequential-thinking, Linear (optional)
+
+```bash
+# 1. Clone AIPM
+git clone https://github.com/getHarshOnline/aipm
+cd AIPM
+
+# 2. Initialize AIPM framework
+./scripts/init.sh  # Creates directories, state system, and memory symlink
+
+# 3. Start a session (interactive)
+./scripts/start.sh
+
+# 4. Work naturally with your AI assistant
+# Everything is tracked automatically
+
+# 5. Save progress with context
+./save.sh "Description of what was decided/changed"
+```
+
+## Who Should Use AIPM?
+
+- **Product Managers**: Track feature decisions and user feedback
+- **Marketing Teams**: Version control campaigns and brand evolution
+- **Design Teams**: Document design system changes and rationale
+- **Operations**: Maintain process documentation and compliance
+- **Leadership**: Track strategic decisions and pivots
+- **Any Cross-functional Team**: Keep everyone aligned with shared context
 
 ## Documentation
 
-- **CLAUDE.md**: Entry point with two-track routing (framework vs project)
-- **AIPM.md**: Comprehensive framework architecture and design
-- **AIPM_Design_Docs/memory-management.md**: Backup-restore memory isolation
-- **AIPM_Design_Docs/documentation-structure.md**: Documentation guidelines
-- **current-focus.md**: Active framework development tasks
-- **broad-focus.md**: Framework vision and objectives
+- **[AIPM.md](./AIPM.md)** - Detailed framework architecture
+- **[.agentrules](./.agentrules)** - How AI assistants should behave
+- **[current-focus.md](./current-focus.md)** - Active development priorities
+- **[broad-focus.md](./broad-focus.md)** - Long-term vision and strategic objectives
+- **[.aipm/docs/](./.aipm/docs/)** - Technical design and architecture documentation
 
-**Note**: Each project has its own parallel documentation structure
+## The AIPM Philosophy
 
-## Project Structure
+1. **Decisions are assets**: Every decision should be versioned and searchable
+2. **Context is king**: The "why" matters more than the "what"
+3. **Memory persists**: Organizational knowledge shouldn't die with employee turnover
+4. **Tools shape culture**: Give teams git, and they'll think in versions
+5. **AI amplifies**: With memory and context, AI becomes a true team member
 
-```
-AIPM/                          # Framework root
-├── .memory/                   # Framework memory
-│   ├── local_memory.json     # Persistent framework memory
-│   └── backup.json          # Temporary backup (gitignored)
-├── .claude/                   # Claude Code configuration
-│   ├── settings.local.json   # MCP server configuration
-│   └── memory.json          # Symlink to global (DO NOT COMMIT)
-├── AIPM_Design_Docs/         # Framework design documentation
-├── scripts/                  # Session management (run from root)
-│   ├── start.sh             # ./scripts/start.sh --framework|--project NAME
-│   ├── stop.sh              # ./scripts/stop.sh --framework|--project NAME
-│   ├── save.sh              # ./scripts/save.sh --framework|--project NAME
-│   └── revert.sh            # ./scripts/revert.sh --framework|--project NAME
-├── Product/                  # Project 1 (symlinked git repo)
-│   ├── .memory/             # Project's AI memory
-│   │   └── local_memory.json
-│   ├── data/                # Actual project data
-│   ├── CLAUDE.md            # Project-specific instructions
-│   ├── README.md            # Project documentation
-│   ├── current-focus.md     # Active tasks
-│   └── broad-focus.md       # Project vision
-└── [ProjectName]/           # Future projects (same structure)
-```
+## License & Ownership
 
-## Contributing
+**Maintained by**: [RawThoughts Enterprises Private Limited (RTEPL)](https://rawthoughts.in)
+**Project Website**: [https://rawthoughts.in/aipm](https://rawthoughts.in/aipm)
+**GitHub Repository**: [getHarshOnline/aipm](https://github.com/getHarshOnline/aipm)
 
-Contributions to the AIPM framework are welcome! Please ensure:
-1. Follow the protocol-driven development methodology
-2. Update relevant documentation
-3. Test memory isolation features
-4. Submit changes via pull request
+**Ownership**: This project is owned by its contributors as documented in the git contribution history of this repository. RawThoughts Enterprises Private Limited (RTEPL) maintains the project but does not claim ownership.
+**Created by**: [Harsh Joshi](https://getharsh.in)
 
-## Known Issues & Solutions
+**Sponsored by [AION](https://aion.xyz)** through:
+- Providing work flexibility and development time
+- Funding Claude AI credits for development and testing
+- Internal dogfooding across all departments
+- Proving that non-developers can use git workflows
 
-- **Issue**: Memory server ignores MEMORY_FILE_PATH environment variable
-- **Solution**: Backup-restore mechanism provides complete isolation
-- **Result**: Each project maintains completely separate AI memory
-- **Benefit**: Team collaboration enabled through git-based memory sharing
-
-See `AIPM_Design_Docs/memory-management.md` for details.
-
-## Support
-
-For questions or issues:
-- Review documentation in this repository
-- Check the design docs in AIPM_Design_Docs/
-- Visit: [getharsh.in](https://getharsh.in)
+Licensed under Apache License 2.0 - see [LICENSE](./LICENSE)
 
 ---
 
-Copyright 2025 AION ([AION.xyz](https://AION.xyz))
-
-Created by Harsh Joshi ([getharsh.in](https://getharsh.in))
-
-Licensed under the Apache License, Version 2.0
+*AIPM: Because every team deserves git's superpowers, not just developers*

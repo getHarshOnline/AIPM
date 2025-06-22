@@ -1,30 +1,76 @@
-# Memory files - security risk if shared
-.claude/memory.json
+# AIPM Framework .gitignore
+# =========================
 
-# Memory backups - temporary session files
-.memory/backup.json
-Product/.memory/backup.json
+# Memory Management
+# -----------------
+# MCP memory symlink (security risk if committed)
+.aipm/memory.json
 
-# Sync script logs
-.claude/*.log
+# Session files (temporary, user-specific)
+.aipm/memory/backup.json
+.aipm/memory/backup*.json
+.aipm/memory/session_active
+.aipm/memory/session_*
 
-# Product symlink - separate repository
-Product
+# Memory merge temporaries
+.aipm/memory/*.tmp
+.aipm/memory/*.merge.*
+.aipm/memory/*.remote
 
-# OS files
+# NOTE: Project directories are symlinks to external git repos
+# Git automatically doesn't follow symlinks, so project contents
+# are NOT part of this repository. Each project has its own .gitignore.
+
+# Logs
+# ----
+.aipm/*.log
+.aipm/scripts/*.log
+
+# Legacy Claude directory (remove after full migration)
+.claude/
+
+# OS Files
+# --------
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# IDE files
+# IDE Files
+# ---------
 .vscode/
 .idea/
+*.sublime-*
+*.swp
+*.swo
 
-# Obsidian vault files (if not needed in repo)
+# Obsidian
+# --------
 .obsidian/workspace.json
 .obsidian/cache
 .obsidian/plugins/*/data.json
 
-# Temporary files
+# Temporary Files
+# ---------------
 *.tmp
 *.temp
 *~
+*.bak
+*.orig
+*.tmp.*
+*.merge.*
+*.remote
+
+# IMPORTANT: What IS tracked
+# ==========================
+# ✓ Convenience symlinks (start.sh, stop.sh, etc.) - with relative paths!
+# ✓ .aipm/opinions.yaml - Workspace configuration
+# ✓ .aipm/memory/local_memory.json - Persistent memory
+# ✓ .aipm/scripts/ - All scripts
+# ✓ .aipm/docs/ - Documentation
+# ✓ .aipm/templates/ - Project templates
+# ✓ .agentrules - AI behavior rules
+# ✓ All markdown files at root level
+# ✓ Project symlinks (e.g., MyProject/ -> /path/to/project)
+
+# NOTE: Project directories themselves are symlinks and Git handles them correctly.
+# The symlink is tracked, but the target directory content is not followed.

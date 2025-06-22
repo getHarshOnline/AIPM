@@ -4,6 +4,441 @@
 
 ## [Unreleased]
 
+## 2025-06-23 - Test Folder Cleanup & Status Verification
+
+### Removed
+- **Deleted completed plan files**:
+  - new-functions-deep-analysis.md (fully incorporated)
+  - wrapper-scripts-fix-plan.md (COMPLETE - all scripts successfully refactored)
+  
+### Changed
+- **Updated state-management-fix-plan.md**:
+  - Verified actual implementation status
+  - Git violations: FIXED (including revert.sh)
+  - Documentation: COMPLETE (functions well documented)
+  - Bidirectional updates: IMPLEMENTED
+  - Lock/atomic operations: IMPLEMENTED
+  - Only testing remains pending (~1 day work)
+
+### Discovered
+- Wrapper scripts refactoring is COMPLETE (line targets were just guardrails)
+- State management implementation is ~95% complete
+- Only testing strategy remains unimplemented
+
+### Technical Details
+- Test folder now contains only one file with actionable items
+- All fix plans accurately reflect current state
+- Ready for final testing phase
+
+## 2025-06-23 - Agent Rules and Focus Cleanup
+
+### Changed
+- **Completely rewrote .agentrules for agent-friendly initialization**:
+  - Structured for the critical initialization prompt from start.sh
+  - MANDATORY directives clearly stated upfront
+  - MCP server usage instructions (sequential-thinking, memory-server, Linear)
+  - Memory protocol from opinions.yaml clearly explained
+  - Preserved critical warnings (file reversion, git isolation)
+  - Quick reference table for common tasks
+  - Removed outdated directory structures and old information
+
+- **Cleaned up current-focus.md**:
+  - Removed completed tasks and old directives
+  - Highlighted critical architecture violations as top priority
+  - Organized into clear sections: Active Priority, Key Docs, Recent Achievements
+  - Added specific next implementation phases
+  - Preserved important analysis document references
+
+### Technical Details
+- .agentrules now perfectly aligns with the initialization prompt in start.sh
+- Emphasizes systematic thinking and MCP server usage throughout
+- current-focus.md provides clear roadmap for fixing architecture violations
+- Both documents are now concise and action-oriented
+
+## 2025-06-22 - Documentation Alignment & UX Enhancement
+
+### Added
+- **Enhanced wrapper script UX across all scripts**:
+  - Descriptive messages explaining MCP server team memory synchronization
+  - Thoughtful emoji usage for clarity without overdoing it
+  - Messages that subtly convey the framework methodology
+  - Attribution message in stop.sh: "Made with love by Harsh Joshi"
+  
+- **Critical initialization prompt in start.sh**:
+  - Hardened prompt for Claude to follow .agentrules strictly
+  - Dynamic paths to all key documentation files
+  - Requires confirmation from Claude after reading directives
+  - Uses shell-formatting.sh functions (not direct printf)
+
+- **Comprehensive wrapper script usage in workflow.md**:
+  - Complete usage examples for all 5 scripts with all options
+  - Cross-references to relevant sections in other docs
+  - Real-world workflow examples (new user, team collaboration, recovery)
+  - Workflow rules clearly mapped to each script
+
+- **MCP server dependencies in README.md**:
+  - Added prerequisites section listing required MCP servers
+  - Magic formula: "Git + AI Memory + Smart Guardrails = Project-wide undo/merge for everyone"
+  - Emphasis on the revolutionary enabler for non-technical teams
+
+### Changed
+- **Fixed documentation paths throughout**:
+  - Corrected .aipm/scripts/test/ to .aipm/docs/ in multiple files
+  - Updated references to point to actual documentation locations
+  - Fixed workflow.md examples from "aipm" to "./script.sh" format
+
+- **Updated technical documentation**:
+  - DOCS.md: Added version-control.md to listing, emphasized git isolation
+  - memory-management.md: Added sync-memory.sh documentation
+  - workflow.md: Fixed get_workflow_rule() to get_value()
+  - AIPM.md: Added critical architecture rule about version-control.sh
+  - .agentrules: Added git command isolation warning
+
+### Technical Details
+- All wrapper scripts now explain the team memory synchronization aspect
+- Documentation properly emphasizes that only version-control.sh calls git
+- Cross-references between docs ensure users can find detailed information
+- UX messages guide users through understanding AIPM's core value proposition
+
+## 2025-06-22 - Implemented init.sh for Framework Initialization
+
+### Added
+- **init.sh implementation** (210 lines):
+  - Complete framework initialization workflow
+  - Checks for existing initialization (idempotent)
+  - Creates required directory structure
+  - Initializes state system
+  - Sets up memory symlink for MCP
+  - Detects existing projects
+  - Shows configuration summary
+  - Supports --reinit and --start options
+  - Rich visual feedback throughout
+
+### Technical Details
+- Thin orchestration layer (no business logic)
+- Comprehensive documentation following wrapper script patterns
+- Future-ready for project installation features
+- Clean user experience with clear next steps
+
+## 2025-06-22 - Enhanced Wrapper Scripts with Comprehensive Documentation
+
+### Added
+- **Comprehensive in-place documentation for all wrapper scripts**:
+  - Architecture principles and design decisions
+  - What each script does and doesn't do
+  - Critical learnings and maintenance notes
+  - Usage examples and expected behavior
+  - Why it's done this way (historical context)
+  - Inline comments explaining every section
+
+### Improved
+- **Documentation quality**:
+  - Every function call documented with source module
+  - Learning notes for critical operations
+  - Warnings about common pitfalls
+  - Clear separation of concerns explained
+  - Relationships between scripts documented (stop.sh calls save.sh)
+
+## 2025-06-22 - Phase 2 Complete: Wrapper Scripts Refactored to Thin Orchestration Layers
+
+### Changed
+- **Refactored ALL wrapper scripts to remove business logic**:
+  - revert.sh: 466 → 114 lines (75% reduction)
+  - save.sh: 315 → 81 lines (74% reduction)
+  - start.sh: 454 → 88 lines (81% reduction)
+  - stop.sh: 410 → 62 lines (85% reduction)
+  - **Total**: 1,645 → 345 lines (79% reduction!)
+
+- **Architectural improvements**:
+  - All business logic now in modules only
+  - Wrappers are pure user interface layers
+  - Rich user experience with shell-formatting
+  - Consistent visual feedback and guidance
+  - Path-agnostic memory resolution
+  - Proper use of existing functions (no reimplementation)
+
+### Technical Details
+- Used existing functions instead of reimplementing
+- Removed all hardcoded paths and business logic
+- stop.sh now properly calls save.sh (stop = save + cleanup)
+- All scripts use dynamic memory path resolution
+- Proper session lifecycle management
+
+## 2025-06-22 - Phase 1 Implementation: Added Missing Functions & Enhanced Documentation
+
+### Added
+- **Session Management Functions**
+  - `create_session()` in opinions-state.sh - Full session lifecycle with atomic state updates
+  - `cleanup_session()` in opinions-state.sh - Proper session cleanup with archival
+  - Both functions use atomic operations to ensure consistency
+
+- **Memory Filtering Function**
+  - `revert_memory_partial()` in migrate-memories.sh - Entity filtering for partial reverts
+  - Supports regex patterns to filter entities and their relations
+  - Properly exported for use in subshells
+
+- **Critical Export Pattern Documentation**
+  - Added "Export Pattern Design" section to _functions.md
+  - Documents why opinions-state.sh has NO exports (by design)
+  - Documents why migrate-memories.sh exports all functions
+  - Critical architectural decision for future developers
+
+### Changed
+- **_functions.md Enhancements**
+  - Updated from 256 to 259 total documented functions
+  - Added export pattern explanation as critical context
+  - Complete parity with current implementation
+  - Added function counts to table of contents
+
+### Fixed
+- **Path-Agnostic Memory Resolution**
+  - wrapper-scripts-fix-plan.md updated for dynamic memory paths
+  - Changed hardcoded paths to use get_memory_path()
+  - Fixed .claude/memory.json to .aipm/memory.json
+  - Fixed opinions.yaml path from .aipm/config/ to .aipm/
+
+### Technical Details
+- Reduced needed functions from 7 to 3 after deep analysis
+- No exports added to opinions-state.sh (maintains design pattern)
+- Proper export added to migrate-memories.sh for new function
+- All echo usage replaced with printf or shell-formatting functions
+
+## 2025-06-22 - Wrapper Scripts Surgical Fix Plan & Complete Function Inventory
+
+### Added
+- **Complete Function Inventory (_functions.md)**
+  - Moved from modules/ to docs/ for better organization
+  - Documents ALL 256 functions across 6 modules
+  - Complete with purpose, parameters, returns, examples, learning notes
+  - Serves as authoritative reference for AI/LLM to understand available functions
+
+- **Wrapper Scripts Surgical Fix Plan**
+  - Created ultimate surgical refactoring plan in wrapper-scripts-fix-plan.md
+  - Identified ~900 lines of business logic violations in wrapper scripts
+  - Shows how to reduce 1,649 lines to 330 lines (80% reduction)
+  - Only 7 new orchestration functions needed (not hundreds!)
+  - Preserves wrapper relationships (init→start, stop→save)
+  - Rich user experience focus with shell-formatting.sh
+
+### Discovered
+- **Wrapper Script Violations**
+  - save.sh: 150 lines of business logic that should use existing functions
+  - start.sh: 250 lines of business logic violations
+  - stop.sh: 200 lines that should delegate to modules
+  - revert.sh: 300 lines of reimplemented functionality
+  - Many functions already exist but aren't being used!
+
+- **Architectural Relationships**
+  - stop.sh should call save.sh internally (stop = save + cleanup)
+  - init.sh should prepare then optionally call start.sh
+  - save.sh enables project-wide undo via revert.sh
+  - Each wrapper can be called independently
+
+### Changed
+- **Wrapper Scripts Understanding**
+  - Wrappers = User Interface (guide, educate, provide feedback)
+  - Modules = Business Logic (all decisions and operations)
+  - Focus on meaningful shell output to help users learn AIPM
+  - Consistent visual experience through shell-formatting.sh
+
+### Note
+- Memory management integration with state needs review for nuanced path cases
+- Will be addressed after state management implementation
+
+## 2025-06-22 - Critical Architecture Discovery & Complete Documentation Overhaul
+
+### Discovered
+- **CRITICAL: 24 Direct Git Call Violations**
+  - Found 17 violations in opinions-state.sh bypassing version-control.sh
+  - Found 1 violation in revert.sh
+  - Violates single source of truth principle causing state desync
+  - Must be fixed before ANY other development
+
+- **Missing Architectural Foundation**
+  - No lock management infrastructure (concurrent operations can corrupt state)
+  - No atomic operation framework (partial failures leave inconsistent state)
+  - version-control.sh has NO state awareness (causing constant desync)
+  - 16 critical functions missing from version-control.sh
+
+### Added
+- **Comprehensive Architecture Documentation**
+  - version-control.md: Complete git operations architecture with mermaid diagrams
+  - Shows lock management, atomic operations, bidirectional sync
+  - Defines all integration points and state update matrix
+
+- **Complete Fix Plans**
+  - state-management-fix-plan.md: Foundation-first approach with lock infrastructure
+  - wrapper-scripts-fix-plan.md: Aligned with atomic operation requirements
+  - Both plans now include complete implementation timeline
+
+- **Critical Directives**
+  - Added line number prohibition to .agentrules (they break with any code change)
+  - Added architectural enforcement comments throughout opinions.yaml
+  - Emphasized atomic operations and bidirectional state updates
+
+### Changed
+- **Documentation Structure**
+  - Consolidated 10+ analysis files into 4 essential architecture docs
+  - Fixed ALL path references (.memory/ → .aipm/memory/, .claude/ → .aipm/)
+  - Removed 23 fragile line number references
+  - Updated memory-management.md with atomic operation requirements
+
+- **opinions.yaml Comments**
+  - Every workflow now emphasizes version-control.sh as the ONLY git interface
+  - Added state management integration notes throughout
+  - Clarified atomic operation requirements for all operations
+
+### Fixed
+- **Documentation Path References**
+  - .agentrules: .aipm/docs/workflow.md (was scripts/test/)
+  - current-focus.md: Added full paths for clarity
+  - All active references now point to correct locations
+
+## 2025-06-21 - Major Architectural Restructuring
+
+### Changed
+- **Complete Restructuring** - Everything AIPM-related moved to .aipm/ directory
+  - Scripts moved to .aipm/scripts/
+  - Modules moved to .aipm/scripts/modules/
+  - Documentation moved to .aipm/docs/
+  - Memory files moved to .aipm/memory/
+  - Created convenience symlinks at root for easy access
+
+- **AI-Agnostic Architecture** - Renamed CLAUDE.md → .agentrules
+  - Makes AIPM work with any AI assistant, not just Claude
+  - Updated all references throughout the codebase
+  - Reinforced critical guardrails in .agentrules
+
+- **Documentation Overhaul**
+  - README.md: Complete rewrite emphasizing "organizational amnesia" problem
+  - AIPM.md: Gentle architectural introduction with mermaid diagrams
+  - broad-focus.md: Expansive future vision (NPM package, MCP server, integrations)
+  - .agentrules: Strengthened with mandatory startup sequence and wrapper rules
+
+- **License Update** - Changed to RawThoughts Enterprises Private Limited
+  - Added explicit AION sponsorship details
+  - Clarified relationship and support provided
+
+### Added
+- **.aipm/opinions.yaml** - The cornerstone of AIPM's branching architecture
+  - Workspace-specific configuration system
+  - Enables true multi-workspace support
+  - Self-building capability (use AIPM to improve AIPM)
+  - Complete isolation between workspaces
+
+- **Documentation Organization**
+  - Created .aipm/docs/README.md as documentation index
+  - Moved version-control.md and workflow.md to docs/
+  - Kept wrapper-scripts-hardening-plan.md in test/ as active working document
+
+### Fixed
+- **.gitignore** - Removed hardcoded project-specific patterns
+  - Was blocking multi-project support with hardcoded "Product" references
+  - Now properly generic for any project name
+
+### Philosophy Clarification
+- AIPM solves organizational amnesia for ALL teams, not just developers
+- Brings git-powered decision tracking to marketing, design, operations, etc.
+- Every decision is an asset that should be versioned
+- Context is king - the "why" matters more than "what"
+
+## 2025-06-20 - Critical Bug Discovery & save.sh Re-implementation
+
+### Fixed
+- **save.sh** - Re-implemented after discovering file reversion bug
+  - Original implementation was lost due to Claude Code file reversion
+  - Re-implemented with full shell-formatting.sh and version-control.sh integration
+  - Now properly follows workflow.md patterns like other wrapper scripts
+
+### Discovered
+- **CRITICAL: Claude Code File Reversion Bug**
+  - Files can spontaneously revert to previous states during a session
+  - System reminders about "file modified by user or linter" indicate reversions
+  - Can cause complete loss of implemented code
+  - Added comprehensive guardrails to CLAUDE.md to prevent future incidents
+
+## 2025-06-20 - AIPM Wrapper Scripts Implementation
+
+### Added
+- **start.sh** - Complete session initialization implementation
+  - Memory symlink verification with sync-memory.sh integration
+  - Interactive project selection using shell-formatting.sh menus
+  - Git synchronization with version-control.sh functions
+  - Memory backup/restore isolation pattern
+  - Session metadata tracking
+  - Claude Code launch with argument passthrough
+  
+- **stop.sh** - Complete session cleanup implementation
+  - Active session detection and validation
+  - Automatic save.sh integration
+  - Memory restoration from backup
+  - Session artifact archival
+  - Duration calculation and statistics
+  
+- **save.sh** - Complete memory persistence implementation
+  - Global to local memory transfer
+  - Backup restoration after save
+  - Git commit integration with commit_with_stats
+  - Golden rule enforcement (stage_all_changes)
+  - Context-aware path handling
+  
+- **revert.sh** - Complete memory version control implementation
+  - Active session safety checks with save option
+  - Interactive context and commit selection
+  - Git history display with show_log
+  - Preview changes before revert
+  - Automatic backup before revert
+  - Post-revert statistics and next steps
+
+### Implementation Patterns
+- All scripts follow workflow.md patterns strictly
+- NO direct echo/printf - only shell-formatting.sh functions
+- NO direct git commands - only version-control.sh functions
+- Consistent error handling with die() for fatal errors
+- Visual feedback with sections, steps, and status messages
+- Interactive prompts using confirm() and format_prompt()
+
+## 2025-06-20 - Version Control Hardening & Workflow Documentation
+
+### Added
+- **version-control.sh testing** - Achieved 100% test coverage
+  - Fixed environment detection bug (removed forced AIPM_COLOR=true)
+  - Added missing return statements in fetch_remote and pull_latest
+  - Documented test status inline for all 41 functions
+  - Created comprehensive test suite validating all functions
+  
+- **scripts/test/version-control.md** - Complete implementation documentation
+  - 899 lines of exhaustive documentation
+  - Function reference with exact line numbers
+  - Integration patterns for all wrapper scripts
+  - Test coverage summary and quality metrics
+  
+- **scripts/test/workflow.md** - Single source of truth for wrapper implementation
+  - Exact file references and line numbers
+  - Function mapping tables from shell-formatting.sh and version-control.sh
+  - Implementation guardrails with ❌ WRONG and ✅ CORRECT examples
+  - Script-by-script implementation guide
+  - Testing workflow and branch structure
+  - Quick reference card for essential functions
+
+### Changed
+- **CLAUDE.md** - Added critical implementation directives
+  - Mandatory workflow.md reference for wrapper scripts
+  - NO DIRECT OUTPUT rule (only shell-formatting.sh)
+  - NO DIRECT GIT rule (only version-control.sh)
+  - Test incrementally directive
+
+- **current-focus.md** - Updated with implementation rules
+  - Added wrapper script implementation guidelines
+  - Referenced workflow.md as mandatory reading
+  - Updated testing status for version-control.sh
+
+### Fixed
+- **version-control.sh** - Critical bug fixes
+  - Environment detection now works correctly in all contexts
+  - Functions return proper exit codes consistently
+  - DID_STASH tracking works correctly across function calls
+
 ## 2025-06-20 - Base Helper Scripts Implementation
 
 ### Added
