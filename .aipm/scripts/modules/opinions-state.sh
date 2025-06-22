@@ -177,9 +177,24 @@ declare -g STATE_CACHE=""
 declare -g STATE_LOADED="false"
 
 # Cleanup function to ensure locks are released
-# Called automatically on script exit via trap
-# No parameters required
-# Always succeeds (errors are ignored)
+# PURPOSE: Ensure locks are released on script exit to prevent deadlocks
+# PARAMETERS: None
+# RETURNS:
+#   0 - Always succeeds (errors are ignored)
+# SIDE EFFECTS:
+#   - Releases state lock if held
+#   - Closes lock file descriptor
+#   - Removes lock directory if it exists
+# EXAMPLES:
+#   # Set up automatic cleanup
+#   trap cleanup_state EXIT INT TERM
+#   
+#   # Manual cleanup if needed
+#   cleanup_state
+# LEARNING:
+#   - Called automatically via trap on EXIT, INT, and TERM signals
+#   - Errors are ignored to ensure cleanup always completes
+#   - Critical for preventing lock file accumulation
 cleanup_state() {
     release_state_lock
 }
@@ -895,55 +910,30 @@ resolve_pattern_variables() {
 # RETURNS:
 #   0 - Always succeeds
 # OUTPUTS:
-#   JSON object with pattern details for each branch type
-# COMPUTED VALUES:
-#   For each branch type (feature, bugfix, etc.):
-#   - original: Raw pattern from config
-#   - full: Pattern with prefix applied
-#   - glob: Shell glob pattern for matching
-#   - regex: Regular expression for extraction
-# EXAMPLE:
+#   JSON object with pattern mappings for each branch type
+# SIDE EFFECTS:
+#   None - pure computation function
+# EXAMPLES:
 #   local patterns=$(compute_all_branch_patterns)
 #   local feature_glob=$(jq -r '.feature.glob' <<< "$patterns")
-#   # Use for branch matching: [[ "$branch" == $feature_glob ]]
-
-##############################################################################
-# PURPOSE:
-#   Computes comprehensive branch pattern mappings for all branch types
-#   defined in naming configuration. Generates original, full, glob, and
-#   regex patterns for each branch type to support flexible matching.
-#
-# PARAMETERS:
-#   None
-#
-# RETURNS:
-#   JSON object with pattern mappings for each branch type:
-#   {
-#     "<type>": {
-#       "original": "pattern with {placeholders}",
-#       "full": "aipm/pattern with {placeholders}",
-#       "glob": "aipm/pattern with * wildcards",
-#       "regex": "^aipm/pattern with capture groups$"
-#     }
-#   }
-#
-# OUTPUTS:
-#   Writes JSON to stdout
-#
-# SIDE EFFECTS:
-#   None
-#
-# EXAMPLES:
-#   patterns=$(compute_all_branch_patterns)
-#   feature_glob=$(echo "$patterns" | jq -r '.feature.glob')
 #   # Result: "aipm/feature/*"
-#
+#   
+#   # Use for branch matching:
+#   if [[ "$branch" == $feature_glob ]]; then
+#       echo "This is a feature branch"
+#   fi
 # LEARNING:
 #   - Dynamically discovers all AIPM_NAMING_* variables
 #   - Resolves cross-references like {naming.session}
 #   - Generates multiple pattern formats for different use cases
 #   - Essential for branch validation and matching throughout system
-##############################################################################
+#   - Output format for each type:
+#     {
+#       "original": "pattern with {placeholders}",
+#       "full": "aipm/pattern with {placeholders}",
+#       "glob": "aipm/pattern with * wildcards",
+#       "regex": "^aipm/pattern with capture groups$"
+#     }
 compute_all_branch_patterns() {
     local prefix="${AIPM_BRANCHING_PREFIX}"
     local patterns='{}'
@@ -3830,6 +3820,26 @@ get_cleanup_branches() {
 }
 
 # Get prompt for operation
+# PURPOSE: Retrieve pre-computed prompt text for user interactions
+# PARAMETERS:
+#   $1 - Operation name (e.g., "branchCreation.protected", "stash.required")
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Prompt text or empty if not found
+# SIDE EFFECTS:
+#   - Ensures state is loaded if not already
+# EXAMPLES:
+#   local prompt=$(get_prompt "branchCreation.protected")
+#   echo "$prompt"  # "Protected branch. Create feature branch?"
+#   
+#   if [[ -n "$(get_prompt "merge.conflicts")" ]]; then
+#       display_prompt "$(get_prompt "merge.conflicts")"
+#   fi
+# LEARNING:
+#   - Prompts are pre-computed from opinions.yaml templates
+#   - Enables consistent messaging across all wrapper scripts
+#   - Operation names follow dot notation for organization
 get_prompt() {
     local operation="$1"
     ensure_state
@@ -3837,6 +3847,29 @@ get_prompt() {
 }
 
 # Get workflow rule
+# PURPOSE: Retrieve workflow automation rules for operations
+# PARAMETERS:
+#   $1 - Rule path (e.g., "branchCreation.startBehavior", "synchronization.autoStash")
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Rule value (string, boolean, or JSON) or empty if not found
+# SIDE EFFECTS:
+#   - Ensures state is loaded if not already
+# EXAMPLES:
+#   local start_behavior=$(get_workflow_rule "branchCreation.startBehavior")
+#   case "$start_behavior" in
+#       "prompt") ask_user_for_branch ;;
+#       "auto") create_branch_automatically ;;
+#   esac
+#   
+#   if [[ "$(get_workflow_rule "synchronization.autoStash")" == "true" ]]; then
+#       stash_changes_before_pull
+#   fi
+# LEARNING:
+#   - Workflow rules control automation behavior
+#   - Values are pre-computed from opinions.yaml workflows section
+#   - Path notation allows hierarchical rule organization
 get_workflow_rule() {
     local path="$1"
     ensure_state
@@ -3844,6 +3877,28 @@ get_workflow_rule() {
 }
 
 # Get validation rule
+# PURPOSE: Retrieve validation constraints for operations
+# PARAMETERS:
+#   $1 - Rule path (e.g., "branchNaming.maxLength", "commitMessage.requirePrefix")
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Validation rule value or empty if not found
+# SIDE EFFECTS:
+#   - Ensures state is loaded if not already
+# EXAMPLES:
+#   local max_length=$(get_validation_rule "branchNaming.maxLength")
+#   if [[ ${#branch_name} -gt $max_length ]]; then
+#       error "Branch name too long (max: $max_length)"
+#   fi
+#   
+#   if [[ "$(get_validation_rule "requireCleanTree")" == "true" ]]; then
+#       ensure_working_tree_clean
+#   fi
+# LEARNING:
+#   - Validation rules enforce consistency and prevent errors
+#   - Pre-computed from opinions.yaml validation section
+#   - Used by wrapper scripts before operations
 get_validation_rule() {
     local path="$1"
     ensure_state
