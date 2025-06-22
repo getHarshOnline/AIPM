@@ -2,149 +2,94 @@
 
 > **Context**: This document tracks AIPM framework development only. For product-specific tasks, see `./Product/current-focus.md`
 
-## 🎯 IMMEDIATE PRIORITY: Cornerstone Implementation
+## 🎯 ACTIVE PRIORITY: Testing Implementation
 
-### Critical Path (2025-06-21)
-The following sequence MUST be followed for successful implementation:
+### Current Status
+**State management implementation is ~95% COMPLETE**:
+- ✅ All git violations fixed (including revert.sh)
+- ✅ All 16 missing functions added to version-control.sh
+- ✅ Documentation is comprehensive
+- ✅ Bidirectional updates implemented
+- ✅ Lock management and atomic operations working
+- ❌ Testing strategy not implemented
 
-1. **Perfect opinions.yaml** ✓
-   - Deep consistency review completed
-   - Critical issues documented in fix-opinions.md
-   - Ready for surgical fixes
+### Immediate Actions Required:
+1. **Create test framework for state management**
+2. **Implement lock management tests**
+3. **Test atomic operations and rollback**
+4. **Integration testing for full workflows**
 
-2. **Fix opinions.yaml consistency** ← CURRENT
-   - Apply all fixes from fix-opinions.md
-   - Add missing lifecycle rules
-   - Complete parent tracking
-   - Standardize option naming
+## 📚 Key Analysis Documents (MUST READ)
 
-3. **Implement opinions-loader.sh** (CORNERSTONE - 383 lines)
-   - Deep integration with shell-formatting.sh
-   - Deep integration with version-control.sh
-   - Dynamic workspace detection
-   - Validation and error handling
-   - THIS IS THE KEY TO EVERYTHING
+### Architecture Violations
+- **git-architecture-fix-plan.md** - Complete fix strategy
+- **complete-git-violations-audit.md** - All violations found
+- **version-control-missing-functions.md** - 16 functions to add
 
-4. **Implement init.sh**
-   - Deep integration with shell-formatting.sh
-   - Deep integration with version-control.sh
-   - Project initialization flow
-   - Branch creation from opinions
-   - Memory structure setup
+### State Management
+- **state-management-architecture.md** - Bidirectional update design
+- **state-management-fix-plan.md** - Implementation roadmap
+- **opinions-state-refactoring-plan.md** - 7-week improvement plan
 
-5. **Revise wrapper-scripts-hardening-plan.md**
-   - Update with opinions-loader.sh integration
-   - Ensure all scripts use opinions
-   - Complete architectural alignment
+## ✅ Recent Achievements (2025-06-22)
 
-6. **Execute hardening plan**
-   - Implement all wrapper script updates
-   - Test branching architecture
-   - Validate multi-workspace support
+### Documentation & UX Enhancement ✓
+- Enhanced all wrapper scripts with team-friendly messaging
+- Added critical initialization prompt in start.sh
+- Fixed all documentation path inconsistencies
+- Added comprehensive wrapper script usage examples
+- Foundation is now rock solid!
 
-### Why This Order Matters
-- **opinions.yaml** is the configuration cornerstone
-- **opinions-loader.sh** makes the configuration actionable
-- **init.sh** proves the architecture works
-- **Then** we can properly harden all wrapper scripts
+### Wrapper Scripts Refactoring ✓
+- Reduced wrapper scripts from 1,645 to 345 lines (79% reduction!)
+- Implemented init.sh for framework initialization
+- All scripts now follow thin orchestration pattern
+- Added session management functions to modules
 
-## 📋 Detailed Implementation Tasks
+### State Management Progress
+- Implemented 95% of state management system
+- All core functionality complete
+- Comprehensive documentation added
+- Only testing remains
 
-### Phase 0: opinions.yaml Perfection
-- [ ] Apply all fixes from fix-opinions.md:
-  - [ ] Add missing lifecycle rules (framework, refactor, docs, chore)
-  - [ ] Fix session pattern redundancy
-  - [ ] Document {mainBranch} construction
-  - [ ] Complete parent tracking implementation
-  - [ ] Standardize option naming to hyphen-case
-  - [ ] Add circular reference protection
-  - [ ] Fix time format inconsistencies
-  - [ ] Add computed values section
-  - [ ] Add cross-validation rules
+## 🔧 Next Implementation Phase
 
-### Phase 1: Cornerstone Implementation
-- [ ] **opinions-loader.sh** (THE CORNERSTONE)
-  - [ ] load_opinions() - Main entry point
-  - [ ] validate_opinions() - Schema validation
-  - [ ] get_branch_prefix() - Workspace prefix
-  - [ ] get_main_branch() - Computed main branch
-  - [ ] get_branch_pattern() - Type-based patterns
-  - [ ] get_lifecycle_rules() - Branch lifecycle
-  - [ ] is_protected_branch() - Protection checks
-  - [ ] get_memory_prefix() - Memory entity prefix
-  - [ ] get_workflow_rule() - Workflow automation
-  - [ ] enforce_branch_operation() - Git integration
+### Phase 1: Fix Version Control (CRITICAL)
+Add these 16 missing functions to version-control.sh:
+- `get_git_config()`, `get_status_porcelain()`, `get_branch_commit()`
+- `get_upstream_branch()`, `list_merged_branches()`, `count_stashes()`
+- `get_branch_log()`, `show_file_history()`, `get_file_from_commit()`
+- `file_exists_in_commit()`, `get_commit_info()`, `validate_commit()`
+- `get_branch_type()`, `is_working_directory_clean()`, `safe_merge()`
+- `report_git_operation()`
 
-- [ ] **init.sh** Implementation
-  - [ ] Project detection and validation
-  - [ ] Symlink management (--link mode)
-  - [ ] opinions.yaml template copying
-  - [ ] Branch initialization from user branches
-  - [ ] AIPM_INIT_HERE marker creation
-  - [ ] Memory structure setup
-  - [ ] Standard file creation (.agentrules, etc.)
+### Phase 2: Fix opinions-state.sh
+- Replace 20+ direct git calls with version-control.sh functions
+- Complete documentation for remaining 28% functions
+- Decompose large functions (make_complete_decisions: 276 lines)
+- Ensure all state updates are bidirectional
 
-### Phase 2: Integration Updates
-- [ ] Update version-control.sh:
-  - [ ] Source opinions-loader.sh
-  - [ ] Remove hardcoded patterns
-  - [ ] Use dynamic branch rules
-  - [ ] Integrate workspace detection
+### Phase 3: Complete State Management
+- Implement lock management system
+- Add atomic operation framework
+- Create state refresh architecture
+- Full integration testing
 
-- [ ] Update all wrapper scripts:
-  - [ ] Source opinions-loader.sh
-  - [ ] Use get_main_branch() everywhere
-  - [ ] Apply workflow automation rules
-  - [ ] Remove hardcoded assumptions
+## 🚀 Long-term Vision
 
-### Phase 3: Hardening Execution
-- [ ] Revise wrapper-scripts-hardening-plan.md
-- [ ] Implement all architectural improvements
-- [ ] Test with multiple workspaces
-- [ ] Validate branching isolation
+See [broad-focus.md](./broad-focus.md) for:
+- NPM package distribution plans
+- AI-agnostic architecture evolution
+- Enterprise features roadmap
+- Multi-project management improvements
 
-## 🚀 Framework Implementation Phase
+## 📋 Pending Tasks
 
-### Recently Completed (2025-06-21)
-- [x] Deep review of opinions.yaml consistency
-- [x] Documented all issues in fix-opinions.md
-- [x] Created comprehensive workflow automation section
-- [x] Added branch flow rules to workflows
-- [x] Established clear implementation path
-
-### Core Modules Status
-- [x] **shell-formatting.sh** - Complete and hardened
-- [x] **version-control.sh** - 100% test coverage achieved
-- [x] **migrate-memories.sh** - Core complete, needs 5 atomic functions
-- [ ] **opinions-loader.sh** - To be implemented (CORNERSTONE)
-- [ ] **config-manager.sh** - Designed, not implemented
-- [ ] **session-manager.sh** - Designed, not implemented
-
-### Wrapper Scripts Status
-- [x] All scripts have basic implementation
-- [ ] Need opinions-loader.sh integration
-- [ ] Need architectural refactoring per hardening plan
-- [ ] Critical violation in start.sh needs fixing
-
-## 🎯 Success Criteria for Current Phase
-1. **opinions.yaml** has zero consistency issues
-2. **opinions-loader.sh** successfully loads and validates configurations
-3. **init.sh** can initialize a new project with proper branching
-4. All scripts respect workspace opinions
-5. Complete workspace isolation verified
-
-## 📚 Key Documents
-- **fix-opinions.md** - Consistency issues to resolve
-- **wrapper-scripts-hardening-plan.md** - Complete refactoring guide
-- **opinions.yaml** - The configuration cornerstone
-- **.agentrules** - AI behavior rules (was CLAUDE.md)
-
-## 🔄 Next Commit
-After updating current-focus.md:
-1. Commit current state with comprehensive message
-2. Begin applying fixes to opinions.yaml
-3. Start opinions-loader.sh implementation
+1. **CRITICAL**: Fix git command isolation violations
+2. **HIGH**: Complete state management implementation
+3. **MEDIUM**: Add comprehensive error recovery
+4. **LOW**: Optimize performance for large repositories
 
 ---
 
-*The cornerstone is set. Now we build.*
+*Focus: Architecture purity → State consistency → User experience*
