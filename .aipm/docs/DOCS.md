@@ -1,134 +1,182 @@
-# AIPM Technical Documentation Hub
+# AIPM Technical Documentation
 
-This directory contains the complete technical documentation for the AIPM framework. 
+## What is AIPM?
 
-## Documentation Philosophy
+AIPM (AI Project Manager) is a git-powered decision tracking system that prevents organizational amnesia. It captures, preserves, and recalls every decision, discussion, and rationale across all teams - not just engineering.
 
-AIPM documentation follows these principles:
-1. **Workspace Isolation**: Each workspace (framework/project) maintains its own documentation
-2. **No Redundancy**: Each concept is documented once in the right place
-3. **Current State**: Documentation reflects what IS, not what was or might be
-4. **Clear Navigation**: Easy to find what you need
+## Core Architecture
 
-## Current Directory Structure
+### The Foundation: opinions.yaml
+
+Every AIPM workspace is driven by `.aipm/opinions.yaml` - the cornerstone configuration that defines:
+- Branch naming and lifecycle rules
+- Memory categorization and persistence
+- Workflow automation patterns
+- Workspace isolation boundaries
+
+### Module Architecture
 
 ```
-AIPM/                              # Framework workspace
-├── .aipm/                         # THE AIPM HUB
-│   ├── opinions.yaml             # Framework configuration (CORNERSTONE)
-│   ├── memory/                   # Persistent memory storage
-│   ├── scripts/                  # All AIPM scripts
-│   │   ├── modules/              # Core modules
-│   │   └── test/                 # Active development
-│   ├── docs/                     # This directory
-│   │   ├── DOCS.md              # You are here
+opinions.yaml (configuration)
+    ↓
+opinions-loader.sh (pure YAML→shell transformation)
+    ↓
+opinions-state.sh (state management + pre-computation)
+    ↓
+Core Modules:
+├── version-control.sh (ONLY module calling git)
+├── shell-formatting.sh (ONLY module calling echo/printf)  
+├── opinions-loader.sh (YAML to shell transformation)
+├── opinions-state.sh (state management)
+├── migrate-memories.sh (memory operations)
+├── sync-memory.sh (memory symlink setup)
+└── cleanup-global.sh (emergency memory cleanup)
+    ↓
+Wrapper Scripts (user interface)
+```
+
+### Key Principles
+
+1. **Single Source of Truth**: Each operation has exactly one implementation
+2. **No Direct Git Calls**: Only version-control.sh may call git
+3. **No Direct Output**: Only shell-formatting.sh may call echo/printf
+4. **Bidirectional State**: All changes propagate back to central state
+5. **Pre-computation**: Everything computed once at startup
+
+## Directory Structure
+
+```
+AIPM/                           # Framework workspace
+├── .aipm/                      # THE AIPM HUB
+│   ├── opinions.yaml          # Configuration cornerstone
+│   ├── memory.json            # Symlink to MCP global memory
+│   ├── memory/                # Persistent memory storage
+│   ├── state/                 # State management files
+│   │   └── workspace.json     # Pre-computed state
+│   ├── scripts/               # All AIPM scripts
+│   │   ├── init.sh           # Wrapper: Initialize workspace
+│   │   ├── start.sh          # Wrapper: Start session
+│   │   ├── save.sh           # Wrapper: Save decisions
+│   │   ├── revert.sh         # Wrapper: Undo changes
+│   │   └── stop.sh           # Wrapper: End session
+│   │   └── modules/          # Core modules only
+│   │       ├── opinions-loader.sh
+│   │       ├── opinions-state.sh
+│   │       ├── version-control.sh
+│   │       ├── shell-formatting.sh
+│   │       ├── migrate-memories.sh
+│   │       ├── sync-memory.sh
+│   │       └── cleanup-global.sh
+│   ├── docs/                  # Technical documentation
+│   │   ├── DOCS.md           # This file
+│   │   ├── workflow.md       # Usage patterns
 │   │   ├── memory-management.md  # Memory architecture
-│   │   ├── version-control.md    # Git operations module
-│   │   └── workflow.md          # Implementation patterns
-│   └── templates/                # Project templates
+│   │   └── state-management.md   # State architecture
+│   └── templates/             # Project templates
 │
-├── .agentrules                   # AI behavior rules (was CLAUDE.md)
-├── AIPM.md                       # Architecture overview
-├── README.md                     # Problem & solution
-├── current-focus.md              # Active tasks
-├── broad-focus.md                # Future vision
-├── changelog.md                  # Change history
-│
-└── YourProject/                  # Symlinked project
-    └── .aipm/                    # Project configuration
-        ├── opinions.yaml         # Project-specific rules
-        └── memory/               # Project memory
+├── .agentrules                # AI behavior rules
+├── README.md                  # Problem & solution
+├── current-focus.md           # Active development
+└── YourProject/               # Symlinked project
 ```
 
-## Documentation Layers
+## How AIPM Works
 
-### 1. Entry Points (Root Directory)
-- **README.md**: The problem AIPM solves (organizational amnesia)
-- **AIPM.md**: Gentle architectural introduction
-- **.agentrules**: How AI assistants must work with AIPM
+### 1. Initialization
+- `init.sh` creates workspace structure
+- Loads opinions.yaml via opinions-loader.sh
+- Pre-computes all state via opinions-state.sh
+- Creates workspace.json for instant lookups
 
-### 2. Progress Tracking (Root Directory)
-- **current-focus.md**: What's being worked on now
-- **broad-focus.md**: Long-term vision and future features
-- **changelog.md**: What has been done
+### 2. Session Management
+- `start.sh` begins a new work session
+- Creates session-specific branch and memory
+- Tracks all decisions and rationale
+- Maintains bidirectional state updates
 
-### 3. Technical Documentation (This Directory)
-- **memory-management.md**: Deep dive into memory isolation
-- **version-control.sh**: Module reference and functions
-- **workflow.md**: Implementation patterns and guardrails
-- **~~documentation-structure.md~~**: (DEPRECATED - merged into this file)
+### 3. Memory Persistence
+- `save.sh` commits decisions to memory
+- Categorizes by type (decision, discussion, todo, etc.)
+- Never loses context or rationale
+- Survives team changes
 
-### 4. Active Development (.aipm/scripts/test/)
-- **wrapper-scripts-hardening-plan.md**: Current refactoring plan
+### 4. State Management
+- Central workspace.json holds all computed state
+- Wrapper scripts read state for configuration
+- All changes report back to maintain consistency
+- No runtime computation needed
 
-## Documentation Status
+## Module Reference
 
-### ✅ Current and Accurate
-- **.agentrules**: Updated with new structure and guardrails
-- **README.md**: Reflects vision of git for all teams
-- **AIPM.md**: Architecture with mermaid diagrams
-- **broad-focus.md**: Expansive future vision
-- **changelog.md**: Up to date through 2025-06-21
+### Core Modules (scripts/modules/)
 
-### ⚠️ Needs Update
-- **memory-management.md**: Still references old .memory/ structure
-- **version-control.md**: Needs to reflect opinions-loader.sh integration
-- **workflow.md**: Needs to reference new .aipm/ paths
+**version-control.sh**
+- All git operations (50+ functions)
+- Branch management and validation
+- Commit operations and safety checks
 
-### 📝 To Be Created
-- **opinions-architecture.md**: Deep dive into the cornerstone
-- **module-reference.md**: Complete API for all modules
-- **testing-guide.md**: How to test AIPM components
+**shell-formatting.sh**
+- All output operations
+- Color and formatting functions
+- Error and success messaging
 
-## Quick Navigation Guide
+**opinions-loader.sh**
+- Pure YAML to shell transformation
+- Validates and exports all configurations
+- No logic, just data transformation
 
-| I need to... | Read this... |
-|-------------|--------------|
-| Understand what AIPM solves | [README.md](../../README.md) |
-| Understand the architecture | [AIPM.md](../../AIPM.md) |
-| Know the AI rules | [.agentrules](../../.agentrules) |
-| See current priorities | [current-focus.md](../../current-focus.md) |
-| Understand memory system | [memory-management.md](./memory-management.md) |
-| Implement a wrapper | [workflow.md](./workflow.md) |
-| Use git operations | [version-control.md](./version-control.md) |
-| See refactoring plan | `.aipm/scripts/test/wrapper-scripts-hardening-plan.md` |
+**opinions-state.sh**
+- Complete state management
+- Pre-computes all derived values
+- Bidirectional update mechanisms
+- Workspace.json management
 
-## Workspace Documentation Pattern
+### Wrapper Scripts (scripts/)
 
-Each workspace (framework or project) maintains these documents:
+**init.sh** - Initialize new workspace
+**start.sh** - Begin work session
+**save.sh** - Persist decisions
+**revert.sh** - Undo changes
+**stop.sh** - End work session
 
-```
-workspace/
-├── .aipm/
-│   ├── opinions.yaml      # Workspace configuration
-│   └── memory/           # Workspace memory
-├── .agentrules           # AI behavior rules (optional)
-├── README.md             # What this workspace is
-├── current-focus.md      # Active tasks
-├── broad-focus.md        # Vision for this workspace
-└── changelog.md          # History of changes
-```
+## Quick Start
 
-## Update Protocol
+1. **Initialize Workspace**
+   ```bash
+   .aipm/scripts/init.sh YourProject
+   ```
 
-When updating documentation:
+2. **Start Working**
+   ```bash
+   aipm start "implement new feature"
+   ```
 
-1. **Determine Workspace**: Which workspace are you in?
-2. **Find Right Document**: Use the navigation guide above
-3. **Update in Place**: Don't create redundant docs
-4. **Cross-Reference**: Link to related documents
-5. **Update Status**: Mark in this file if creating new docs
+3. **Save Decisions**
+   ```bash
+   aipm save -d "Chose PostgreSQL over MySQL because..."
+   ```
 
-## The Cornerstone: opinions.yaml
+4. **View History**
+   ```bash
+   aipm show --decisions
+   ```
 
-Every workspace's behavior is driven by `.aipm/opinions.yaml`:
-- Defines branch prefixes and patterns
-- Sets memory categories and rules
-- Controls lifecycle automation
-- Enables complete workspace isolation
+## For Developers
 
-This is THE innovation that makes AIPM work for any team.
+- Read `.agentrules` for AI interaction rules
+- Check `current-focus.md` for active development
+- See test/ for fix plans during refactoring
+- All scripts have inline documentation
+
+## Architecture Compliance
+
+**Critical Rules:**
+1. Only version-control.sh calls git
+2. Only shell-formatting.sh produces output
+3. All scripts must source opinions-state.sh
+4. No hardcoded values - use opinions.yaml
+5. All state changes must be bidirectional
 
 ---
 
-*For the current refactoring effort, see `.aipm/scripts/test/wrapper-scripts-hardening-plan.md`*
+*AIPM: Organizational memory that scales with your team.*

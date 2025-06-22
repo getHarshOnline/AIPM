@@ -1,349 +1,325 @@
-# Memory Management in AIPM Framework
+# AIPM Memory Management Architecture
 
 ## Overview
 
-The AIPM framework uses a memory system to maintain persistent knowledge across Claude Code sessions. This document describes the memory architecture, challenges, and solutions implemented in the framework.
+AIPM implements a sophisticated **backup-restore memory isolation** pattern that ensures complete workspace separation while enabling team collaboration. This architecture solves the critical limitation of the MCP memory server storing all memories globally.
 
-## Memory System Architecture
+## The Problem: Global Memory Contamination
 
-### Purpose
-- Store protocols and patterns discovered during development
-- Maintain project-specific knowledge graphs
-- Enable AI to recall previous decisions and context
-- Version control AI knowledge alongside code
+The MCP (Model Context Protocol) memory server has a fundamental limitation:
+- All memories stored in a single global location
+- No project isolation - all projects share the same memory space
+- Memory persists across git branches and projects
+- Creates security risks and context confusion
 
-### Technology Stack
-- **MCP Server**: `@modelcontextprotocol/server-memory`
-- **Storage Format**: Newline-delimited JSON
-- **Integration**: Via Claude Code's MCP configuration
+## The Solution: Session-Based Memory Isolation
 
-## The Challenge: Global Memory Pollution
-
-### Problem Description
-The `@modelcontextprotocol/server-memory` npm package has a critical limitation:
-- Ignores the `MEMORY_FILE_PATH` environment variable
-- Stores all memory in a global location: `~/.npm/_npx/*/node_modules/@modelcontextprotocol/server-memory/dist/memory.json`
-- Results in all Claude Code projects sharing the same memory space
-- Creates security risks in shared environments
-- Memory persists across git branches and reverts
-
-### Impact on AIPM
-1. **No Project Isolation**: Different projects contaminate each other's memory
-2. **No Version Control**: Memory changes aren't tracked with code
-3. **Security Concerns**: Sensitive project data leaks between projects
-4. **Branch Confusion**: Memory doesn't align with git branches
-
-## Solution: Backup-Restore Memory Isolation
-
-### Design Principles
-1. **Complete Isolation**: Framework and Project memories never mix
-2. **Local Persistence**: Each context maintains its own `local_memory.json`
-3. **Session Safety**: Backup/restore ensures clean global state
-4. **Git Integration**: Local memories are version controlled
-5. **Multi-Project Support**: Scales to N projects with identical structure
-6. **Centralized Management**: All scripts run from AIPM root directory
-
-### Implementation Architecture
+AIPM implements a three-stage memory flow:
 
 ```
-Directory Structure:
-AIPM/                          # Framework root (all scripts run from here)
-├── .aipm/                     # AIPM configuration directory
-│   ├── opinions.json        # Framework branching opinions
-│   └── memory/              # Framework memory storage
-│       ├── local_memory.json # Persistent framework memory (tracked)
-│       └── backup.json      # Single backup location (gitignored)
-├── .claude/
-│   └── memory.json          # Symlink to global npm cache
-├── scripts/                 # Session management scripts
-│   ├── start.sh            # ./scripts/start.sh --framework|--project NAME
-│   ├── stop.sh             # ./scripts/stop.sh --framework|--project NAME
-│   ├── save.sh             # ./scripts/save.sh --framework|--project NAME
-│   └── revert.sh           # ./scripts/revert.sh --framework|--project NAME
+START SESSION                    DURING WORK                    END SESSION
+-------------                    -----------                    -----------
+1. Backup global memory     →    Work with isolated      →    1. Save to local
+2. Load context memory           context memory               2. Restore backup
+3. Create session marker                                      3. Clean up session
+```
+
+## Implementation Architecture
+
+### Memory Files
+
+```
+AIPM/
+├── .aipm/
+│   ├── memory.json               # Symlink to MCP global memory
+│   └── memory/
+│       ├── local_memory.json      # Framework persistent memory (git-tracked)
+│       ├── backup.json           # Session backup (gitignored)
+│       └── session_active        # Lock file with metadata
 │
-├── Product/                 # Project 1 (symlinked git repository)
-│   ├── .aipm/              # Project's AIPM configuration
-│   │   ├── opinions.json   # Project's branching opinions
-│   │   └── memory/         # Project's AI memory
-│   │       └── local_memory.json
-│   ├── data/               # Actual project data
-│   ├── CLAUDE.md           # Project-specific AI instructions
-│   ├── README.md           # Project documentation
-│   ├── current-focus.md    # Active tasks
-│   └── broad-focus.md      # Project vision
-│
-└── [ProjectName]/          # Future projects (same structure)
-    ├── .aipm/              # Each project owns its AIPM config
-    │   ├── opinions.json   # Project opinions
-    │   └── memory/         # Each project owns its memory
-    ├── data/               # Each project owns its data
-    └── [standard files]    # Same structure for all projects
+└── YourProject/
+    └── .aipm/
+        ├── memory.json           # Symlink to MCP global memory
+        └── memory/
+            └── local_memory.json  # Project persistent memory (git-tracked)
 ```
 
-### Memory Flow
+### Session Flow Details
 
-#### Session Start
-```
-1. Global Memory → .aipm/memory/backup.json     # Single backup location
-2. Clear Global Memory                     # Clean slate
-3. Load context-specific memory:
-   - Framework: .aipm/memory/local_memory.json → Global
-   - Project: [ProjectName]/.aipm/memory/local_memory.json → Global
-```
-
-#### During Session
-```
-- All operations use standard MCP tools
-- Changes accumulate in global memory
-- Entities use strict prefix separation
-```
-
-#### Session End
-```
-1. Save to context-specific location:
-   - Framework: Global → .aipm/memory/local_memory.json
-   - Project: Global → [ProjectName]/.aipm/memory/local_memory.json
-2. Clear Global Memory                        # Clean slate
-3. .aipm/memory/backup.json → Global Memory        # Restore original
-4. Delete .aipm/memory/backup.json                 # Clean up
-```
-
-### Script Usage
-
-All scripts run from AIPM root directory with explicit context:
+#### 1. Session Start (`start.sh`)
 
 ```bash
-# Framework work
-./scripts/start.sh --framework
-./scripts/stop.sh --framework
-./scripts/save.sh --framework "Updated memory management docs"
+# Step 1: Verify memory symlink (lines 82-92)
+.aipm/memory.json → MCP server's global memory
 
-# Project work (current)
-./scripts/start.sh --project Product
-./scripts/stop.sh --project Product
-./scripts/save.sh --project Product "Fixed deployment issue"
+# Step 2: Backup current memory (lines 196-203)
+cp .aipm/memory.json .aipm/memory/backup.json
 
-# Future projects
-./scripts/start.sh --project ClientWebsite
-./scripts/start.sh --project MobileApp
+# Step 3: Load context memory (lines 205-265)
+if [[ "$WORK_CONTEXT" == "framework" ]]; then
+    LOCAL_MEMORY=".aipm/memory/local_memory.json"
+else
+    LOCAL_MEMORY="$PROJECT_NAME/.aipm/memory/local_memory.json"
+fi
+cp "$LOCAL_MEMORY" .aipm/memory.json
+
+# Step 4: Create session lock (lines 270-301)
+cat > .aipm/memory/session_active <<EOF
+Session: $SESSION_ID
+Context: $WORK_CONTEXT
+Project: ${PROJECT_NAME:-N/A}
+Started: $(date)
+Branch: $(get_current_branch)
+PID: $$
+EOF
 ```
 
-## Memory Schema Specification
+#### 2. During Work
 
-### File Format
-The memory.json file uses **newline-delimited JSON** (NDJSON) format:
-```
-{"type":"entity","name":"ENTITY_1",...}\n
-{"type":"entity","name":"ENTITY_2",...}\n
-{"type":"relation","from":"ENTITY_1","to":"ENTITY_2",...}\n
-```
+- All Claude operations use the loaded context memory
+- Changes accumulate in the global memory file
+- Session lock prevents concurrent sessions
+- Memory is completely isolated from other contexts
 
-### Entity Schema
-```json
-{
-  "type": "entity",
-  "name": "PREFIX_CATEGORY_NAME",
-  "entityType": "PROTOCOL|WORKFLOW|DOCUMENTATION|etc",
-  "observations": [
-    "Fact or observation about this entity",
-    "Another observation with specific details"
-  ]
-}
-```
+#### 3. Session End (`stop.sh`)
 
-**Field Specifications:**
-- `type`: Always "entity" for entity records
-- `name`: Unique identifier following naming convention
-- `entityType`: Categorization of the entity
-- `observations`: Array of factual statements
+```bash
+# Step 1: Detect session context (lines 88-123)
+WORK_CONTEXT=$(grep "Context:" .aipm/memory/session_active | cut -d' ' -f2-)
 
-### Relation Schema
-```json
-{
-  "type": "relation",
-  "from": "SOURCE_ENTITY_NAME",
-  "to": "TARGET_ENTITY_NAME",
-  "relationType": "implements|references|requires|etc"
-}
+# Step 2: Save memory via save.sh (lines 174-195)
+if [[ "$WORK_CONTEXT" == "framework" ]]; then
+    ./save.sh --framework "Session end"
+else
+    ./save.sh --project "$PROJECT_NAME" "Session end"
+fi
+
+# Step 3: Restore original memory (lines 197-202)
+cp .aipm/memory/backup.json .aipm/memory.json
+rm -f .aipm/memory/backup.json
+
+# Step 4: Archive session (lines 204-243)
+mv .aipm/memory/session_active .aipm/memory/session_${SESSION_ID}_complete
 ```
 
-**Field Specifications:**
-- `type`: Always "relation" for relationship records
-- `from`: Name of source entity (must exist)
-- `to`: Name of target entity (must exist)
-- `relationType`: Nature of the relationship
+#### 4. Memory Save (`save.sh`)
 
-### Naming Convention
-All entities must follow strict prefixing based on context:
+```bash
+# Step 1: Save current to local (lines 130-141)
+cp .aipm/memory.json "$LOCAL_MEMORY"
 
-#### Framework Entities (AIPM Development)
+# Step 2: Restore backup (lines 142-151)
+if [[ -f ".aipm/memory/backup.json" ]]; then
+    cp ".aipm/memory/backup.json" .aipm/memory.json
+    rm -f ".aipm/memory/backup.json"
+fi
+
+# Step 3: Optional git commit (lines 153-186)
+if [[ -n "$COMMIT_MSG" ]]; then
+    stage_all_changes
+    commit_with_stats "$COMMIT_MSG" "$LOCAL_MEMORY"
+fi
 ```
-AIPM_ + CATEGORY + NAME
-
-Examples:
-- AIPM_PROTOCOL_SESSION_INIT
-- AIPM_WORKFLOW_MEMORY_SYNC
-- AIPM_DESIGN_MEMORY_SCHEMA
-```
-
-#### Product Entities (Project Management)
-```
-[PROJECT_NAME]_ + CATEGORY + NAME
-
-Examples:
-- PRODUCT_ENTITY_USER_MODEL
-- PRODUCT_WORKFLOW_DEPLOYMENT
-- CLIENTWEBSITE_TASK_REDESIGN
-- MOBILEAPP_CONFIG_FIREBASE
-```
-
-**Critical**: NEVER mix prefixes. Framework work uses `AIPM_`, product work uses project-specific prefix.
-
-## Example Memory Content
-
-### Framework Memory (.aipm/memory/local_memory.json)
-```json
-{"type":"entity","name":"AIPM_PROTOCOL_SESSION_INIT","entityType":"PROTOCOL","observations":["Always load protocols at session start","Search for SESSION_PROTOCOL entities","No work without protocol recall"]}
-{"type":"entity","name":"AIPM_WORKFLOW_MEMORY_SYNC","entityType":"WORKFLOW","observations":["Run start.sh before work","Run stop.sh after work","Commit with save.sh"]}
-{"type":"relation","from":"AIPM_PROTOCOL_SESSION_INIT","to":"AIPM_WORKFLOW_MEMORY_SYNC","relationType":"requires"}
-```
-
-### Product Memory (Product/.aipm/memory/local_memory.json)
-```json
-{"type":"entity","name":"PRODUCT_TASK_DEPLOY","entityType":"TASK","observations":["Deploy to production server","Update DNS records","Monitor performance"]}
-{"type":"entity","name":"PRODUCT_CONFIG_API","entityType":"CONFIG","observations":["API endpoint: https://api.example.com","Auth: Bearer token","Rate limit: 1000/hour"]}
-{"type":"relation","from":"PRODUCT_TASK_DEPLOY","to":"PRODUCT_CONFIG_API","relationType":"uses"}
-```
-
-## Implementation Scripts
-
-### Core Scripts (in scripts/ directory)
-1. **start.sh**: Backs up global, loads local memory
-2. **stop.sh**: Saves to local, restores global backup
-3. **save.sh**: Commits local memory to git
-4. **revert.sh**: Rolls back local memory to previous state
-
-### Safety Features
-- Automatic backup creation prevents data loss
-- Context detection prevents wrong memory loading
-- Prefix validation ensures clean separation
-- Session tracking provides audit trail
-
-## Best Practices
-
-### For Framework Users
-1. Always run scripts from AIPM root directory
-2. Start sessions with explicit context: `./scripts/start.sh --framework` or `./scripts/start.sh --project Product`
-3. Run `./scripts/stop.sh` with matching context when finishing
-4. Use `./scripts/save.sh` to commit memory changes
-5. Never manually edit global memory.json
-6. Each project maintains its own `.aipm/` in its git repository
-
-### For Framework Developers
-1. Keep memory entities focused and atomic
-2. Use clear, descriptive entity names
-3. Create relations to build knowledge graphs
-4. Document significant patterns in CLAUDE.md
-5. Regularly review and clean up memories
-
-## Security Benefits
-
-This approach provides strong isolation:
-1. **No Cross-Contamination**: Backup/restore ensures clean separation
-2. **No Data Leakage**: Each context only sees its own memories
-3. **Audit Trail**: All memory changes are git tracked
-4. **Recovery Options**: Backups provide failsafe
-
-## Gitignore Configuration
-
-Add to `.gitignore`:
-```
-# Memory backups (temporary files)
-.aipm/memory/backup.json          # Single backup location in AIPM root
-
-# Global memory symlink (never commit)
-.claude/memory.json
-
-# Each project should have its own .gitignore with:
-# .aipm/memory/backup.json        # If projects were to have their own backups
-```
-
-## Troubleshooting
-
-### Memory Not Loading?
-- Check if `local_memory.json` exists in `.aipm/memory/`
-- Verify you're in the correct directory
-- Ensure backup.json was properly cleaned up
-
-### Conflicting Memories?
-- Check entity prefixes (AIPM_ vs PROJECT_)
-- Verify context isolation is working
-- Review session logs for errors
-
-### Backup Issues?
-- Ensure `.aipm/memory/` directory exists
-- Check file permissions
-- Verify global memory symlink is valid
 
 ## Team Collaboration Features
 
-### Memory Sharing Workflow
-The backup-restore approach enables powerful team collaboration:
+### Automatic Memory Sync
 
-```
-Team Member A's Session:
-1. ./scripts/start.sh --project Product → Backs up personal global memory
-2. Git pull in Product/ → Gets team's shared memories
-3. Optional: Merge teammate's memories into session
-4. Work with combined knowledge
-5. ./scripts/stop.sh --project Product → Saves to Product/.aipm/memory/local_memory.json
-6. Personal global memory restored intact!
-```
+Even without explicit git pull, `start.sh` checks for team memory updates:
 
-### Benefits for Teams
-1. **Personal Memory Protection**: Your global memory is never contaminated
-2. **Selective Sharing**: Choose which memories to merge during session
-3. **Git-Based Sync**: All team memories version controlled
-4. **Conflict Resolution**: Git handles memory merge conflicts
-5. **Audit Trail**: Track who contributed which memories
-
-### Example Team Workflow
 ```bash
-# Start session with team sync
-./scripts/start.sh --project Product --sync-team
-
-# This could:
-# 1. Backup your personal global memory to .aipm/memory/backup.json
-# 2. Pull latest from Product/ git repository
-# 3. Merge team memories with Product/.aipm/memory/local_memory.json
-# 4. Load combined memories into global
-# 5. Your personal memories stay safe in backup!
-
-# Work collaboratively...
-
-# End session
-./scripts/stop.sh --project Product
-
-# Your changes saved to Product/.aipm/memory/local_memory.json
-# Personal memory restored, team never sees other project memories!
+# From start.sh lines 237-260
+if git_has_remote; then
+    # Try to get remote version
+    local remote_memory=$(git show origin/$(get_current_branch):"$memory_path" 2>/dev/null)
+    
+    if [[ -n "$remote_memory" ]]; then
+        # Merge remote memories with local
+        local merged=$(merge_memories "$local_memory" "$remote_memory" "remote-wins")
+        echo "$merged" > "$MEMORY_FILE"
+    fi
+fi
 ```
+
+### Memory Merge Strategy
+
+The `merge_memories` function (from migrate-memories.sh) implements:
+- **Entity-level merging**: Each memory entity is atomic
+- **Conflict resolution**: "remote-wins" ensures team updates take precedence
+- **Relation preservation**: Maintains knowledge graph integrity
+
+## Memory Categories
+
+Defined in `opinions.yaml` (lines 414-421):
+
+```yaml
+memory:
+  entityPrefix: AIPM_  # Ensures workspace isolation
+  categories:
+    - PROTOCOL      # How AIPM works
+    - WORKFLOW      # Usage patterns
+    - DESIGN        # Architecture decisions
+    - SCRIPT        # Script implementations
+    - MODULE        # Module interfaces
+    - TEST          # Testing strategies
+    - LEARNING      # Implementation insights
+```
+
+## Entity Naming Convention
+
+All memory entities follow strict prefixing:
+
+```
+Framework: AIPM_PROTOCOL_SESSION_INIT
+Project:   PRODUCT_FEATURE_SHOPPING_CART
+           ^^^^^^^ 
+           Workspace prefix prevents contamination
+```
+
+## Session Management
+
+### Lock File Prevention
+
+Only one session can be active at a time:
+
+```bash
+# session_active file contains:
+Session: aipm_20240622_143022
+Context: framework
+Project: N/A
+Started: Sat Jun 22 14:30:22 PDT 2024
+Branch: AIPM_MAIN
+PID: 12345
+```
+
+### Session Recovery
+
+If a session crashes, the next start detects the stale lock:
+- Checks if PID is still running
+- Offers to recover or clean up
+- Preserves memory data
+
+## Integration with State Management
+
+Memory operations update the state:
+
+```bash
+# After memory save
+update_state "runtime.memory.lastSave" "$(date -u)"
+update_state "runtime.memory.entityCount" "$entity_count"
+```
+
+See [state-management.md](state-management.md) for state details.
+
+## Integration with Version Control
+
+Memory changes follow the "Golden Rule":
+
+```bash
+# From save.sh
+stage_all_changes     # Stage everything
+commit_with_stats "$message" "$memory_file"
+```
+
+Memory commits include statistics:
+```
+Save memory: Updated architecture decisions
+
+Memory Statistics:
+- Total Entities: 42
+- Total Relations: 18
+- File: .aipm/memory/local_memory.json
+```
+
+## Best Practices
+
+### 1. Always Use Session Commands
+```bash
+# Good
+aipm start --project MyProject
+# ... work ...
+aipm stop
+
+# Bad
+# Working without session management
+```
+
+### 2. Regular Memory Saves
+```bash
+# Save important decisions immediately
+aipm save -d "Chose PostgreSQL for JSON support"
+```
+
+### 3. Clean Session Exits
+```bash
+# Always run stop to ensure memory saved
+aipm stop
+```
+
+### 4. Memory Categories
+Use appropriate categories for organization:
+- `PROTOCOL`: How things work
+- `WORKFLOW`: Usage patterns
+- `DESIGN`: Architecture choices
+- `LEARNING`: Insights gained
+
+## Troubleshooting
+
+### Session Won't Start
+```bash
+# Check for stale lock
+cat .aipm/memory/session_active
+
+# Manual cleanup if needed
+rm -f .aipm/memory/session_active
+```
+
+### Memory Not Saved
+```bash
+# Check backup exists
+ls -la .aipm/memory/backup.json
+
+# Manually save if needed
+cp .aipm/memory.json .aipm/memory/local_memory.json
+```
+
+### Memory Conflicts
+```bash
+# View conflict
+git diff .aipm/memory/local_memory.json
+
+# Accept team version
+git checkout --theirs .aipm/memory/local_memory.json
+```
+
+## Security Benefits
+
+1. **Complete Isolation**: Each workspace has separate memory
+2. **No Cross-Contamination**: Backup/restore ensures clean separation
+3. **Git Integration**: All memories version controlled
+4. **Audit Trail**: Session files track all access
+
+## Performance Considerations
+
+- Memory file size monitored (10MB default limit)
+- JSON format enables quick entity counting
+- Merge operations optimized for speed
+- Lock timeout prevents hanging (30s default)
 
 ## Future Enhancements
 
-### Short Term
-- Automated context detection
-- Memory merge tools for branches
-- Better conflict resolution
-- Team memory sync features
-- Selective memory import/export
+1. **Memory Compression**: For large knowledge bases
+2. **Selective Loading**: Load only relevant categories
+3. **Memory Search**: Full-text search across memories
+4. **Memory Visualization**: Knowledge graph display
+5. **Cross-Project Insights**: Controlled memory sharing
 
-### Long Term
-- Custom MCP server with proper isolation
-- Auto-detection of available projects
-- Memory visualization tools
-- Real-time team memory sharing
-- Cross-project memory insights (with permission)
+## Summary
 
-## Conclusion
+AIPM's memory management provides:
+- **Complete Isolation**: No memory contamination between projects
+- **Team Collaboration**: Automatic memory sync without explicit pulls
+- **Session Safety**: Lock-based concurrency control
+- **Git Integration**: Full version control of organizational knowledge
 
-The backup-restore memory isolation system provides a practical solution to the global memory problem while maintaining complete separation between framework and project contexts. By using local persistent files and a single temporary backup, we achieve true isolation that scales to N projects. Each project maintains its own `.aipm/` directory in its git repository, enabling portable, version-controlled AI knowledge that travels with the project. The `.aipm/` directory contains both configuration (opinions.json) and memory storage, making AIPM initialization explicit and Unix-like.
+The backup-restore pattern elegantly solves the global memory problem while maintaining the benefits of the MCP memory system.

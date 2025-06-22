@@ -270,6 +270,51 @@ When working with AIPM, you are either:
 
 ---
 
+## 📖 Documentation Maintenance Rules
+
+### CRITICAL: Never Use Line Numbers in Documentation
+Line numbers in documentation are fragile and break with ANY code change. They create a maintenance nightmare and make documentation quickly outdated.
+
+**❌ NEVER DO THIS**:
+```markdown
+# Bad Examples - These break with any code change!
+
+"The initialization happens at line 237 in start.sh"
+"See lines 450-523 for the implementation"
+"The bug is on line 89"
+"Check wrapper scripts starting at line 172"
+"From opinions-state.sh (lines 2417-2545):"
+"Memory sync logic (lines 237-260)"
+```
+
+**✅ ALWAYS DO THIS**:
+```markdown
+# Good Examples - These survive code changes!
+
+"The initialization happens in the initialize_state() function"
+"See the 'State Initialization' section"
+"The bug is in the validate_branch_name() function"
+"Check the wrapper scripts module"
+"From opinions-state.sh in the initialize_state() function:"
+"Memory sync logic in the sync_remote_memory() function"
+```
+
+### Better Reference Approaches
+1. **Function Names**: `"See the get_value() function in opinions-state.sh"`
+2. **Section Names**: `"Documented in the 'Memory Flow' section"`
+3. **YAML Paths**: `"Defined at workflows.branchCreation.startBehavior in opinions.yaml"`
+4. **Search Hints**: `"Search for 'compute_all_branch_patterns' to find the implementation"`
+5. **Module Names**: `"Implemented in the version-control.sh module"`
+
+### Why This Matters
+- Code changes frequently during development
+- Line numbers become invalid after ANY edit
+- Broken references confuse users and AI assistants
+- Maintenance becomes impossible as references drift
+- Documentation should be resilient to refactoring
+
+---
+
 ## 🔐 Security and Safety Rules
 
 ### Memory Files are SACRED - Never Touch Directly

@@ -1,159 +1,436 @@
-# AIPM State Management
+# AIPM State Management Architecture
 
 ## Overview
 
-The state management system provides a high-performance caching layer that pre-computes all configuration values and decisions. This eliminates the need for runtime computation and ensures consistent, fast operations.
+AIPM implements a comprehensive state management system (`opinions-state.sh`) that pre-computes ALL possible values at initialization time. This ensures ZERO runtime computation - everything is calculated once and stored in `workspace.json` for instant access.
+
+## Core Philosophy
+
+```
+1. Pre-compute Everything: No runtime calculations
+2. Single Source of Truth: workspace.json contains ALL state
+3. Instant Access: All values available via simple lookups
+4. Bidirectional Updates: Changes flow back to maintain consistency
+```
 
 ## Architecture
 
+### State Flow
+
 ```
-opinions.yaml → opinions-loader.sh → EXPORTS → opinions-state.sh → CACHED STATE
-                                                       ↓
-                                              .aipm/state/workspace.json
-                                                       ↓
-                                              All scripts read from here
+opinions.yaml (configuration source)
+    ↓
+opinions-loader.sh (pure YAML→shell transformation)
+    ↓
+opinions-state.sh (pre-computation engine)
+    ↓
+workspace.json (complete pre-computed state)
+    ↓
+Wrapper Scripts (instant lookups via get_value())
+    ↓
+State Updates (bidirectional via update_state())
 ```
-
-## Key Components
-
-### 1. opinions-loader.sh
-- Pure transformation layer (YAML → shell exports)
-- Validates configuration
-- Provides raw exports only
-
-### 2. opinions-state.sh
-- State management layer
-- Pre-computes ALL derived values
-- Queries git for runtime state
-- Makes ALL decisions upfront
-- Caches everything in workspace.json
-
-### 3. workspace.json
-- Complete brain of AIPM
-- Contains raw exports + computed values + runtime state + decisions
-- Updated only when needed
-- Single source of truth
 
 ## State Structure
 
+The `workspace.json` file contains five major sections:
+
+### 1. Metadata
 ```json
 {
   "metadata": {
     "version": "1.0",
-    "opinionsHash": "sha256:...",
-    "lastRefresh": "2025-06-22T10:00:00Z"
-  },
-  "raw_exports": {
-    // All AIPM_* environment variables
-  },
-  "computed": {
-    // Pre-computed patterns, rules, matrices
-  },
-  "runtime": {
-    // Current git state, branches, etc.
-  },
-  "decisions": {
-    // Pre-made decisions for all operations
+    "generated": "2024-06-22T10:30:00Z",
+    "opinionsHash": "sha256:abc123...",
+    "workspace": {
+      "name": "AIPM",
+      "type": "framework"
+    }
   }
 }
 ```
 
-## Benefits
+### 2. Raw Exports
+All AIPM_* environment variables from opinions-loader.sh:
+```json
+{
+  "raw_exports": {
+    "AIPM_WORKSPACE_NAME": "AIPM",
+    "AIPM_BRANCHING_PREFIX": "AIPM_",
+    "AIPM_MEMORY_ENTITYPREFIX": "AIPM_",
+    "AIPM_WORKFLOWS_BRANCHCREATION_STARTBEHAVIOR": "check-first"
+    // ... hundreds more
+  }
+}
+```
 
-1. **Performance**: No runtime computation needed
-2. **Consistency**: All scripts see the same state
-3. **Debugging**: Complete state visible in one file
-4. **Separation**: Clear boundaries between loading, computing, and using
+### 3. Computed Values
+Pre-calculated patterns, rules, and configurations:
+```json
+{
+  "computed": {
+    "mainBranch": "AIPM_MAIN",
+    "branchPatterns": {
+      "feature": {
+        "original": "feature/{description}",
+        "full": "AIPM_feature/{description}",
+        "glob": "AIPM_feature/*",
+        "regex": "^AIPM_feature/(.+)$"
+      }
+    },
+    "protectedBranches": {
+      "userBranches": ["main", "develop"],
+      "aipmBranches": [{"suffix": "MAIN", "full": "AIPM_MAIN"}],
+      "all": ["main", "develop", "AIPM_MAIN"]
+    },
+    "lifecycleMatrix": {
+      "feature": {
+        "deleteAfterMerge": true,
+        "daysToKeep": 0,
+        "deleteTiming": "immediate",
+        "description": "Delete immediately after merge"
+      }
+    },
+    "workflows": {
+      "branchCreation": {
+        "startBehavior": "check-first",
+        "protectionResponse": "prompt",
+        "typeSelection": "prompt"
+      }
+    }
+  }
+}
+```
 
-## Usage
+### 4. Runtime State
+Current git and session information:
+```json
+{
+  "runtime": {
+    "currentBranch": "AIPM_feature/state-management",
+    "branches": {
+      "all": ["AIPM_MAIN", "AIPM_feature/state-management"],
+      "byType": {
+        "feature": ["AIPM_feature/state-management"]
+      },
+      "stale": [],
+      "readyForCleanup": []
+    },
+    "git": {
+      "hasRemote": true,
+      "isClean": false,
+      "uncommittedCount": 3,
+      "ahead": 2,
+      "behind": 0
+    },
+    "session": {
+      "active": true,
+      "id": "aipm_20240622_143022",
+      "context": "framework"
+    }
+  }
+}
+```
 
-### For Script Authors
+### 5. Pre-made Decisions
+All possible decisions pre-computed:
+```json
+{
+  "decisions": {
+    "canCreateBranch": true,
+    "shouldFetchOnStart": true,
+    "mergeTarget": "AIPM_MAIN",
+    "cleanupBranches": ["AIPM_test/old-test"],
+    "workflowPrompts": {
+      "protectedBranch": "You're trying to save to main branch..."
+    }
+  }
+}
+```
+
+## Implementation Details
+
+### State Initialization
+
+From `opinions-state.sh` (lines 2417-2545):
 
 ```bash
-# Source the state module
-source opinions-state.sh
+initialize_state() {
+    # 1. Load opinions via opinions-loader.sh
+    load_and_export_opinions
+    
+    # 2. Collect ALL raw exports
+    local raw_exports='{}'
+    # Captures all AIPM_* environment variables
+    
+    # 3. Compute ALL derived values
+    local computed=$(jq -n \
+        --argjson bp "$(compute_all_branch_patterns)" \
+        --argjson pb "$(compute_protected_branches_list)" \
+        --argjson lm "$(compute_complete_lifecycle_matrix)" \
+        --argjson wf "$(compute_complete_workflow_rules)" \
+        # ... many more computations
+    )
+    
+    # 4. Get runtime state
+    local runtime=$(get_complete_runtime_state)
+    
+    # 5. Make ALL decisions
+    local decisions=$(make_complete_decisions "$runtime" "$computed")
+    
+    # 6. Write complete state
+    write_state_file "$state"
+}
+```
 
-# Ensure state is current
+### Pre-computation Functions
+
+#### Branch Patterns (lines 619-679)
+```bash
+compute_all_branch_patterns() {
+    # For each branch type (feature, fix, etc.):
+    # - Original pattern: "feature/{description}"
+    # - Full pattern: "AIPM_feature/{description}"
+    # - Glob pattern: "AIPM_feature/*"
+    # - Regex pattern: "^AIPM_feature/(.+)$"
+}
+```
+
+#### Lifecycle Matrix (lines 795-884)
+```bash
+compute_complete_lifecycle_matrix() {
+    # For each branch type:
+    # - deletion timing (immediate/scheduled/never)
+    # - trigger (merge date vs last commit)
+    # - human-readable descriptions
+}
+```
+
+#### Workflow Rules (lines 906-1181)
+```bash
+compute_complete_workflow_rules() {
+    # All workflow decisions with prompt text:
+    # - Branch creation behaviors
+    # - Merge strategies
+    # - Sync triggers
+    # - Cleanup rules
+}
+```
+
+### State Access
+
+#### Get Value (lines 2560-2577)
+```bash
+get_value() {
+    local path="$1"
+    
+    # Lazy load state if needed
+    ensure_state
+    
+    # Direct JSON lookup - instant!
+    echo "$STATE_CACHE" | jq -r ".$path // empty"
+}
+```
+
+Usage examples:
+```bash
+# Get raw configuration
+local prefix=$(get_value "raw_exports.AIPM_BRANCHING_PREFIX")
+
+# Get computed pattern
+local feature_glob=$(get_value "computed.branchPatterns.feature.glob")
+
+# Get runtime info
+local current_branch=$(get_value "runtime.currentBranch")
+
+# Get pre-made decision
+local can_create=$(get_value "decisions.canCreateBranch")
+```
+
+### Bidirectional Updates
+
+#### Single Update (lines 2932-3011)
+```bash
+update_state() {
+    local path="$1"
+    local value="$2"
+    
+    acquire_state_lock
+    update_state_internal "$path" "$value"
+    release_state_lock
+}
+```
+
+#### Batch Updates (lines 3102-3161)
+```bash
+update_state_batch() {
+    local updates="$1"  # JSON array
+    
+    acquire_state_lock
+    # Apply all updates atomically
+    release_state_lock
+}
+```
+
+#### Specialized Updates
+```bash
+# Increment numeric value
+increment_state "runtime.git.uncommittedCount"
+
+# Append to array
+append_state "runtime.branches.stale" "AIPM_test/old"
+
+# Remove from state
+remove_state "runtime.session.tempData"
+```
+
+### Wrapper Script Integration
+
+Example from a hypothetical improved `save.sh`:
+
+```bash
+source opinions-state.sh
 ensure_state
 
-# Get any value - no computation!
-can_create=$(get_value "decisions.canCreateBranch")
-merge_target=$(get_value "decisions.mergeTarget")
-branch_pattern=$(get_value "computed.allBranchPatterns.feature")
-```
+# Check if on protected branch
+local current=$(get_value "runtime.currentBranch")
+local protected=$(get_value "computed.protectedBranches.all")
 
-### State Refresh Strategy
-
-1. **Automatic**: On opinions.yaml change
-2. **Periodic**: Every 5 minutes
-3. **On-demand**: Via `refresh_state`
-4. **Selective**: Can refresh just branches or decisions
-
-### Example Integration
-
-```bash
-# In start.sh
-ensure_state  # Ensures state is loaded and current
-
-if [[ "$(get_value 'decisions.shouldFetchOnStart')" == "true" ]]; then
-    git fetch origin
+if echo "$protected" | jq -e --arg b "$current" '.[] | select(. == $b)' >/dev/null; then
+    # Get workflow rule
+    local response=$(get_value "computed.workflows.branchCreation.protectionResponse")
+    
+    if [[ "$response" == "prompt" ]]; then
+        # Get pre-computed prompt
+        local prompt=$(get_value "decisions.workflowPrompts.protectedBranch")
+        echo "$prompt"
+    fi
 fi
 
-# In save.sh
-if [[ "$(get_value 'decisions.canMergeCurrentBranch')" == "true" ]]; then
-    target=$(get_value "decisions.mergeTarget")
-    git merge "$target"
-fi
+# After save operation, report back
+report_git_operation "save" "success" "{\"branch\": \"$current\"}"
 ```
 
-## State Management Commands
+## Performance Benefits
+
+### Traditional Approach (Slow)
+```bash
+# Parse YAML on every call
+local prefix=$(yq '.branching.prefix' opinions.yaml)
+# Check git status repeatedly
+if [[ $(git status --porcelain | wc -l) -gt 0 ]]; then
+# Compute patterns at runtime
+local pattern="$prefix$type/*"
+```
+
+### AIPM Approach (Instant)
+```bash
+# Everything pre-computed
+local prefix=$(get_value "computed.branchPatterns.feature.glob")
+local is_clean=$(get_value "runtime.git.isClean")
+# No computation needed!
+```
+
+## Lock-Based Concurrency
+
+State updates use file locking to prevent corruption:
 
 ```bash
-# Initialize state from scratch
-./opinions-state.sh init
-
-# Refresh runtime state only
-./opinions-state.sh refresh branches
-
-# Get a specific value
-./opinions-state.sh get decisions.canCreateBranch
-
-# Dump entire state (debugging)
-./opinions-state.sh dump
-
-# Validate state integrity
-./opinions-state.sh validate
+# Lock acquisition (lines 306-343)
+acquire_state_lock() {
+    local timeout=${AIPM_STATE_LOCK_TIMEOUT:-30}
+    
+    # Try flock first (kernel-level)
+    if command -v flock &>/dev/null; then
+        flock -w "$timeout" "$STATE_LOCK_FD"
+    else
+        # Fallback to directory-based lock
+        while ! mkdir "$STATE_LOCK.dir" && [[ $elapsed -lt $timeout ]]; do
+            sleep 0.5
+        done
+    fi
+}
 ```
 
-## How It Works
+## State Refresh Strategy
 
-1. **Initialization**:
-   - Loads raw exports via opinions-loader.sh
-   - Computes all patterns, rules, and matrices
-   - Queries git for branch states
-   - Makes all possible decisions
-   - Writes complete state to workspace.json
+### Full Refresh
+```bash
+refresh_state "all"  # Recompute everything
+```
 
-2. **Runtime**:
-   - Scripts call `get_value()` - instant lookup
-   - No YAML parsing, no rule evaluation
-   - Everything is pre-computed
+### Partial Refresh
+```bash
+refresh_state "branches"  # Only git branch info
+refresh_state "runtime"   # Only runtime state
+```
 
-3. **Updates**:
-   - Hash-based change detection
-   - Selective refresh capability
-   - Atomic file updates with locking
+### Automatic Refresh
+- On opinions.yaml change (hash mismatch)
+- Every 5 minutes (configurable)
+- On demand via wrapper scripts
 
-## Performance Impact
+## Integration Points
 
-- Initial load: ~1 second (one-time cost)
-- Subsequent reads: <1ms (just JSON lookup)
-- Memory usage: ~100KB (entire state in memory)
-- No repeated YAML parsing or git queries
+### With Workflows
+See [workflow.md](workflow.md) - all workflow rules are pre-computed and stored in state.
+
+### With Memory Management  
+See [memory-management.md](memory-management.md) - memory operations update runtime state.
+
+### With Version Control
+Git operations report back to maintain state consistency:
+```bash
+# After checkout
+update_state "runtime.currentBranch" "$new_branch"
+
+# After commit
+update_state "runtime.git.uncommittedCount" "0"
+```
+
+## Best Practices
+
+### 1. Always Use State Functions
+```bash
+# Bad: Direct file access
+local value=$(jq -r '.computed.value' workspace.json)
+
+# Good: State function
+local value=$(get_value "computed.value")
+```
+
+### 2. Report All Changes
+```bash
+# Bad: Change without reporting
+git checkout feature/new
+
+# Good: Change and report
+checkout_branch "feature/new"  # Wrapper that updates state
+```
+
+### 3. Batch Related Updates
+```bash
+# Good: Atomic updates
+update_state_batch '[
+    {"path": "runtime.git.branch", "value": "main"},
+    {"path": "runtime.git.uncommittedCount", "value": "0"}
+]'
+```
 
 ## Future Enhancements
 
-1. **State History**: Track state changes over time
-2. **State Diff**: Show what changed between refreshes
-3. **State Metrics**: Performance and usage statistics
-4. **State Sync**: Share state across distributed teams
+1. **State History**: Track changes over time
+2. **State Diff**: Compare states between refreshes
+3. **State Subscriptions**: Watch for specific changes
+4. **State Metrics**: Performance analytics
+5. **Distributed State**: Share across team members
+
+## Summary
+
+AIPM's state management provides:
+- **Zero Runtime Computation**: Everything pre-calculated
+- **Instant Access**: Simple JSON lookups
+- **Complete Coverage**: ALL configuration and runtime data
+- **Bidirectional Flow**: Maintains consistency automatically
+
+The state system is the brain of AIPM - it knows everything about the workspace and provides instant answers to any query.
