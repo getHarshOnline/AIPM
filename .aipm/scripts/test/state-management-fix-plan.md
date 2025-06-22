@@ -490,12 +490,34 @@ validate_no_git_calls() {
    }
    ```
 
-### Phase 2: Fix Git Violations (Week 1-2)
-1. Replace all direct git calls in opinions-state.sh
-2. Remove ALL fallback patterns (NO EXCEPTIONS)
-3. Update error handling to use _missing_function_fatal
-4. Add pre-commit hook to prevent future violations
-5. Test each replacement incrementally
+### Phase 2: Fix Git Violations (Week 1-2) ✅ MOSTLY COMPLETE
+1. **Replace all direct git calls in opinions-state.sh** ✅ COMPLETED
+   All 17 violations have been fixed:
+   - ✅ git config user.name → get_git_config "user.name"
+   - ✅ git branch -a → list_branches
+   - ✅ git rev-parse "$branch" → get_branch_commit "$branch"
+   - ✅ git log → get_branch_log with appropriate format
+   - ✅ git log creation/last dates → get_branch_creation_date/get_branch_last_commit_date
+   - ✅ git branch --merged → is_branch_merged
+   - ✅ git rev-parse HEAD → get_current_branch
+   - ✅ git status --porcelain → get_status_porcelain or count_uncommitted_files
+   - ✅ git stash list → count_stashes
+   - ✅ git rev-parse @{u} → get_upstream_branch
+   - ✅ git rev-list --count → get_commits_ahead_behind
+   - ✅ git rev-parse --show-toplevel → get_repo_root
+   - ✅ git rev-parse --git-dir → get_git_dir
+   - ✅ git remote -v → has_remote_repository (new function added)
+
+2. **Remove ALL fallback patterns** ✅ COMPLETED
+   - All fallback patterns replaced with _missing_function_fatal calls
+   - NO EXCEPTIONS enforced throughout
+
+3. **Update error handling** ✅ COMPLETED
+   - All replacements use _missing_function_fatal for missing functions
+   - Consistent error handling pattern applied
+
+4. **Add pre-commit hook** (PENDING)
+5. **Test each replacement** (PENDING)
 
 ### Phase 3: Complete Documentation (Week 2)
 1. Document remaining 28% of functions

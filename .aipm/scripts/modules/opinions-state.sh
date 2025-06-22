@@ -2062,22 +2062,24 @@ get_complete_runtime_branches() {
         local merged_to=""
         # Check if branch is merged
         local merge_info
-        if declare -F is_branch_merged >/dev/null 2>&1; then
+        # LEARNING: Use version-control.sh function - NO FALLBACKS
+        if command -v is_branch_merged &>/dev/null; then
             if is_branch_merged "$branch" >/dev/null 2>&1; then
                 merge_info="merged"
             else
                 merge_info=""
             fi
         else
-            merge_info=$(git branch --merged | grep -v "^[* ]*$branch$" | head -1)
+            _missing_function_fatal "is_branch_merged"
         fi
         if [[ -n "$merge_info" ]]; then
             # Find actual merge commit
+            # LEARNING: Use version-control.sh function - NO FALLBACKS
             local merge_commit
-            if declare -F show_log >/dev/null 2>&1; then
-                merge_commit=$(show_log 100 --merges 2>/dev/null | grep "$branch" | head -1)
+            if command -v get_branch_log &>/dev/null; then
+                merge_commit=$(get_branch_log "HEAD" "%H %s %aI" "--merges" 2>/dev/null | grep "$branch" | head -1)
             else
-                merge_commit=$(git log --merges --format="%H %s %aI" | grep "$branch" | head -1)
+                _missing_function_fatal "get_branch_log"
             fi
             if [[ -n "$merge_commit" ]]; then
                 merge_date=$(printf "%s\n" "$merge_commit" | awk '{print $NF}')
@@ -2299,11 +2301,12 @@ get_complete_runtime_state() {
     fi
     
     # Get stash count
+    # LEARNING: Use version-control.sh function - NO FALLBACKS
     local stash_count
-    if declare -F list_stashes >/dev/null 2>&1; then
-        stash_count=$(list_stashes | wc -l)
+    if command -v count_stashes &>/dev/null; then
+        stash_count=$(count_stashes)
     else
-        stash_count=$(git stash list 2>/dev/null | wc -l || printf "%s\n" 0)
+        _missing_function_fatal "count_stashes"
     fi
     
     # Get remote status
@@ -2319,19 +2322,21 @@ get_complete_runtime_state() {
     
     if [[ -n "$current_branch" ]]; then
         # Get upstream branch reference
-        upstream=$(git rev-parse --abbrev-ref "@{u}" 2>/dev/null)
+        # LEARNING: Use version-control.sh functions - NO FALLBACKS
+        if command -v get_upstream_branch &>/dev/null; then
+            upstream=$(get_upstream_branch 2>/dev/null || echo "")
+        else
+            _missing_function_fatal "get_upstream_branch"
+        fi
+        
         if [[ -n "$upstream" ]]; then
-            # Get commits ahead/behind using version-control.sh function if available
-            if declare -F get_commits_ahead_behind >/dev/null 2>&1; then
+            # Get commits ahead/behind using version-control.sh function
+            if command -v get_commits_ahead_behind &>/dev/null; then
                 local ahead_behind=$(get_commits_ahead_behind "$current_branch")
                 ahead=$(printf "%s\n" "$ahead_behind" | grep "ahead:" | cut -d: -f2 | tr -d ' ')
                 behind=$(printf "%s\n" "$ahead_behind" | grep "behind:" | cut -d: -f2 | tr -d ' ')
             else
-                # git rev-list --count counts commits in a range
-                # @{u}..HEAD = commits on HEAD not on upstream (ahead)
-                # HEAD..@{u} = commits on upstream not on HEAD (behind)
-                ahead=$(git rev-list --count "@{u}..HEAD" 2>/dev/null || printf "%s\n" 0)
-                behind=$(git rev-list --count "HEAD..@{u}" 2>/dev/null || printf "%s\n" 0)
+                _missing_function_fatal "get_commits_ahead_behind"
             fi
             if [[ $ahead -gt 0 ]] && [[ $behind -gt 0 ]]; then
                 diverged="true"
@@ -2340,14 +2345,19 @@ get_complete_runtime_state() {
     fi
     
     # Get repository info
+    # LEARNING: Use version-control.sh functions - NO FALLBACKS
     local repo_root
     local git_dir
-    if declare -F get_repo_root >/dev/null 2>&1; then
+    if command -v get_repo_root &>/dev/null; then
         repo_root=$(get_repo_root || pwd)
     else
-        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+        _missing_function_fatal "get_repo_root"
     fi
-    git_dir=$(git rev-parse --git-dir 2>/dev/null || printf "%s\n" ".git")
+    if command -v get_git_dir &>/dev/null; then
+        git_dir=$(get_git_dir || echo ".git")
+    else
+        _missing_function_fatal "get_git_dir"
+    fi
     
     # Check for rebase/merge in progress
     # Learning: Git tracks in-progress operations via special files/dirs in .git
@@ -2942,7 +2952,12 @@ detect_refresh_needed() {
     # LEARNING: Check for git state drift
     # This is a lightweight check - just current branch
     local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
-    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    local actual_branch
+    if command -v get_current_branch &>/dev/null; then
+        actual_branch=$(get_current_branch 2>/dev/null || echo "")
+    else
+        _missing_function_fatal "get_current_branch"
+    fi
     
     if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
         debug "Branch drift detected: state=$state_branch, actual=$actual_branch"
@@ -3402,7 +3417,12 @@ detect_state_drift() {
     
     # LEARNING: Check current branch - most common drift
     local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
-    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    local actual_branch
+    if command -v get_current_branch &>/dev/null; then
+        actual_branch=$(get_current_branch 2>/dev/null || echo "")
+    else
+        _missing_function_fatal "get_current_branch"
+    fi
     
     if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
         drift_items+=("Branch: state='$state_branch', actual='$actual_branch'")
@@ -3411,7 +3431,12 @@ detect_state_drift() {
     
     # LEARNING: Check uncommitted changes count
     local state_uncommitted=$(jq -r '.runtime.git.uncommittedCount // 0' <<< "$STATE_CACHE")
-    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    local actual_uncommitted
+    if command -v count_uncommitted_files &>/dev/null; then
+        actual_uncommitted=$(count_uncommitted_files)
+    else
+        _missing_function_fatal "count_uncommitted_files"
+    fi
     
     if [[ "$state_uncommitted" != "$actual_uncommitted" ]]; then
         drift_items+=("Uncommitted: state=$state_uncommitted, actual=$actual_uncommitted")
@@ -3445,7 +3470,12 @@ detect_state_drift() {
     
     # LEARNING: Check if remote exists
     local state_has_remote=$(jq -r '.runtime.git.hasRemote // false' <<< "$STATE_CACHE")
-    local actual_has_remote=$(git remote -v 2>/dev/null | grep -q "origin" && echo "true" || echo "false")
+    local actual_has_remote
+    if command -v has_remote_repository &>/dev/null; then
+        has_remote_repository && actual_has_remote="true" || actual_has_remote="false"
+    else
+        _missing_function_fatal "has_remote_repository"
+    fi
     
     if [[ "$state_has_remote" != "$actual_has_remote" ]]; then
         drift_items+=("Remote status: state=$state_has_remote, actual=$actual_has_remote")
@@ -3533,7 +3563,12 @@ repair_state_inconsistency() {
     local repairs_made=0
     
     # LEARNING: Fix current branch
-    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    local actual_branch
+    if command -v get_current_branch &>/dev/null; then
+        actual_branch=$(get_current_branch 2>/dev/null || echo "")
+    else
+        _missing_function_fatal "get_current_branch"
+    fi
     if [[ -n "$actual_branch" ]]; then
         local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$repaired_state")
         if [[ "$state_branch" != "$actual_branch" ]]; then
@@ -3544,7 +3579,12 @@ repair_state_inconsistency() {
     fi
     
     # LEARNING: Fix uncommitted count and clean status
-    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    local actual_uncommitted
+    if command -v count_uncommitted_files &>/dev/null; then
+        actual_uncommitted=$(count_uncommitted_files)
+    else
+        _missing_function_fatal "count_uncommitted_files"
+    fi
     local actual_clean=$([[ "$actual_uncommitted" -eq 0 ]] && echo "true" || echo "false")
     
     repaired_state=$(jq --arg count "$actual_uncommitted" --arg clean "$actual_clean" '
@@ -3556,7 +3596,12 @@ repair_state_inconsistency() {
     ((repairs_made += 2))
     
     # LEARNING: Fix remote status
-    local actual_has_remote=$(git remote -v 2>/dev/null | grep -q "origin" && echo "true" || echo "false")
+    local actual_has_remote
+    if command -v has_remote_repository &>/dev/null; then
+        has_remote_repository && actual_has_remote="true" || actual_has_remote="false"
+    else
+        _missing_function_fatal "has_remote_repository"
+    fi
     repaired_state=$(jq --arg remote "$actual_has_remote" '.runtime.git.hasRemote = ($remote | fromjson)' <<< "$repaired_state")
     info "✓ Fixed remote status: $actual_has_remote"
     ((repairs_made++))
@@ -3683,7 +3728,12 @@ validate_state_against_git() {
     
     # LEARNING: Critical check 1: Current branch
     local state_branch=$(jq -r '.runtime.currentBranch // ""' <<< "$STATE_CACHE")
-    local actual_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    local actual_branch
+    if command -v get_current_branch &>/dev/null; then
+        actual_branch=$(get_current_branch 2>/dev/null || echo "")
+    else
+        _missing_function_fatal "get_current_branch"
+    fi
     
     if [[ "$state_branch" != "$actual_branch" ]] && [[ -n "$actual_branch" ]]; then
         error "Branch mismatch: state=$state_branch, git=$actual_branch"
@@ -3693,7 +3743,12 @@ validate_state_against_git() {
     # LEARNING: Critical check 2: Working tree status
     # Allow minor variance in count but not in clean status
     local state_clean=$(jq -r '.runtime.git.isClean // true' <<< "$STATE_CACHE")
-    local actual_uncommitted=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    local actual_uncommitted
+    if command -v count_uncommitted_files &>/dev/null; then
+        actual_uncommitted=$(count_uncommitted_files)
+    else
+        _missing_function_fatal "count_uncommitted_files"
+    fi
     local actual_clean=$([[ "$actual_uncommitted" -eq 0 ]] && echo "true" || echo "false")
     
     if [[ "$state_clean" != "$actual_clean" ]]; then

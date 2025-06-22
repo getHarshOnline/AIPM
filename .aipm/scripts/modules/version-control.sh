@@ -2250,6 +2250,42 @@ count_stashes() {
     return 0
 }
 
+# Check if remote exists
+# PURPOSE: Check if a specific remote exists in the repository
+# PARAMETERS:
+#   $1 - Remote name (optional, default: "origin")
+# RETURNS:
+#   0 - Remote exists
+#   1 - Remote does not exist
+# OUTPUTS:
+#   None
+# SIDE EFFECTS:
+#   - Updates runtime.git.hasRemote in state if checking origin
+# EXAMPLE:
+#   if has_remote_repository; then
+#       push_changes
+#   fi
+#   if has_remote_repository "upstream"; then
+#       fetch_remote "upstream"
+#   fi
+has_remote_repository() {
+    local remote="${1:-origin}"
+    
+    if git remote -v 2>/dev/null | grep -q "^${remote}\s"; then
+        # Update state if checking origin
+        if [[ "$remote" == "origin" ]] && [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+            update_state "runtime.git.hasRemote" "true" 2>/dev/null || true
+        fi
+        return 0
+    else
+        # Update state if checking origin
+        if [[ "$remote" == "origin" ]] && [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+            update_state "runtime.git.hasRemote" "false" 2>/dev/null || true
+        fi
+        return 1
+    fi
+}
+
 # ============================================================================
 # EXPORT SUCCESS
 # ============================================================================
