@@ -67,6 +67,17 @@ source "$SCRIPT_DIR/modules/migrate-memories.sh" || {
     exit 1
 }
 
+source "$SCRIPT_DIR/modules/opinions-state.sh" || {
+    error "Required file opinions-state.sh not found"
+    exit 1
+}
+
+# Initialize state
+ensure_state || {
+    error "Failed to initialize state"
+    exit 1
+}
+
 # Start visual section
 section "AIPM Memory Revert"
 
@@ -219,11 +230,11 @@ if [[ "$LIST_MODE" == "true" ]]; then
     
     # Show last 20 commits with memory changes
     info "Recent memory commits:"
-    # Use git log with custom format to show more details
-    git log --oneline --pretty=format:"%h | %ad | %s" --date=short -n 20 -- "$MEMORY_FILE" 2>/dev/null || {
+    # Use version-control.sh function for file history
+    if ! show_file_history "$MEMORY_FILE" "--pretty=format:%h | %ad | %s --date=short -n 20"; then
         error "No memory history found for $MEMORY_FILE"
         exit 1
-    }
+    fi
     
     section_end
     
@@ -320,6 +331,12 @@ fi
 # LEARNING: checkout_file uses git to restore specific version
 step "Reverting to $COMMIT_REF..."
 
+# Begin atomic operation for revert
+begin_atomic_operation "revert:$WORK_CONTEXT:$COMMIT_REF"
+
+# Track original uncommitted count
+local original_uncommitted=$(count_uncommitted_files)
+
 if [[ "$PARTIAL_MODE" == "true" ]]; then
     # Partial revert - merge specific entities from old version
     info "Performing partial revert${ENTITY_FILTER:+ (filter: $ENTITY_FILTER)}..."
@@ -366,9 +383,27 @@ if [[ "$PARTIAL_MODE" == "true" ]]; then
     # Merge old entities with current (old wins for conflicts)
     if merge_memories "$MEMORY_FILE" "$old_memory" "$MEMORY_FILE" "remote-wins"; then
         rm -f "$old_memory"
-        success "Partial revert completed successfully"
+        
+        # Update state for successful partial revert
+        local new_uncommitted=$(count_uncommitted_files)
+        update_state "runtime.lastRevert" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+        update_state "runtime.git.uncommittedCount" "$new_uncommitted" && \
+        update_state "runtime.memory.lastRevert.type" "partial" && \
+        update_state "runtime.memory.lastRevert.commit" "$COMMIT_REF" && \
+        update_state "runtime.memory.lastRevert.filter" "${ENTITY_FILTER:-none}"
+        
+        if [[ $? -eq 0 ]]; then
+            commit_atomic_operation
+            success "Partial revert completed successfully"
+        else
+            rollback_atomic_operation
+            error "Failed to update state after partial revert"
+            warn "Backup available at: $BACKUP_NAME"
+            die "State update failed"
+        fi
     else
         rm -f "$old_memory"
+        rollback_atomic_operation
         error "Partial revert failed"
         warn "Backup available at: $BACKUP_NAME"
         die "Memory merge failed"
@@ -376,8 +411,25 @@ if [[ "$PARTIAL_MODE" == "true" ]]; then
 else
     # Full revert - replace entire file
     if checkout_file "$COMMIT_REF" "$MEMORY_FILE"; then
-        success "Memory reverted successfully"
+        # Update state for successful full revert
+        local new_uncommitted=$(count_uncommitted_files)
+        update_state "runtime.lastRevert" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+        update_state "runtime.git.uncommittedCount" "$new_uncommitted" && \
+        update_state "runtime.memory.lastRevert.type" "full" && \
+        update_state "runtime.memory.lastRevert.commit" "$COMMIT_REF" && \
+        update_state "runtime.memory.lastRevert.file" "$MEMORY_FILE"
+        
+        if [[ $? -eq 0 ]]; then
+            commit_atomic_operation
+            success "Memory reverted successfully"
+        else
+            rollback_atomic_operation
+            error "Failed to update state after revert"
+            warn "Backup available at: $BACKUP_NAME"
+            die "State update failed"
+        fi
     else
+        rollback_atomic_operation
         error "Revert failed"
         warn "Backup available at: $BACKUP_NAME"
         die "Git checkout failed"
