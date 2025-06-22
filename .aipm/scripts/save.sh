@@ -100,6 +100,9 @@ done
 
 # Show what we're saving - User feedback is important
 section "Creating Memory Checkpoint" "💾"
+info "🤝 Saving your team's collective knowledge to git"
+info "   Every insight preserved, every decision tracked"
+printf "\n"
 info "Context: $(format_context "$WORK_CONTEXT" "$PROJECT_NAME")"  # shell-formatting.sh
 info "Message: $COMMIT_MSG"
 printf "\n"
@@ -117,17 +120,18 @@ if ! can_perform "save" "$(get_current_branch)"; then
     case "$response" in
         "prompt")
             # Ask user what to do
-            warn "You're on a protected branch: $(get_current_branch)"
+            warn "⚠️  You're on a protected branch: $(get_current_branch)"
+            info "   Protected branches ensure team coordination"
             confirm "Continue anyway?" || die "Save cancelled"
             ;;
         "create-feature")
             # Auto-create feature branch
-            info "Creating feature branch for save..."
+            info "🌱 Creating feature branch for safe collaboration..."
             create_branch "feature" "save-$(date +%Y%m%d-%H%M%S)"  # version-control.sh
             ;;
         *) 
             # Deny by default
-            die "Cannot save to protected branch" 
+            die "Cannot save to protected branch - team rules prevent this" 
             ;;
     esac
 fi
@@ -139,7 +143,7 @@ ensure_memory_tracked  # version-control.sh - adds memory files if needed
 
 # Stage all changes including memory files
 # LEARNING: execute_with_spinner provides visual feedback
-execute_with_spinner "Staging all changes" stage_all_changes true  # version-control.sh
+execute_with_spinner "📦 Staging all changes and memory updates" stage_all_changes true  # version-control.sh
 
 # Get memory stats for reporting
 # LEARNING: Show user what they're saving
@@ -149,17 +153,23 @@ stats=$(get_memory_stats "$MEMORY_FILE")  # migrate-memories.sh
 if create_commit "$COMMIT_MSG" true; then  # version-control.sh
     # Report to state for audit trail
     report_git_operation "save-completed" "$(get_branch_commit HEAD)" "{\"stats\": \"$stats\"}"
-    success "✓ Checkpoint created successfully!"
-    info "  $stats"
+    printf "\n"
+    success_box "✨ Team Memory Checkpoint Created!"
+    printf "\n"
+    info "🧠 Saved: $stats"
+    info "📍 Commit: $(get_branch_commit HEAD | cut -c1-7)"
+    printf "\n"
+    info "💡 Your teammates will get this knowledge when they pull"
     
     # Auto-backup if configured
     # LEARNING: Workflow rules control automation
     if [[ "$(get_workflow_rule "synchronization.autoBackup")" == "on-save" ]]; then
         printf "\n"
-        execute_with_spinner "Backing up to remote" push_to_remote  # version-control.sh
+        execute_with_spinner "☁️  Syncing to cloud for team access" push_to_remote  # version-control.sh
+        info "🌐 Team memory synchronized across all members!"
     fi
 else
-    die "Failed to create checkpoint"
+    die "Failed to create checkpoint - team memory not saved"
 fi
 
 # END OF SCRIPT - Clean, focused, maintainable!

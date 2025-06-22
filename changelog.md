@@ -4,6 +4,71 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Documentation Alignment & UX Enhancement
+
+### Added
+- **Enhanced wrapper script UX across all scripts**:
+  - Descriptive messages explaining MCP server team memory synchronization
+  - Thoughtful emoji usage for clarity without overdoing it
+  - Messages that subtly convey the framework methodology
+  - Attribution message in stop.sh: "Made with love by Harsh Joshi"
+  
+- **Critical initialization prompt in start.sh**:
+  - Hardened prompt for Claude to follow .agentrules strictly
+  - Dynamic paths to all key documentation files
+  - Requires confirmation from Claude after reading directives
+  - Uses shell-formatting.sh functions (not direct printf)
+
+- **Comprehensive wrapper script usage in workflow.md**:
+  - Complete usage examples for all 5 scripts with all options
+  - Cross-references to relevant sections in other docs
+  - Real-world workflow examples (new user, team collaboration, recovery)
+  - Workflow rules clearly mapped to each script
+
+- **MCP server dependencies in README.md**:
+  - Added prerequisites section listing required MCP servers
+  - Magic formula: "Git + AI Memory + Smart Guardrails = Project-wide undo/merge for everyone"
+  - Emphasis on the revolutionary enabler for non-technical teams
+
+### Changed
+- **Fixed documentation paths throughout**:
+  - Corrected .aipm/scripts/test/ to .aipm/docs/ in multiple files
+  - Updated references to point to actual documentation locations
+  - Fixed workflow.md examples from "aipm" to "./script.sh" format
+
+- **Updated technical documentation**:
+  - DOCS.md: Added version-control.md to listing, emphasized git isolation
+  - memory-management.md: Added sync-memory.sh documentation
+  - workflow.md: Fixed get_workflow_rule() to get_value()
+  - AIPM.md: Added critical architecture rule about version-control.sh
+  - .agentrules: Added git command isolation warning
+
+### Technical Details
+- All wrapper scripts now explain the team memory synchronization aspect
+- Documentation properly emphasizes that only version-control.sh calls git
+- Cross-references between docs ensure users can find detailed information
+- UX messages guide users through understanding AIPM's core value proposition
+
+## 2025-06-22 - Implemented init.sh for Framework Initialization
+
+### Added
+- **init.sh implementation** (210 lines):
+  - Complete framework initialization workflow
+  - Checks for existing initialization (idempotent)
+  - Creates required directory structure
+  - Initializes state system
+  - Sets up memory symlink for MCP
+  - Detects existing projects
+  - Shows configuration summary
+  - Supports --reinit and --start options
+  - Rich visual feedback throughout
+
+### Technical Details
+- Thin orchestration layer (no business logic)
+- Comprehensive documentation following wrapper script patterns
+- Future-ready for project installation features
+- Clean user experience with clear next steps
+
 ## 2025-06-22 - Enhanced Wrapper Scripts with Comprehensive Documentation
 
 ### Added

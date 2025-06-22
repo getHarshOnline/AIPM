@@ -80,6 +80,8 @@ source "$SCRIPT_DIR/modules/opinions-state.sh" || exit 1
 
 # Header
 section "Ending AIPM Session" "🛑"
+info "🤝 Let's save your team's progress and sync everything"
+printf "\n"
 
 # Get session info - Must have active session
 # LEARNING: get_session_info() returns ID:context:project format
@@ -102,9 +104,10 @@ printf "\n"
 # CRITICAL: Save any uncommitted changes
 # LEARNING: stop = save + cleanup, so we call save.sh!
 if ! is_working_directory_clean; then  # version-control.sh
-    warn "You have uncommitted changes"
+    warn "⚠️  You have uncommitted changes"
+    info "   Your team won't see this knowledge until it's saved!"
     if confirm "Save before stopping?"; then  # shell-formatting.sh
-        info "Saving your work..."
+        info "💾 Saving your discoveries for the team..."
         # Delegate to save.sh with proper context
         "$SCRIPT_DIR/save.sh" "--$CONTEXT" ${PROJECT:+"$PROJECT"} "Session end: $SESSION_ID"
     fi
@@ -124,7 +127,9 @@ fi
 # Handle push workflow
 # LEARNING: pushOnStop rule controls this behavior
 if [[ "$(get_workflow_rule 'synchronization.pushOnStop')" != "never" ]]; then
-    execute_with_spinner "Pushing to remote" push_to_remote  # version-control.sh
+    printf "\n"
+    execute_with_spinner "☁️  Syncing team memory to cloud" push_to_remote  # version-control.sh
+    info "🌐 Your insights are now available to the whole team!"
 fi
 
 # Cleanup session
@@ -134,16 +139,24 @@ execute_with_spinner "Cleaning up session" "cleanup_session '$SESSION_ID'"  # op
 # Restore memory from backup
 # CRITICAL: Restore from workspace-relative backup path
 backup_path="$(get_memory_path "$CONTEXT" "$PROJECT" | sed 's/local_memory.json/backup.json/')"
-execute_with_spinner "Restoring memory" \
+printf "\n"
+execute_with_spinner "🔄 Restoring global memory state" \
     "restore_memory '$backup_path' '.aipm/memory.json'"  # migrate-memories.sh
 
 # Farewell message
 printf "\n"
-success_box "Session Ended Successfully!"  # shell-formatting.sh
-info "Thanks for using AIPM!"
+success_box "✨ Session Ended Successfully!"
+printf "\n"
+info "🙏 Thank you for contributing to your team's collective intelligence!"
+printf "\n"
+draw_line "=" 60
+info "💙 Made with love by Harsh Joshi (getharsh.in)"
+info "🌟 Consider supporting the project if you found it helpful!"
+info "🌐 https://github.com/getHarshOnline/aipm"
+draw_line "=" 60
 printf "\n"
 
 # LEARNING: Claude Code must be exited manually
-warn "Please exit Claude Code manually (Ctrl+C)"
+warn "🚪 Please exit Claude Code manually (Ctrl+C)"
 
 # END OF SCRIPT - The cleanest wrapper of all!

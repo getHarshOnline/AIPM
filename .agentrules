@@ -65,6 +65,14 @@ AIPM brings git-powered decision tracking to ALL teams - not just developers. It
 - **FOLLOW GUARDRAILS**: Workflow.md contains implementation patterns and guardrails
 - **TEST INCREMENTALLY**: Implement section by section, test before proceeding
 
+### 🔴 CRITICAL: Git Command Isolation
+**ARCHITECTURE VIOLATION ALERT**: 
+- ONLY version-control.sh may call git commands directly
+- ALL other modules MUST use version-control.sh functions
+- This prevents state desynchronization between git and AIPM state
+- opinions-state.sh currently has 20+ violations that need fixing
+- See state-management-fix-plan.md for complete violation audit
+
 #### When working on core modules:
 - **shell-formatting.sh**: ALL output goes through these functions
 - **version-control.sh**: ALL git operations go through these functions

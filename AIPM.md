@@ -140,15 +140,16 @@ graph TD
         ST[stop.sh]
         SA[save.sh]
         R[revert.sh]
+        I[init.sh]
     end
     
     subgraph "Core Modules"
         OL[opinions-loader.sh]
+        OS[opinions-state.sh]
         SF[shell-formatting.sh]
         VC[version-control.sh]
         MM[migrate-memories.sh]
-        CM[config-manager.sh]
-        SM[session-manager.sh]
+        SY[sync-memory.sh]
     end
     
     S --> OL
@@ -196,6 +197,8 @@ detect_execution_context() # Terminal, CI, Claude
 ```
 
 ### version-control.sh - Git Operations
+
+**⚠️ Critical Architecture Rule**: Only version-control.sh may call git commands directly. All other modules MUST use its functions. This ensures consistent state management and prevents desynchronization.
 
 All git operations flow through this module:
 
@@ -378,8 +381,8 @@ The system handles all the complexity. You focus on your work.
 ## Learn More
 
 - **Detailed Scripts**: See `.aipm/scripts/` for implementation
-- **Module Tests**: See `.aipm/scripts/test/` for examples  
-- **Design Documents**: See `.aipm/docs/` for deep dives
+- **Architecture Documentation**: See `.aipm/docs/` for design documents
+- **Module Reference**: See `.aipm/docs/_functions.md` for all available functions
 - **Current Development**: See [current-focus.md](./current-focus.md)
 
 ---

@@ -71,7 +71,8 @@ AIPM/                           # Framework workspace
 │   │   ├── DOCS.md           # This file
 │   │   ├── workflow.md       # Usage patterns
 │   │   ├── memory-management.md  # Memory architecture
-│   │   └── state-management.md   # State architecture
+│   │   ├── state-management.md   # State architecture
+│   │   └── version-control.md    # Git operations architecture
 │   └── templates/             # Project templates
 │
 ├── .agentrules                # AI behavior rules
@@ -111,9 +112,10 @@ AIPM/                           # Framework workspace
 ### Core Modules (scripts/modules/)
 
 **version-control.sh**
-- All git operations (50+ functions)
-- Branch management and validation
-- Commit operations and safety checks
+- ONLY module allowed to call git directly (50+ functions)
+- Atomic operations with state integration
+- Branch management with lock-based concurrency
+- Commit operations with golden rule enforcement
 
 **shell-formatting.sh**
 - All output operations
@@ -126,10 +128,11 @@ AIPM/                           # Framework workspace
 - No logic, just data transformation
 
 **opinions-state.sh**
-- Complete state management
+- Complete state management (2600+ lines)
+- Atomic operation framework (begin/commit/rollback)
+- Lock-based concurrency control
+- Bidirectional updates with version-control.sh
 - Pre-computes all derived values
-- Bidirectional update mechanisms
-- Workspace.json management
 
 ### Wrapper Scripts (scripts/)
 

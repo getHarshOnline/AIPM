@@ -15,6 +15,15 @@ Whether you're developing software, planning marketing campaigns, designing prod
 
 ## The Solution: Git for Everything
 
+### The Magic Formula
+**Git + AI Memory + Smart Guardrails = Project-wide undo/merge for everyone**
+
+Just like developers can revert code changes, now every team can:
+- Revert to last week's marketing strategy
+- Merge different design explorations
+- Track why decisions changed over time
+- Maintain parallel experiments safely
+
 AIPM applies software engineering's most powerful tool - git version control - to ALL types of work:
 
 - **Marketing**: Track campaign evolution, A/B test decisions, brand guideline changes
@@ -112,16 +121,21 @@ This means marketing can work their way, engineering theirs, and operations diff
 
 ## Quick Start
 
+### Prerequisites
+- Git installed
+- Claude Desktop with MCP server support
+- MCP servers installed: memory-server, sequential-thinking, Linear (optional)
+
 ```bash
 # 1. Clone AIPM
-git clone <repository-url>
+git clone https://github.com/getHarshOnline/aipm
 cd AIPM
 
-# 2. One-time setup
-./scripts/sync-memory.sh
+# 2. Initialize AIPM framework
+./scripts/init.sh  # Creates directories, state system, and memory symlink
 
 # 3. Start a session (interactive)
-./start.sh
+./scripts/start.sh
 
 # 4. Work naturally with your AI assistant
 # Everything is tracked automatically
@@ -145,7 +159,7 @@ cd AIPM
 - **[.agentrules](./.agentrules)** - How AI assistants should behave
 - **[current-focus.md](./current-focus.md)** - Active development priorities
 - **[broad-focus.md](./broad-focus.md)** - Long-term vision and strategic objectives
-- **[.aipm/docs/](./.aipm/docs/)** - Technical design documents
+- **[.aipm/docs/](./.aipm/docs/)** - Technical design and architecture documentation
 
 ## The AIPM Philosophy
 

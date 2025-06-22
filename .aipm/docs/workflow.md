@@ -220,10 +220,13 @@ Workflows are pre-computed by `opinions-state.sh` and stored in `workspace.json`
 Wrapper scripts query these rules:
 ```bash
 # In save.sh
-local protection=$(get_workflow_rule "branchCreation.protectionResponse")
+local protection=$(get_value "computed.workflows.branchCreation.protectionResponse")
 if [[ "$protection" == "prompt" ]]; then
     # Show prompt to user
 fi
+
+# Or use the convenience function from opinions-state.sh
+response=$(get_workflow_rule "branchCreation.protectionResponse")
 ```
 
 ## User Experience
@@ -247,7 +250,7 @@ fi
 
 ### Example 1: Starting New Feature
 ```bash
-aipm start
+./start.sh
 # Workflow: startBehavior = "check-first"
 # → No active branch, so creates one
 # Workflow: typeSelection = "prompt"
@@ -257,7 +260,7 @@ aipm start
 
 ### Example 2: Saving Work
 ```bash
-aipm save -d "Added dashboard component"
+./save.sh --framework "Added dashboard component"
 # On main branch...
 # Workflow: protectionResponse = "prompt"
 # → Shows protection prompt
@@ -268,7 +271,7 @@ aipm save -d "Added dashboard component"
 
 ### Example 3: Ending Session
 ```bash
-aipm stop
+./stop.sh
 # Workflow: sessionMerge = "on-stop"
 # → Checks for session branch
 # → If exists, merges to parent
@@ -289,6 +292,142 @@ workflows:
   synchronization:
     pullOnStart: "always"          # Always stay synced
     pushOnStop: "always"           # Share everything
+```
+
+## Wrapper Script Usage Reference
+
+### init.sh - Framework Initialization
+```bash
+# Basic initialization
+./init.sh
+
+# Force reinitialization
+./init.sh --reinit
+
+# Initialize and start session immediately
+./init.sh --start
+```
+See [state-management.md](state-management.md#initialization) for state setup details.
+
+### start.sh - Session Management
+```bash
+# Interactive workspace selection
+./start.sh
+
+# Start framework session directly
+./start.sh --framework
+
+# Start project session
+./start.sh --project Marketing
+
+# Specify Claude model
+./start.sh --project Design --model sonnet
+```
+See [memory-management.md](memory-management.md#session-flow-details) for memory isolation flow.
+
+### save.sh - Checkpoint Creation
+```bash
+# Save with message (framework)
+./save.sh --framework "Implement new feature"
+
+# Save with message (project)
+./save.sh --project Marketing "Updated campaign strategy"
+
+# Save with auto-generated timestamp message
+./save.sh --framework
+```
+Workflow rules applied:
+- `branchCreation.protectionResponse` - How to handle protected branches
+- `synchronization.autoBackup` - Whether to push after save
+
+See [version-control.md](version-control.md#atomic-operations) for commit atomicity.
+
+### revert.sh - Memory Time Travel
+```bash
+# List memory history
+./revert.sh --list
+./revert.sh --framework --list
+./revert.sh --project Marketing --list
+
+# Revert to specific commit
+./revert.sh --framework abc123
+./revert.sh --project Marketing def456
+
+# Partial revert (filter entities)
+./revert.sh --partial "MARKETING_" HEAD~3
+```
+See [memory-management.md](memory-management.md#atomic-operations) for safe revert patterns.
+
+### stop.sh - Session Cleanup
+```bash
+# Stop current session (no arguments needed)
+./stop.sh
+```
+Workflow rules applied:
+- `merging.sessionMerge` - Whether to merge session branches
+- `synchronization.pushOnStop` - Whether to push changes
+
+Internally calls save.sh if uncommitted changes exist.
+
+## Command Flow Examples
+
+### Example 1: New User First Session
+```bash
+# 1. Initialize AIPM
+./init.sh
+# → Creates directories, state system, memory symlink
+# → Shows detected projects
+
+# 2. Start working
+./start.sh
+# → Interactive project selection
+# → Workflow: pullOnStart may sync latest changes
+# → Creates session, backs up memory
+
+# 3. Work naturally with Claude...
+
+# 4. Save progress
+./save.sh --framework "Initial setup complete"
+# → Workflow: protectionResponse handles branch protection
+# → Workflow: autoBackup may push to remote
+
+# 5. End session
+./stop.sh
+# → Saves uncommitted changes
+# → Workflow: sessionMerge may merge branches
+# → Restores memory backup
+```
+
+### Example 2: Team Collaboration Flow
+```bash
+# Alice starts morning session
+./start.sh --project Marketing
+# → Pulls latest team memory (pullOnStart)
+# → Works on email campaign
+
+# Alice saves progress
+./save.sh --project Marketing "Email templates v2"
+# → Commits to MKT_feature/email-campaign
+# → Auto-pushes (autoBackup = "on-save")
+
+# Bob starts afternoon session
+./start.sh --project Marketing
+# → Gets Alice's memory updates automatically
+# → Continues from where Alice left off
+```
+
+### Example 3: Recovering from Mistake
+```bash
+# List recent memory states
+./revert.sh --project Design --list
+
+# Preview what changed
+git diff abc123 -- Design/.aipm/memory/local_memory.json
+
+# Revert to yesterday's state
+./revert.sh --project Design abc123
+# → Team's memory restored to that point
+# → All AI assistants will see historical state
 ```
 
 ## Best Practices

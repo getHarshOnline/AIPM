@@ -71,6 +71,9 @@ source "$SCRIPT_DIR/modules/opinions-state.sh" || exit 1
 
 # Header - Visual indication of what script does
 section "AIPM Memory Time Machine" "↶"
+info "🕰️  Browse and restore your team's shared memory from any point in time"
+info "🔍  Every decision, every context, perfectly preserved in git"
+printf "\n"
 
 # Parse arguments - Simple state tracking, no business logic
 WORK_CONTEXT=""      # Will be "framework" or "project"
@@ -106,7 +109,8 @@ done
 # We use opinions-state.sh to check session status
 if [[ "$(get_value 'runtime.session.active')" == "true" ]]; then
     error "Active session detected!"
-    info "You have an active session that may have unsaved changes."
+    info "🚨 Your team member is currently working with shared memory"
+    info "   We need to handle this carefully to prevent data loss"
     printf "\n"
     
     # LEARNING: Use select_with_default for consistent user prompts
@@ -150,12 +154,14 @@ MEMORY_FILE=$(get_memory_path "$WORK_CONTEXT" "$PROJECT_NAME")  # Dynamic path!
 
 # Handle list mode - Show history instead of reverting
 if [[ "$LIST_MODE" == "true" ]]; then
-    subsection "Memory History"
+    subsection "📜 Team Memory History"
+    info "Each entry represents a moment when knowledge was captured:"
+    printf "\n"
     # Delegate to version-control.sh for git history
     show_file_history "$MEMORY_FILE" "--oneline --no-merges" | head -20
     printf "\n"
     # format_command() from shell-formatting.sh for consistent display
-    info "Use commit hash with revert to restore: $(format_command "./revert.sh HASH")"
+    info "💡 To restore any previous state: $(format_command "./revert.sh HASH")"
     exit 0
 fi
 
@@ -167,37 +173,46 @@ file_exists_in_commit "$COMMIT_REF" "$MEMORY_FILE" || die "No memory file in com
 
 # Show preview - User should see what will happen
 # LEARNING: Clear previews prevent accidental reverts
-subsection "Revert Preview"
+subsection "🔄 Revert Preview"
+info "You're about to restore your team's collective memory to:"
+printf "\n"
 draw_line "-" 60  # shell-formatting.sh for visual separation
-# All git info comes from version-control.sh functions
-info "Commit: $(get_commit_info "$COMMIT_REF" "%h - %s")"
-info "Author: $(get_commit_info "$COMMIT_REF" "%an")"
-info "Date: $(get_commit_info "$COMMIT_REF" "%ar")"
+info "📌 Commit: $(get_commit_info "$COMMIT_REF" "%h - %s")"
+info "👤 Author: $(get_commit_info "$COMMIT_REF" "%an")"
+info "📅 Date: $(get_commit_info "$COMMIT_REF" "%ar")"
 # Memory stats from migrate-memories.sh
-info "Memory: $(get_file_from_commit "$COMMIT_REF" "$MEMORY_FILE" | get_memory_stats)"
+info "🧠 Memory: $(get_file_from_commit "$COMMIT_REF" "$MEMORY_FILE" | get_memory_stats)"
 draw_line "-" 60
 
 # Confirm with clear consequences
 # LEARNING: Always confirm destructive operations
-warn "This will replace your current memory state!"
+printf "\n"
+warn "⚠️  This will replace your team's current shared memory!"
+info "   All AI assistants will immediately see this historical state"
 confirm "Proceed with revert?" || die "Revert cancelled"  # shell-formatting.sh
 
 # Perform revert - The actual operation
 # LEARNING: execute_with_spinner provides visual feedback during operations
 if [[ "$PARTIAL_MODE" == "true" ]]; then
     # NEW: Partial revert using our new function from Phase 1
-    execute_with_spinner "Extracting filtered entities: $ENTITY_FILTER" \
+    execute_with_spinner "🔍 Extracting filtered entities: $ENTITY_FILTER" \
         revert_memory_partial "$COMMIT_REF" "$MEMORY_FILE" "$ENTITY_FILTER" "$MEMORY_FILE"
 else
     # Full revert - note the shell redirection, not direct file manipulation
-    execute_with_spinner "Reverting to $COMMIT_REF" \
+    execute_with_spinner "⏮️  Restoring team memory from $COMMIT_REF" \
         "get_file_from_commit '$COMMIT_REF' '$MEMORY_FILE' > '$MEMORY_FILE'"
 fi
 
 # Report success - Update state and show results
 # LEARNING: Always report operations for audit trail
 report_git_operation "memory-reverted" "$COMMIT_REF"  # opinions-state.sh
-success_box "Memory Reverted Successfully!"  # shell-formatting.sh
-info "Current state: $(get_memory_stats "$MEMORY_FILE")"  # migrate-memories.sh
+printf "\n"
+success_box "✨ Team Memory Successfully Restored!"
+printf "\n"
+info "🧠 Your team's shared context is now:"
+info "   $(get_memory_stats "$MEMORY_FILE")"  # migrate-memories.sh
+printf "\n"
+info "💡 All team members will see this restored knowledge"
+info "   when they start their next AIPM session"
 
 # END OF SCRIPT - Clean, focused, maintainable!

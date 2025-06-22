@@ -44,12 +44,16 @@ AIPM/
             └── local_memory.json  # Project persistent memory (git-tracked)
 ```
 
+### Memory Symlink Management
+
+The `sync-memory.sh` script manages the critical `.aipm/memory.json` symlink that connects AIPM to the MCP memory server. This symlink MUST exist at the workspace root for the MCP server to function correctly.
+
 ### Session Flow Details
 
 #### 1. Session Start (`start.sh`)
 
 ```bash
-# Step 1: Verify memory symlink (lines 82-92)
+# Step 1: Verify memory symlink (via sync-memory.sh)
 .aipm/memory.json → MCP server's global memory
 
 # Step 2: Backup current memory (lines 196-203)
