@@ -4,6 +4,69 @@
 
 This document outlines the fixes needed for wrapper scripts (start.sh, stop.sh, save.sh, revert.sh, init.sh) to properly integrate with the state management system and follow architectural principles.
 
+## 🏗️ FOUNDATION: Lock Management Architecture
+
+### Critical Requirement
+Per [state-management-fix-plan.md](state-management-fix-plan.md), ALL wrapper scripts MUST use lock management for state operations.
+
+### Lock Patterns for Wrapper Scripts
+```bash
+# EVERY script that touches state MUST follow this pattern:
+source "$SCRIPT_DIR/modules/opinions-state.sh"
+
+# For read operations
+acquire_state_lock || die "Cannot acquire lock"
+local value=$(get_value "computed.someValue")
+release_state_lock
+
+# For write operations (atomic)
+begin_atomic_operation "script:operation"
+if perform_operations; then
+    update_state "path" "value"
+    commit_atomic_operation
+else
+    rollback_atomic_operation
+fi
+```
+
+### Lock Requirements by Script
+- **init.sh**: Exclusive lock for entire initialization
+- **start.sh**: Lock for session creation and memory backup
+- **save.sh**: Lock for commit and state updates
+- **stop.sh**: Lock for session cleanup and merge
+- **revert.sh**: Lock for state restoration
+
+## 🚨 CRITICAL DIRECTIVES FROM .agentrules
+
+### MANDATORY Reading
+- **Read `.aipm/docs/workflow.md` FIRST** - it is the single source of truth for wrapper script patterns
+- **NO DIRECT OUTPUT**: Never use echo/printf - ONLY shell-formatting.sh functions
+- **NO DIRECT GIT**: Never use git commands - ONLY version-control.sh functions
+- **NO DIRECT MEMORY OPS**: Never manipulate memory files - ONLY migrate-memories.sh functions
+- **TEST INCREMENTALLY**: Implement section by section, test before proceeding
+
+### File Reversion Bug Protocol
+- **COMMIT FREQUENTLY**: After implementing each script, commit immediately
+- **VERIFY CHANGES**: Always grep/check that edits persisted
+- **RE-CHECK BEFORE COMMITTING**: Run `git diff` to ensure all changes present
+
+### Memory File Protection
+- **NEVER edit .aipm/memory/local_memory.json directly**
+- **NEVER modify .aipm/memory.json** (symlink to global memory)
+- **ONLY scripts can touch memory files** (handle atomicity and safety)
+
+## State Update Matrix Compliance
+
+Per [version-control.md](../docs/version-control.md), each script MUST update specific state values atomically:
+
+| Script | Required State Updates | Lock Type | Rollback |
+|--------|----------------------|-----------|----------|
+| init.sh | workspace.initialized<br>runtime.branches.all<br>metadata.initTime | Exclusive | Delete branches |
+| start.sh | runtime.session.active=true<br>runtime.session.id<br>runtime.session.context<br>runtime.session.startTime | Exclusive | Restore memory |
+| save.sh | runtime.git.uncommittedCount=0<br>runtime.git.lastCommit<br>runtime.git.lastCommitTime<br>runtime.git.lastCommitMessage | Shared | Reset commit |
+| stop.sh | runtime.session.active=false<br>runtime.session.endTime<br>runtime.lastSync | Exclusive | Restore session |
+| revert.sh | runtime.lastRevert<br>runtime.git.uncommittedCount | Exclusive | Restore files |
+
 ## Current Issues
 
 ### 1. Lack of State Integration
@@ -16,6 +79,9 @@ This document outlines the fixes needed for wrapper scripts (start.sh, stop.sh, 
 1. Source opinions-state.sh in all wrapper scripts
 2. Replace hardcoded values with state lookups
 3. Use pre-computed decisions from workspace.json
+4. Ensure state cache is loaded with ensure_state()
+5. Update runtime state ATOMICALLY with locks
+6. Validate state consistency after operations
 
 ### 2. Direct Git Calls
 
@@ -25,8 +91,12 @@ This document outlines the fixes needed for wrapper scripts (start.sh, stop.sh, 
 
 **Fix Strategy**:
 1. Replace all git commands with version-control.sh functions
-2. Add missing wrapper functions if needed
-3. Ensure consistent error handling
+2. Use new bidirectional functions from version-control.sh:
+   - `get_status_porcelain()` - Updates uncommittedCount
+   - `get_branch_commit()` - Caches commit hashes
+   - `list_merged_branches()` - Updates merged list
+   - `checkout_branch()` - Atomic with state update
+3. Ensure ALL git operations update state atomically
 
 ### 3. Direct Output Calls
 
@@ -71,14 +141,16 @@ This document outlines the fixes needed for wrapper scripts (start.sh, stop.sh, 
 - No workflow rule checking
 
 **Required Changes**:
-1. Integration with state:
+1. Integration with state using ATOMIC operations:
 ```bash
 source opinions-state.sh
 ensure_state
 
-# Get workflow rules
+# Get workflow rules (with lock for consistency)
+acquire_state_lock || die "Cannot acquire lock"
 local start_behavior=$(get_value "computed.workflows.branchCreation.startBehavior")
 local pull_on_start=$(get_value "computed.workflows.synchronization.pullOnStart")
+release_state_lock
 ```
 
 2. Implement workflow rules:
@@ -93,11 +165,30 @@ elif [[ "$start_behavior" == "always" ]]; then
 fi
 ```
 
-3. Update state after operations:
+3. Update state ATOMICALLY after operations:
 ```bash
-update_state "runtime.session.active" "true"
-update_state "runtime.session.id" "$SESSION_ID"
-update_state "runtime.session.context" "$WORK_CONTEXT"
+# Atomic session creation
+begin_atomic_operation "start:session:$SESSION_ID"
+
+# Create session branch if needed
+if create_session_branch; then
+    # Update all session state atomically
+    update_state "runtime.session.active" "true" && \
+    update_state "runtime.session.id" "$SESSION_ID" && \
+    update_state "runtime.session.context" "$WORK_CONTEXT" && \
+    update_state "runtime.session.startTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    update_state "runtime.currentBranch" "$(get_current_branch)"
+    
+    if [[ $? -eq 0 ]]; then
+        commit_atomic_operation
+    else
+        rollback_atomic_operation
+        die "Failed to update session state"
+    fi
+else
+    rollback_atomic_operation
+    die "Failed to create session branch"
+fi
 ```
 
 ### save.sh
@@ -127,13 +218,40 @@ if [[ "$auto_backup" == "on-save" ]]; then
 fi
 ```
 
-3. Report operation:
+3. Report operation with ATOMIC state updates:
 ```bash
-report_git_operation "save" "success" "{
-    \"branch\": \"$current\",
-    \"files\": $file_count,
-    \"memory\": \"$memory_stats\"
-}"
+# Atomic save operation
+begin_atomic_operation "save:$current:$message"
+
+# Perform git operations through version-control.sh
+if stage_all_changes && commit_with_stats "$message"; then
+    # Get updated values
+    local commit_hash=$(get_last_commit_hash)
+    local uncommitted=$(get_status_porcelain | wc -l)
+    
+    # Update all related state atomically
+    update_state "runtime.git.uncommittedCount" "$uncommitted" && \
+    update_state "runtime.git.lastCommit" "$commit_hash" && \
+    update_state "runtime.git.lastCommitTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    update_state "runtime.git.lastCommitMessage" "$message" && \
+    report_git_operation "save" "success" "{
+        \"branch\": \"$current\",
+        \"commit\": \"$commit_hash\",
+        \"files\": $file_count,
+        \"memory\": \"$memory_stats\"
+    }"
+    
+    if [[ $? -eq 0 ]]; then
+        commit_atomic_operation
+        success "Changes saved successfully"
+    else
+        rollback_atomic_operation
+        die "Failed to update state after commit"
+    fi
+else
+    rollback_atomic_operation
+    die "Failed to commit changes"
+fi
 ```
 
 ### stop.sh
@@ -160,10 +278,40 @@ if should_push "$push_on_stop"; then
 fi
 ```
 
-3. Update state:
+3. Update state ATOMICALLY during cleanup:
 ```bash
-update_state "runtime.session.active" "false"
-update_state "runtime.session.endTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# Atomic session cleanup
+begin_atomic_operation "stop:session:$SESSION_ID"
+
+# Save memory if needed
+if [[ -n "$(get_status_porcelain)" ]]; then
+    perform_atomic_save "Session end auto-save"
+fi
+
+# Handle session merge if configured
+local session_merge=$(get_value "computed.workflows.merging.sessionMerge")
+if [[ "$session_merge" == "on-stop" ]] && is_session_branch; then
+    if merge_session_to_parent; then
+        update_state "runtime.branches.merged[]" "$(get_current_branch)"
+    else
+        warn "Failed to merge session branch"
+    fi
+fi
+
+# Update session state atomically
+update_state "runtime.session.active" "false" && \
+update_state "runtime.session.endTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+update_state "runtime.lastSync" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+if [[ $? -eq 0 ]]; then
+    commit_atomic_operation
+    
+    # Restore memory after state is updated
+    restore_original_memory
+else
+    rollback_atomic_operation
+    die "Failed to update session end state"
+fi
 ```
 
 ### init.sh
@@ -191,7 +339,46 @@ update_state "runtime.session.endTime" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 ## Common Patterns
 
-### State Integration Pattern
+### CRITICAL: Module Sourcing Order with Lock Management
+```bash
+# MUST source in this exact order
+source "$SCRIPT_DIR/modules/shell-formatting.sh" || exit 1
+source "$SCRIPT_DIR/modules/version-control.sh" || exit 1  
+source "$SCRIPT_DIR/modules/migrate-memories.sh" || exit 1
+source "$SCRIPT_DIR/modules/opinions-state.sh" || exit 1
+
+# ALWAYS validate no direct calls
+validate_no_git_calls "$(basename "$0")"
+validate_no_echo_calls "$(basename "$0")"
+
+# Initialize state with validation
+ensure_state || die "State initialization failed"
+validate_state_consistency || warn "State inconsistent with git"
+```
+
+### Atomic Operation Pattern
+```bash
+# ALL state-modifying operations MUST be atomic
+perform_atomic_save() {
+    local message="$1"
+    
+    begin_atomic_operation "save:$message"
+    
+    # Multiple operations as single transaction
+    if stage_all_changes && \
+       commit_with_stats "$message" && \
+       update_state "runtime.git.uncommittedCount" "0" && \
+       update_state "runtime.git.lastCommit" "$(get_last_commit_hash)"; then
+        commit_atomic_operation
+        return 0
+    else
+        rollback_atomic_operation
+        return 1
+    fi
+}
+```
+
+### State Integration Pattern with Locks
 ```bash
 #!/opt/homebrew/bin/bash
 set -euo pipefail
@@ -203,14 +390,16 @@ source "$SCRIPT_DIR/modules/shell-formatting.sh" || exit 1
 source "$SCRIPT_DIR/modules/version-control.sh" || exit 1
 source "$SCRIPT_DIR/modules/opinions-state.sh" || exit 1
 
-# Ensure state is loaded
+# Ensure state is loaded and consistent
 ensure_state || die "Failed to load state"
+validate_state_consistency || die "State inconsistent"
 
-# Key paths have changed:
-# Memory symlink: .aipm/memory.json (NOT .claude/memory.json)
+# Key paths (ALL under .aipm/):
+# Memory symlink: .aipm/memory.json
 # Backup location: .aipm/memory/backup.json
 # Session lock: .aipm/memory/session_active
 # State file: .aipm/state/workspace.json
+# State lock: .aipm/state/.workspace.lock
 ```
 
 ### Workflow Query Pattern
@@ -253,12 +442,75 @@ if [[ "$initial_state" != "$new_state" ]]; then
 fi
 ```
 
+## Enforcement Mechanisms
+
+### 1. Validation Functions
+```bash
+# Add to each wrapper script initialization
+validate_no_git_calls() {
+    local script="$1"
+    # Override git command to detect violations
+    git() {
+        die "VIOLATION: Direct git call from $script. Use version-control.sh functions."
+    }
+}
+
+validate_no_echo_calls() {
+    local script="$1"
+    # Override echo/printf to detect violations
+    echo() {
+        die "VIOLATION: Direct echo from $script. Use shell-formatting.sh functions."
+    }
+    printf() {
+        die "VIOLATION: Direct printf from $script. Use shell-formatting.sh functions."
+    }
+}
+```
+
+### 2. Memory Operation Validation
+```bash
+# All memory operations MUST go through migrate-memories.sh
+validate_memory_access() {
+    local operation="$1"
+    local file="$2"
+    
+    # Check file is in allowed list
+    case "$file" in
+        *.aipm/memory/local_memory.json|
+        *.aipm/memory/backup.json|
+        *.aipm/memory.json)
+            # Allowed
+            ;;
+        *)
+            die "VIOLATION: Unauthorized memory file access: $file"
+            ;;
+    esac
+}
+```
+
+### 3. Workflow Rule Enforcement
+```bash
+# Query workflow rules from state
+get_workflow_rule() {
+    local category="$1"
+    local rule="$2"
+    
+    local value=$(get_value "computed.workflows.$category.$rule")
+    if [[ -z "$value" ]]; then
+        die "Missing workflow rule: $category.$rule"
+    fi
+    echo "$value"
+}
+```
+
 ## Implementation Order
 
 ### Phase 1: Core Integration (Week 1)
 1. Add state sourcing to all scripts
 2. Replace hardcoded values
 3. Fix output function calls
+4. Add validation functions
+5. Commit after each script (file reversion protocol)
 
 ### Phase 2: Git Compliance (Week 1-2)
 1. Fix all direct git calls
@@ -286,30 +538,125 @@ fi
 1. **Zero hardcoded values** - everything from state
 2. **Zero direct git calls** - all through version-control.sh
 3. **Zero direct output** - all through shell-formatting.sh
-4. **Complete workflow implementation** - all rules followed
-5. **Full bidirectional updates** - state always current
+4. **Zero direct memory access** - all through migrate-memories.sh
+5. **Complete workflow implementation** - all rules followed
+6. **Full bidirectional updates** - state always current
+7. **Validation functions** preventing violations
+8. **workflow.md compliance** - following single source of truth
+9. **No line numbers** in any documentation
 
 ## Testing Strategy
 
-### Unit Tests
-- Test each workflow rule implementation
-- Test state update mechanisms
-- Test error paths
+### Lock Management Tests
+```bash
+# Test concurrent wrapper script execution
+test_concurrent_wrapper_access() {
+    # Start multiple saves in parallel
+    for i in {1..5}; do
+        (./save.sh "Concurrent save $i") &
+    done
+    wait
+    
+    # Verify no state corruption
+    validate_state_consistency || fail "State corrupted"
+}
+```
 
-### Integration Tests
-- Full session lifecycle (start → save → stop)
-- Branch creation workflows
-- Merge workflows
-- Cleanup workflows
+### Atomic Operation Tests
+```bash
+# Test rollback on save failure
+test_save_rollback() {
+    local initial_state=$(get_complete_runtime_state)
+    
+    # Force failure mid-operation
+    FORCE_COMMIT_FAILURE=1 ./save.sh "Test message"
+    
+    # Verify state unchanged
+    local final_state=$(get_complete_runtime_state)
+    [[ "$initial_state" == "$final_state" ]] || fail "State changed on failure"
+}
+```
 
-### User Acceptance Tests
-- Non-technical user workflows
-- Team collaboration scenarios
-- Error recovery paths
+### State Consistency Tests
+```bash
+# Test state updates match git reality
+test_state_git_consistency() {
+    ./start.sh --project TestProject
+    
+    # Verify state matches git
+    local git_branch=$(git rev-parse --abbrev-ref HEAD)
+    local state_branch=$(get_value "runtime.currentBranch")
+    [[ "$git_branch" == "$state_branch" ]] || fail "Branch mismatch"
+    
+    ./stop.sh --project TestProject
+}
+```
 
-## Next Steps
+### Performance Tests
+```bash
+# Ensure operations meet targets
+test_wrapper_performance() {
+    # Start should complete in < 2s (including locks)
+    time_operation "./start.sh --framework" 2000
+    
+    # Save should complete in < 1s
+    time_operation "./save.sh 'Test commit'" 1000
+    
+    # Stop should complete in < 2s
+    time_operation "./stop.sh --framework" 2000
+}
+```
 
-1. Start with start.sh as it's the entry point
-2. Fix the most critical violations first
-3. Test each script individually before integration
-4. Document changes as you go
+## Next Steps (Aligned with State Management Fix Plan)
+
+### Week 0: Foundation (MUST match state-management-fix-plan.md)
+1. **Wait for lock infrastructure** from state management implementation
+2. **Wait for atomic operation framework**
+3. **Wait for new version-control.sh functions**
+
+### Week 1: Wrapper Script Updates
+1. **Update module loading** in all scripts:
+   - Add lock validation
+   - Add state consistency checks
+   - Initialize with atomic framework
+
+2. **Implement atomic patterns** in order:
+   - init.sh: Full exclusive lock for initialization
+   - start.sh: Atomic session creation
+   - save.sh: Atomic commit with state updates
+   - stop.sh: Atomic cleanup with merge
+   - revert.sh: Atomic restoration
+
+### Week 2: Integration Testing
+1. **Test lock contention** between scripts
+2. **Test atomic rollbacks** on failures  
+3. **Verify state consistency** after all operations
+4. **Performance benchmarking**
+
+### Critical Dependencies
+- **MUST use** functions from updated version-control.sh
+- **MUST follow** state update matrix exactly
+- **MUST acquire** locks for ALL state operations
+- **MUST validate** state consistency
+
+## Additional Fixes from .agentrules Review
+
+### 1. Branch Protection Compliance
+- Check opinions.yaml for protected branches
+- Implement protection responses (prompt/block/force)
+- Validate branch operations against rules
+
+### 2. Workspace Isolation
+- Ensure complete separation between workspaces
+- Validate entity prefixes for memory operations
+- Check branch namespace compliance
+
+### 3. Error Recovery
+- Implement proper error handling for all operations
+- Add rollback mechanisms for failed operations
+- Ensure state consistency after errors
+
+### 4. Documentation Updates
+- Remove ALL line number references
+- Update with function names and search hints
+- Add LEARNING comments for complex logic

@@ -378,15 +378,17 @@ See [workflow.md](workflow.md) - all workflow rules are pre-computed and stored 
 ### With Memory Management  
 See [memory-management.md](memory-management.md) - memory operations update runtime state.
 
-### With Version Control
-Git operations report back to maintain state consistency:
-```bash
-# After checkout
-update_state "runtime.currentBranch" "$new_branch"
+### With Version Control (CRITICAL: Bidirectional Integration)
 
-# After commit
-update_state "runtime.git.uncommittedCount" "0"
-```
+**EXHAUSTIVE INVESTIGATION FINDING**: version-control.sh currently has NO awareness of state management, causing constant desync issues.
+
+For the complete architectural solution including:
+- Atomic operation patterns with rollback
+- Lock management for concurrent operations
+- State update matrix for all git operations
+- Implementation requirements and patterns
+
+**See: [Version Control Architecture](version-control.md)** - The single source of truth for git operations and state integration.
 
 ## Best Practices
 

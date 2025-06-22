@@ -4,6 +4,55 @@
 
 ## [Unreleased]
 
+## 2025-06-22 - Critical Architecture Discovery & Complete Documentation Overhaul
+
+### Discovered
+- **CRITICAL: 24 Direct Git Call Violations**
+  - Found 17 violations in opinions-state.sh bypassing version-control.sh
+  - Found 1 violation in revert.sh
+  - Violates single source of truth principle causing state desync
+  - Must be fixed before ANY other development
+
+- **Missing Architectural Foundation**
+  - No lock management infrastructure (concurrent operations can corrupt state)
+  - No atomic operation framework (partial failures leave inconsistent state)
+  - version-control.sh has NO state awareness (causing constant desync)
+  - 16 critical functions missing from version-control.sh
+
+### Added
+- **Comprehensive Architecture Documentation**
+  - version-control.md: Complete git operations architecture with mermaid diagrams
+  - Shows lock management, atomic operations, bidirectional sync
+  - Defines all integration points and state update matrix
+
+- **Complete Fix Plans**
+  - state-management-fix-plan.md: Foundation-first approach with lock infrastructure
+  - wrapper-scripts-fix-plan.md: Aligned with atomic operation requirements
+  - Both plans now include complete implementation timeline
+
+- **Critical Directives**
+  - Added line number prohibition to .agentrules (they break with any code change)
+  - Added architectural enforcement comments throughout opinions.yaml
+  - Emphasized atomic operations and bidirectional state updates
+
+### Changed
+- **Documentation Structure**
+  - Consolidated 10+ analysis files into 4 essential architecture docs
+  - Fixed ALL path references (.memory/ → .aipm/memory/, .claude/ → .aipm/)
+  - Removed 23 fragile line number references
+  - Updated memory-management.md with atomic operation requirements
+
+- **opinions.yaml Comments**
+  - Every workflow now emphasizes version-control.sh as the ONLY git interface
+  - Added state management integration notes throughout
+  - Clarified atomic operation requirements for all operations
+
+### Fixed
+- **Documentation Path References**
+  - .agentrules: .aipm/docs/workflow.md (was scripts/test/)
+  - current-focus.md: Added full paths for clarity
+  - All active references now point to correct locations
+
 ## 2025-06-21 - Major Architectural Restructuring
 
 ### Changed

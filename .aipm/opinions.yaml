@@ -38,7 +38,9 @@ loading:
     # - warn: Show warning but continue
     # - use-defaults: Use framework defaults
     
-    # Cross-validation rules (enforced by opinions-loader.sh)
+    # Cross-validation rules (enforced by opinions-loader.sh + version-control.sh)
+    # - version-control.sh validates against loaded opinions before operations
+    # - State updates maintain these invariants bidirectionally
     # - All naming types must have lifecycle rules
     # - All lifecycle types must exist in naming
     # - branching.prefix must match memory.entityPrefix
@@ -444,6 +446,12 @@ memory:
     uncategorized: "block"         # What to do with uncategorized: block|warn|allow (Default: "block")
     # OPTIONAL: Case sensitivity
     caseInsensitive: true          # PROTOCOL = protocol = Protocol (Default: true)
+  
+  # STATE MANAGEMENT INTEGRATION:
+  # - All memory operations trigger state updates via version-control.sh
+  # - Branch switches automatically sync associated memory state
+  # - Memory validation happens before state commits
+  # - Memory file operations ONLY through migrate-memories.sh (atomic)
 
 # How do I work with my team?
 team:
@@ -554,6 +562,12 @@ sessions:
   # Should merged session branches be deleted?
   # Usually true to keep branch list clean
   cleanupOnMerge: true          # Delete after successful merge (Default: true)
+  
+  # SESSION STATE MANAGEMENT:
+  # - Session creation updates state via version-control.sh
+  # - Session branches track parent in state (not just git)
+  # - Cleanup operations handle both git and state atomically
+  # - Session locks prevent concurrent modifications
 
 # How strict am I?
 validation:
@@ -633,6 +647,12 @@ initialization:
     # OPTIONAL: Verification on startup
     # Ensures branches haven't been tampered with
     verifyOnStart: true          # Check marker exists on session start (Default: true)
+    
+    # STATE INITIALIZATION:
+    # - version-control.sh creates initial state entry for new branch
+    # - Records parent branch in state (not just commit message)
+    # - Initializes memory associations for the branch
+    # - All atomic - git commit + state update succeed or fail together
   
   # REQUIRED: Branch creation rules
   # Controls how AIPM creates its initial branches
@@ -784,13 +804,29 @@ settings:
     requireReview: true             # Peer review required (Default: false)
     # Projects might set these all to false initially
 
-# When should scripts perform git operations?
-# ===========================================
+# ARCHITECTURAL ENFORCEMENT:
+# ========================
+# The workflows below define WHEN operations happen, but NOT HOW.
+# HOW is always the same: wrapper script → version-control.sh → atomic operation
+# This separation ensures consistency across all AIPM operations.
+#
+# CRITICAL: No script may bypass version-control.sh for git operations
+# CRITICAL: All state updates must be bidirectional and atomic
+
+# When should scripts request git operations through version-control.sh?
+# ====================================================================
+# CRITICAL: Scripts NEVER perform git operations directly!
+# All git operations MUST go through version-control.sh which ensures:
+# - Atomic operations (git + state updates together)
+# - Bidirectional state synchronization
+# - Consistent error handling and rollback capability
+#
 # This section orchestrates WHEN to apply the branching, naming, and lifecycle
 # rules defined above. These flags tell wrapper scripts exactly when to act.
 #
 # CRITICAL: This is the automation layer that makes AIPM work for non-technical users
 # They don't need to know about git - these rules handle it all automatically
+# All operations are routed through version-control.sh for state consistency
 workflows:
   # BRANCH CREATION TRIGGERS
   # When should scripts create new branches?
@@ -802,6 +838,11 @@ workflows:
     # - always: Create new branch every start
     # - check-first: Only if no active branch exists
     # - manual: User must explicitly request
+    #
+    # Implementation: start.sh calls version-control.sh functions:
+    # - check_or_create_branch() for check-first behavior
+    # - create_branch() for always behavior
+    # State updates happen automatically within version-control.sh
     
     # REQUIRED: Saving to protected branches
     # What happens when user tries to save directly to main?
@@ -814,6 +855,11 @@ workflows:
     #           2) Create session branch (for experiments)
     #           3) Cancel (aborts save)
     # - block: Prevent save, show error
+    #
+    # Implementation: save.sh detects protected branch and:
+    # - Calls version-control.sh create_branch() if auto-branch
+    # - Shows prompt then calls create_branch() if user agrees
+    # - version-control.sh handles both git and state atomically
     
     # OPTIONAL: How to pick branch type
     # When creating a branch, how to determine its type?
@@ -839,6 +885,11 @@ workflows:
     # - on-save: Merge after each save
     # - manual: User must request merge
     # - never: Keep session branches separate
+    #
+    # Implementation: stop.sh calls version-control.sh:
+    # - merge_branch() performs git merge + state update atomically
+    # - If merge fails, state remains consistent (no partial updates)
+    # - Session state cleaned up only after successful merge
     
     # REQUIRED: Feature completion detection
     # How to know when a feature is ready to merge?
@@ -862,7 +913,9 @@ workflows:
     # - force-remote: Take remote version
 
   # SYNC TRIGGERS  
-  # When to sync with remote?
+  # When to sync with remote (git + state)?
+  # CRITICAL: Remote sync must update both git AND local state
+  # version-control.sh handles this atomically via sync_with_remote()
   synchronization:
     # REQUIRED: Pull behavior on startup
     # Should we get latest changes when starting?
@@ -876,6 +929,12 @@ workflows:
     #           2) No, work offline (→ continues without pull)
     #           3) View changes first (→ shows what's new)
     # - never: Don't auto-pull
+    #
+    # Implementation: start.sh calls version-control.sh:
+    # - sync_with_remote() pulls git changes
+    # - Updates local state to match remote state
+    # - Ensures memory files are synchronized
+    # - All atomic - no partial states possible
     
     # REQUIRED: Push behavior on shutdown
     # Should we share changes when stopping?
@@ -900,7 +959,9 @@ workflows:
     # - never: No auto-backup
 
   # CLEANUP TRIGGERS
-  # When to clean up branches?
+  # When to clean up branches (git + state)?
+  # CRITICAL: Branch deletion MUST clean up associated state
+  # version-control.sh cleanup_branch() handles both atomically
   cleanup:
     # REQUIRED: Post-merge cleanup
     # What to do with branches after merging?
@@ -932,7 +993,10 @@ workflows:
     # - keep: Leave as-is
   
   # BRANCH FLOW RULES
-  # Where branches come from and where they merge to
+  # Branch flow rules (enforced by version-control.sh)
+  # ==================================================
+  # These rules tell version-control.sh how to handle branch operations
+  # while maintaining consistent state across all operations
   branchFlow:
     # REQUIRED: Source rules (where to branch FROM)
     # Tells scripts which branch to use as source for new branches
@@ -1117,9 +1181,11 @@ metadata:
 # - changelog.md: Progress tracking
 # - local_memory.json: Knowledge persistence
 
-# COMPUTED VALUES (for script reference)
-# =====================================
-# These values are computed by opinions-loader.sh for use in scripts.
+# COMPUTED VALUES (for version-control.sh operations)
+# ==================================================
+# These values are computed by opinions-loader.sh and used by
+# version-control.sh to ensure all operations follow workspace rules
+# while maintaining bidirectional state consistency.
 # They are not directly configurable but derived from other settings.
 computed:
   # Full main branch name

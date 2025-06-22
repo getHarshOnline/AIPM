@@ -91,6 +91,29 @@ During state management implementation, discovered **CRITICAL** architectural vi
 - **Documentation**: 72% complete, needs finishing
 - **Test Coverage**: Basic tests created, needs expansion
 
+## 🔍 ACTIVE INVESTIGATION: Complete Git Isolation & Bidirectional State Integration
+
+### Investigation Directive (2025-06-22)
+**EXHAUSTIVE REVIEW** of all .sh files to ensure:
+1. **Git Isolation**: Find ALL direct git calls across entire codebase
+2. **Version Control Gaps**: Identify what's missing in version-control.sh
+3. **Bidirectional Integration**: Ensure version-control.sh updates state after operations
+4. **Atomic Operations**: Wrap all git operations with state updates
+5. **State Sync**: Eliminate all state desync errors by design
+
+**Scope**:
+- Read ALL .sh files in scripts/ and modules/
+- Read ALL documentation in docs/
+- Map every git operation to version-control.sh function
+- Identify missing atomic wrappers
+- Document bidirectional update requirements
+
+**Output**:
+- Surgically update state-management-fix-plan.md
+- Update state-management.md with integration patterns
+- Update workflow.md with proper usage examples
+- NO new files - enhance existing documentation
+
 ## 📚 Key Analysis Documents (MUST READ)
 
 ### Architecture Violations
@@ -216,10 +239,10 @@ During state management implementation, discovered **CRITICAL** architectural vi
 5. Complete workspace isolation verified
 
 ## 📚 Key Documents
-- **wrapper-scripts-hardening-plan.md** - Complete refactoring guide
-- **opinions.yaml** - The configuration cornerstone (PERFECTED!)
+- **.aipm/scripts/test/wrapper-scripts-fix-plan.md** - Complete refactoring guide
+- **.aipm/opinions.yaml** - The configuration cornerstone (PERFECTED!)
 - **.agentrules** - AI behavior rules (was CLAUDE.md)
-- **workflow.md** - Implementation patterns and guardrails
+- **.aipm/docs/workflow.md** - Implementation patterns and guardrails
 
 ## 🔄 Next Steps
 1. Begin opinions-loader.sh implementation (CORNERSTONE)

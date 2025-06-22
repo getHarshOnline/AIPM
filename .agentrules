@@ -58,11 +58,11 @@ AIPM brings git-powered decision tracking to ALL teams - not just developers. It
 ### 📋 Module Implementation Rules
 
 #### When implementing wrapper scripts (start.sh, stop.sh, save.sh, revert.sh):
-**MANDATORY**: Read `.aipm/scripts/test/workflow.md` FIRST - it is the single source of truth
+**MANDATORY**: Read `.aipm/docs/workflow.md` FIRST - it is the single source of truth
 - **NO DIRECT OUTPUT**: Never use echo/printf - ONLY shell-formatting.sh functions
 - **NO DIRECT GIT**: Never use git commands - ONLY version-control.sh functions
 - **NO DIRECT MEMORY OPS**: Never manipulate memory files - ONLY migrate-memories.sh functions
-- **FOLLOW GUARDRAILS**: Workflow.md has exact line references and patterns
+- **FOLLOW GUARDRAILS**: Workflow.md contains implementation patterns and guardrails
 - **TEST INCREMENTALLY**: Implement section by section, test before proceeding
 
 #### When working on core modules:

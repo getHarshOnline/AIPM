@@ -180,7 +180,7 @@ Project:   PRODUCT_FEATURE_SHOPPING_CART
 
 ### Lock File Prevention
 
-Only one session can be active at a time:
+Only one session can be active at a time. Session locks coordinate with state locks:
 
 ```bash
 # session_active file contains:
@@ -192,6 +192,11 @@ Branch: AIPM_MAIN
 PID: 12345
 ```
 
+**Lock Hierarchy**:
+1. **State Lock** (.aipm/state/.workspace.lock) - For state operations
+2. **Session Lock** (.aipm/memory/session_active) - For session exclusivity
+3. **Memory operations require BOTH locks** to ensure consistency
+
 ### Session Recovery
 
 If a session crashes, the next start detects the stale lock:
@@ -201,15 +206,42 @@ If a session crashes, the next start detects the stale lock:
 
 ## Integration with State Management
 
-Memory operations update the state:
+Memory operations MUST be atomic with state updates per [state-management-fix-plan.md](../scripts/test/state-management-fix-plan.md):
 
 ```bash
-# After memory save
+# WRONG: Separate operations can fail partially
+cp .aipm/memory.json .aipm/memory/local_memory.json
 update_state "runtime.memory.lastSave" "$(date -u)"
-update_state "runtime.memory.entityCount" "$entity_count"
+
+# CORRECT: Atomic operation with rollback
+begin_atomic_operation "memory:save"
+if backup_memory && save_local_memory; then
+    update_state "runtime.memory.lastSave" "$(date -u)" && \
+    update_state "runtime.memory.entityCount" "$entity_count" && \
+    update_state "runtime.memory.size" "$(stat -f%z .aipm/memory.json)"
+    
+    if [[ $? -eq 0 ]]; then
+        commit_atomic_operation
+    else
+        rollback_atomic_operation
+        restore_memory_backup
+    fi
+else
+    rollback_atomic_operation
+fi
 ```
 
-See [state-management.md](state-management.md) for state details.
+### Lock Coordination
+Memory operations require lock coordination with state:
+```bash
+# Memory operations need state lock
+acquire_state_lock || die "Cannot save memory"
+perform_memory_operations
+update_related_state
+release_state_lock
+```
+
+See [state-management.md](state-management.md) and [version-control.md](version-control.md) for details.
 
 ## Integration with Version Control
 

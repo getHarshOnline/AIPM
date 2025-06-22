@@ -10,6 +10,29 @@ AIPM workflows answer the question: **"When should scripts automatically perform
 
 Instead of users manually managing branches, merges, and syncs, AIPM's workflow rules automate these decisions based on context and user preferences.
 
+## CRITICAL: Git Operation Architecture
+
+**EXHAUSTIVE INVESTIGATION FINDING**: ALL git operations MUST go through version-control.sh functions. Direct git calls violate architecture and cause state desync.
+
+### Correct Usage Pattern
+```bash
+# ❌ WRONG - Direct git call
+git checkout "$branch"
+update_state "runtime.currentBranch" "$branch"  # Separate = can fail
+
+# ✅ CORRECT - Atomic operation through version-control.sh
+checkout_branch "$branch"  # Handles git + state atomically
+```
+
+### Architecture Details
+For complete git operations architecture including:
+- Required functions and their state updates
+- Lock management for atomic operations  
+- Bidirectional integration patterns
+- Implementation requirements
+
+**See: [Version Control Architecture](version-control.md)** - The single source of truth for git operations.
+
 ## Workflow Categories
 
 ### 1. Branch Creation Triggers (`workflows.branchCreation`)
