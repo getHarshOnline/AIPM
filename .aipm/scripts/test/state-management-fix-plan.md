@@ -516,7 +516,11 @@ validate_no_git_calls() {
    - All replacements use _missing_function_fatal for missing functions
    - Consistent error handling pattern applied
 
-4. **Add pre-commit hook** (PENDING)
+4. **Add pre-commit hook** (FUTURE TODO)
+   - Implementation ready but deferred to avoid blocking development
+   - Would enforce no direct git calls outside version-control.sh
+   - To be enabled after all wrapper scripts are refactored
+   
 5. **Test each replacement** (PENDING)
 
 ### Phase 3: Complete Documentation (Week 2)
