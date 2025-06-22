@@ -1754,6 +1754,503 @@ resolve_conflicts() {
 }
 
 # ============================================================================
+# MISSING FUNCTIONS FOR STATE INTEGRATION
+# ============================================================================
+# LEARNING: These functions were identified as missing during the state
+# management audit (2025-06-22). They are required to eliminate direct git
+# calls in opinions-state.sh and maintain architectural purity.
+#
+# Each function MUST:
+# 1. Update state atomically after git operations
+# 2. Use proper lock management when modifying state
+# 3. Return appropriate exit codes
+# 4. Handle errors gracefully
+#
+# These functions enable complete git isolation as per the architectural
+# principle that version-control.sh is THE ONLY module allowed to call git.
+
+# Get git configuration value
+# PURPOSE: Read git config values with state awareness
+# PARAMETERS:
+#   $1 - Config key (e.g., "user.name", "core.editor") (required)
+#   $2 - Default value if not set (optional)
+# RETURNS:
+#   0 - Success
+#   1 - Git command failed
+# OUTPUTS:
+#   Config value or default
+# SIDE EFFECTS:
+#   - Updates state cache with config values for performance
+# EXAMPLE:
+#   local username=$(get_git_config "user.name" "unknown")
+#   local editor=$(get_git_config "core.editor")
+# LEARNING:
+#   - Caches frequently accessed config values in state
+#   - Provides consistent interface for all config access
+#   - Replaces direct "git config" calls throughout codebase
+get_git_config() {
+    local key="${1:?Config key required}"
+    local default="${2:-}"
+    
+    # Try to get from git
+    local value
+    if value=$(git config --get "$key" 2>/dev/null); then
+        printf "%s\n" "$value"
+        
+        # Update state cache for common keys
+        case "$key" in
+            user.name|user.email)
+                # These are frequently accessed, cache them
+                if [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+                    update_state "runtime.git.config.${key//\./_}" "$value" 2>/dev/null || true
+                fi
+                ;;
+        esac
+        
+        return 0
+    else
+        printf "%s\n" "$default"
+        return 1
+    fi
+}
+
+# Get status in porcelain format
+# PURPOSE: Machine-readable git status with automatic state updates
+# PARAMETERS: None
+# RETURNS:
+#   0 - Success
+#   2 - Git command failed
+# OUTPUTS:
+#   Porcelain format status (one line per file)
+# SIDE EFFECTS:
+#   - Updates multiple state values atomically:
+#     - runtime.git.uncommittedCount
+#     - runtime.git.isClean
+#     - runtime.git.hasStaged
+#     - runtime.git.lastStatusCheck
+# EXAMPLE:
+#   local status=$(get_status_porcelain)
+#   local changed_files=$(echo "$status" | wc -l)
+# LEARNING:
+#   - Porcelain format is stable across git versions
+#   - Updates all related state values in one atomic operation
+#   - Critical for maintaining state consistency
+get_status_porcelain() {
+    # Get git status
+    local status
+    if ! status=$(git status --porcelain 2>/dev/null); then
+        error "Failed to get git status"
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    # Calculate derived values
+    local count=0
+    local has_staged=0
+    if [[ -n "$status" ]]; then
+        count=$(echo "$status" | wc -l | tr -d ' ')
+        has_staged=$(echo "$status" | grep -c '^[MADRC]' || echo 0)
+    fi
+    local is_clean=$([[ $count -eq 0 ]] && echo "true" || echo "false")
+    
+    # Update state atomically if available
+    if [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+        # Try to update state, but don't fail if it doesn't work
+        update_state "runtime.git.uncommittedCount" "$count" && \
+        update_state "runtime.git.isClean" "$is_clean" && \
+        update_state "runtime.git.hasStaged" "$([[ $has_staged -gt 0 ]] && echo true || echo false)" && \
+        update_state "runtime.git.lastStatusCheck" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" || \
+        debug "State update failed, continuing anyway"
+    fi
+    
+    # Output status
+    printf "%s\n" "$status"
+    return 0
+}
+
+# Count uncommitted files
+# PURPOSE: Get count of files with uncommitted changes
+# PARAMETERS: None
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Number of uncommitted files
+# SIDE EFFECTS:
+#   - Calls get_status_porcelain which updates state
+# EXAMPLE:
+#   local count=$(count_uncommitted_files)
+#   if [[ $count -gt 0 ]]; then
+#       warn "You have $count uncommitted files"
+#   fi
+count_uncommitted_files() {
+    local status=$(get_status_porcelain)
+    if [[ -z "$status" ]]; then
+        echo "0"
+    else
+        echo "$status" | wc -l | tr -d ' '
+    fi
+}
+
+# Get commit hash for a branch
+# PURPOSE: Get full commit SHA for a branch reference
+# PARAMETERS:
+#   $1 - Branch name or reference (required)
+# RETURNS:
+#   0 - Success
+#   1 - Branch not found
+# OUTPUTS:
+#   Full commit SHA
+# EXAMPLE:
+#   local commit=$(get_branch_commit "feature/test")
+#   local head_commit=$(get_branch_commit "HEAD")
+get_branch_commit() {
+    local branch="${1:?Branch name required}"
+    
+    local commit
+    if commit=$(git rev-parse "$branch" 2>/dev/null); then
+        printf "%s\n" "$commit"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# List merged branches
+# PURPOSE: Get list of branches merged into current branch
+# PARAMETERS:
+#   $1 - Target branch to check against (optional, default: current branch)
+# RETURNS:
+#   0 - Success
+#   2 - Git command failed
+# OUTPUTS:
+#   List of merged branch names (one per line)
+# SIDE EFFECTS:
+#   - Updates runtime.branches.merged[] in state
+# EXAMPLE:
+#   local merged=$(list_merged_branches)
+#   local merged_to_main=$(list_merged_branches "main")
+list_merged_branches() {
+    local target="${1:-HEAD}"
+    
+    local branches
+    if ! branches=$(git branch --merged "$target" --format='%(refname:short)' 2>/dev/null); then
+        error "Failed to list merged branches"
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    # Filter out the target branch itself
+    local target_name
+    if [[ "$target" == "HEAD" ]]; then
+        target_name=$(get_current_branch)
+    else
+        target_name="$target"
+    fi
+    
+    printf "%s\n" "$branches" | grep -v "^${target_name}$" || true
+    return 0
+}
+
+# Check if branch is merged
+# PURPOSE: Check if a specific branch is merged into target
+# PARAMETERS:
+#   $1 - Branch to check (required)
+#   $2 - Target branch (optional, default: current branch)
+# RETURNS:
+#   0 - Branch is merged
+#   1 - Branch is not merged
+#   2 - Git command failed
+# OUTPUTS:
+#   None
+# EXAMPLE:
+#   if is_branch_merged "feature/old"; then
+#       delete_branch "feature/old"
+#   fi
+is_branch_merged() {
+    local branch="${1:?Branch name required}"
+    local target="${2:-HEAD}"
+    
+    if git branch --merged "$target" 2>/dev/null | grep -q "^[* ]*${branch}$"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Get upstream branch
+# PURPOSE: Get the upstream tracking branch for a local branch
+# PARAMETERS:
+#   $1 - Local branch name (optional, default: current branch)
+# RETURNS:
+#   0 - Has upstream
+#   1 - No upstream set
+# OUTPUTS:
+#   Upstream branch name (e.g., "origin/main")
+# EXAMPLE:
+#   local upstream=$(get_upstream_branch)
+#   local feature_upstream=$(get_upstream_branch "feature/test")
+get_upstream_branch() {
+    local branch="${1:-HEAD}"
+    
+    local upstream
+    if upstream=$(git rev-parse --abbrev-ref "$branch@{upstream}" 2>/dev/null); then
+        printf "%s\n" "$upstream"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Check if branch has upstream
+# PURPOSE: Quick check if a branch has an upstream set
+# PARAMETERS:
+#   $1 - Branch name (optional, default: current branch)
+# RETURNS:
+#   0 - Has upstream
+#   1 - No upstream
+# OUTPUTS:
+#   None
+# EXAMPLE:
+#   if has_upstream; then
+#       pull_latest
+#   fi
+has_upstream() {
+    local branch="${1:-HEAD}"
+    get_upstream_branch "$branch" >/dev/null 2>&1
+}
+
+# Get branch log with flexible format
+# PURPOSE: Get commit log for a branch with custom formatting
+# PARAMETERS:
+#   $1 - Branch name (optional, default: current branch)
+#   $2 - Format string (optional, default: "%H %s")
+#   $3 - Additional git log options (optional)
+# RETURNS:
+#   0 - Success
+#   2 - Git command failed
+# OUTPUTS:
+#   Formatted log entries (one per line)
+# EXAMPLE:
+#   local commits=$(get_branch_log "main" "%h %an: %s" "--since=1.week")
+#   local simple_log=$(get_branch_log "" "%s")
+get_branch_log() {
+    local branch="${1:-HEAD}"
+    local format="${2:-%H %s}"
+    local extra_opts="${3:-}"
+    
+    local log_output
+    if ! log_output=$(git log "$branch" --format="$format" $extra_opts 2>/dev/null); then
+        error "Failed to get branch log"
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    printf "%s\n" "$log_output"
+    return 0
+}
+
+# Find commits with pattern
+# PURPOSE: Search commit messages for a pattern
+# PARAMETERS:
+#   $1 - Search pattern (required)
+#   $2 - Branch to search (optional, default: all branches)
+#   $3 - Additional git log options (optional)
+# RETURNS:
+#   0 - Found matches
+#   1 - No matches found
+#   2 - Git command failed
+# OUTPUTS:
+#   Matching commits in format: "hash message"
+# EXAMPLE:
+#   local fixes=$(find_commits_with_pattern "fix:" "main")
+#   local all_features=$(find_commits_with_pattern "feat:" "--all")
+find_commits_with_pattern() {
+    local pattern="${1:?Search pattern required}"
+    local branch="${2:---all}"
+    local extra_opts="${3:-}"
+    
+    local matches
+    if ! matches=$(git log "$branch" --grep="$pattern" --format="%H %s" $extra_opts 2>/dev/null); then
+        error "Failed to search commits"
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    if [[ -z "$matches" ]]; then
+        return 1
+    else
+        printf "%s\n" "$matches"
+        return 0
+    fi
+}
+
+# Get branch creation date
+# PURPOSE: Get the date when a branch was created (first commit)
+# PARAMETERS:
+#   $1 - Branch name (optional, default: current branch)
+# RETURNS:
+#   0 - Success
+#   1 - Branch not found
+#   2 - Git command failed
+# OUTPUTS:
+#   ISO 8601 date string
+# EXAMPLE:
+#   local created=$(get_branch_creation_date "feature/old")
+#   echo "Branch created on: $created"
+get_branch_creation_date() {
+    local branch="${1:-HEAD}"
+    
+    # Find the first commit on this branch
+    local first_commit
+    if ! first_commit=$(git log "$branch" --format="%aI" --reverse | head -1 2>/dev/null); then
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    if [[ -z "$first_commit" ]]; then
+        return 1
+    fi
+    
+    printf "%s\n" "$first_commit"
+    return 0
+}
+
+# Get branch last commit date
+# PURPOSE: Get the date of the most recent commit on a branch
+# PARAMETERS:
+#   $1 - Branch name (optional, default: current branch)
+# RETURNS:
+#   0 - Success
+#   1 - Branch not found
+#   2 - Git command failed
+# OUTPUTS:
+#   ISO 8601 date string
+# EXAMPLE:
+#   local last_activity=$(get_branch_last_commit_date "develop")
+get_branch_last_commit_date() {
+    local branch="${1:-HEAD}"
+    
+    local last_commit
+    if ! last_commit=$(git log -1 "$branch" --format="%aI" 2>/dev/null); then
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    if [[ -z "$last_commit" ]]; then
+        return 1
+    fi
+    
+    printf "%s\n" "$last_commit"
+    return 0
+}
+
+# Show file history
+# PURPOSE: Get commit history for a specific file
+# PARAMETERS:
+#   $1 - File path (required)
+#   $2 - Format string (optional, default: "%h %ad %an: %s")
+#   $3 - Additional git log options (optional)
+# RETURNS:
+#   0 - Success
+#   1 - File not found
+#   2 - Git command failed
+# OUTPUTS:
+#   Formatted commit history for the file
+# EXAMPLE:
+#   local history=$(show_file_history "README.md")
+#   local recent=$(show_file_history "src/main.js" "%h %s" "--since=1.month")
+show_file_history() {
+    local file="${1:?File path required}"
+    local format="${2:-%h %ad %an: %s}"
+    local extra_opts="${3:-}"
+    
+    if [[ ! -e "$file" ]]; then
+        error "File not found: $file"
+        return 1
+    fi
+    
+    local history
+    if ! history=$(git log --follow --format="$format" $extra_opts -- "$file" 2>/dev/null); then
+        error "Failed to get file history"
+        return $EXIT_GIT_COMMAND_FAILED
+    fi
+    
+    printf "%s\n" "$history"
+    return 0
+}
+
+# Get git directory path
+# PURPOSE: Get the path to the .git directory
+# PARAMETERS: None
+# RETURNS:
+#   0 - Success
+#   1 - Not in a git repository
+# OUTPUTS:
+#   Absolute path to .git directory
+# SIDE EFFECTS:
+#   - Updates runtime.git.gitDir in state
+# EXAMPLE:
+#   local git_dir=$(get_git_dir)
+#   echo "Git directory: $git_dir"
+get_git_dir() {
+    local git_dir
+    if ! git_dir=$(git rev-parse --git-dir 2>/dev/null); then
+        return 1
+    fi
+    
+    # Convert to absolute path
+    git_dir=$(cd "$git_dir" && pwd)
+    
+    # Update state if available
+    if [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+        update_state "runtime.git.gitDir" "$git_dir" 2>/dev/null || true
+    fi
+    
+    printf "%s\n" "$git_dir"
+    return 0
+}
+
+# Check if inside .git directory
+# PURPOSE: Detect if current directory is inside .git
+# PARAMETERS: None
+# RETURNS:
+#   0 - Inside .git directory
+#   1 - Not inside .git directory
+# OUTPUTS:
+#   None
+# EXAMPLE:
+#   if is_in_git_dir; then
+#       die "Cannot run this command inside .git directory"
+#   fi
+is_in_git_dir() {
+    local inside_git
+    inside_git=$(git rev-parse --is-inside-git-dir 2>/dev/null || echo "false")
+    
+    [[ "$inside_git" == "true" ]]
+}
+
+# Count stashes
+# PURPOSE: Get the number of stashed changes
+# PARAMETERS: None
+# RETURNS:
+#   0 - Always succeeds
+# OUTPUTS:
+#   Number of stashes
+# SIDE EFFECTS:
+#   - Updates runtime.git.stashCount in state
+# EXAMPLE:
+#   local stash_count=$(count_stashes)
+#   if [[ $stash_count -gt 0 ]]; then
+#       info "You have $stash_count stashed changes"
+#   fi
+count_stashes() {
+    local count
+    count=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
+    
+    # Update state if available
+    if [[ "$STATE_LOADED" == "true" ]] && command -v update_state &>/dev/null; then
+        update_state "runtime.git.stashCount" "$count" 2>/dev/null || true
+    fi
+    
+    printf "%s\n" "$count"
+    return 0
+}
+
+# ============================================================================
 # EXPORT SUCCESS
 # ============================================================================
 
