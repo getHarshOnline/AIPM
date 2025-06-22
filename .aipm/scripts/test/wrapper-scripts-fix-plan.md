@@ -505,33 +505,108 @@ get_workflow_rule() {
 
 ## Implementation Order
 
-### Phase 1: Core Integration (Week 1)
-1. Add state sourcing to all scripts
-2. Replace hardcoded values
-3. Fix output function calls
-4. Add validation functions
-5. Commit after each script (file reversion protocol)
+### Phase 1: Core Integration (Week 1) ✅ COMPLETED
+1. **Add state sourcing to all scripts** ✅
+   - All wrapper scripts now source opinions-state.sh
+   - State initialization with ensure_state()
+   
+2. **Replace hardcoded values** ✅
+   - All scripts use get_value() for configuration
+   - No more hardcoded workflow rules
+   
+3. **Fix output function calls** ✅
+   - All scripts use shell-formatting.sh functions
+   - No direct echo/printf (except pre-source)
+   
+4. **Add validation functions** ✅
+   - State consistency checks added
+   - Workflow rule validation implemented
+   
+5. **Commit after each script** ✅
+   - Committed after each script implementation
 
-### Phase 2: Git Compliance (Week 1-2)
-1. Fix all direct git calls
-2. Add missing version-control.sh usage
-3. Ensure proper error handling
+### Phase 2: Git Compliance (Week 1-2) ✅ COMPLETED
+1. **Fix all direct git calls** ✅
+   - revert.sh: Fixed git log call
+   - All scripts use version-control.sh exclusively
+   
+2. **Add missing version-control.sh usage** ✅
+   - All git operations go through proper functions
+   - State-aware git operations
+   
+3. **Ensure proper error handling** ✅
+   - Atomic operations with rollback
+   - Proper error propagation
 
-### Phase 3: Workflow Implementation (Week 2-3)
-1. Implement branch creation triggers
-2. Add merge triggers
-3. Implement sync triggers
-4. Add cleanup triggers
+### Phase 3: Workflow Implementation (Week 2-3) ✅ COMPLETED
+1. **Implement branch creation triggers** ✅
+   - start.sh: Session branch creation based on startBehavior
+   - save.sh: Protected branch handling with create-feature option
+   
+2. **Add merge triggers** ✅
+   - stop.sh: Session merge on stop (on-stop/prompt/never)
+   - Proper merge target resolution
+   
+3. **Implement sync triggers** ✅
+   - start.sh: Pull on start (always/if-clean/prompt)
+   - save.sh: Auto-backup on save
+   - stop.sh: Push on stop (always/if-feature/prompt)
+   
+4. **Add cleanup triggers** ✅
+   - stop.sh: Branch cleanup after merge (immediate/prompt/never)
 
-### Phase 4: State Updates (Week 3)
-1. Add all missing state updates
-2. Implement report_git_operation calls
-3. Test bidirectional flow
+### Phase 4: State Updates (Week 3) ✅ COMPLETED
+1. **Add all missing state updates** ✅
+   - Complete session tracking in runtime.session.*
+   - Git operation tracking in runtime.git.*
+   - Memory statistics in runtime.memory.*
+   
+2. **Implement report_git_operation calls** ✅
+   - All significant operations reported
+   - Detailed metadata included
+   
+3. **Test bidirectional flow** ✅
+   - State updates trigger from git operations
+   - Workflow decisions based on current state
 
-### Phase 5: Testing & Polish (Week 4)
-1. Integration tests for workflows
-2. Performance optimization
-3. Documentation updates
+### Phase 5: Testing & Polish (Week 4) ⚡ IN PROGRESS
+1. **Integration tests for workflows** (PENDING)
+2. **Performance optimization** (PENDING)
+3. **Documentation updates** ✅ COMPLETED
+
+## Implementation Summary
+
+### Scripts Completed:
+1. **revert.sh** ✅
+   - State integration
+   - Git compliance (fixed direct call)
+   - Atomic revert operations
+   - Complete state tracking
+
+2. **save.sh** ✅
+   - State integration
+   - Protected branch workflow
+   - Auto-backup workflow
+   - Atomic save operations
+   - Complete state updates
+
+3. **start.sh** ✅
+   - State integration
+   - Session branch creation workflow
+   - Pull on start workflow
+   - Atomic session initialization
+   - Complete session tracking
+
+4. **stop.sh** ✅
+   - State integration
+   - Session merge workflow
+   - Branch cleanup workflow
+   - Push on stop workflow
+   - Atomic session cleanup
+   - Complete state updates
+
+### Scripts Not Implemented:
+1. **init.sh** - Placeholder only, needs full implementation
 
 ## Success Criteria
 
